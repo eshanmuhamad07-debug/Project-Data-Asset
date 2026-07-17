@@ -335,6 +335,44 @@ def aset_create():
     flash("Aset berhasil ditambahkan.", "success")
     return redirect(url_for("aset_list"))
 
+@app.route("/aset/<int:aset_id>/detail")
+@login_required
+def aset_detail(aset_id):
+    """API untuk mengambil detail aset + histori (dipakai modal detail)."""
+    aset = Aset.query.get_or_404(aset_id)
+    
+    histori = HistoriAset.query.filter_by(id_aset=aset_id).order_by(HistoriAset.tanggal.desc()).all()
+    histori_data = []
+    for h in histori:
+        histori_data.append({
+            "jenis": h.jenis_event,
+            "gedung": h.gedung or "",
+            "lantai": h.lantai or "",
+            "ruangan": h.ruangan or "",
+            "gedung_asal": h.gedung_asal or "",      # +++ TAMBAH
+            "lantai_asal": h.lantai_asal or "",      # +++ TAMBAH
+            "ruangan_asal": h.ruangan_asal or "",    # +++ TAMBAH
+            "tanggal": h.tanggal.strftime("%d-%m-%Y %H:%M"),
+            "id_tiket": h.id_tiket
+        })
+    
+    data = {
+        "id": aset.id,
+        "kode_aset": aset.kode_aset,
+        "nama": aset.nama,
+        "jenis_aset": aset.jenis_aset,
+        "status_aset": aset.status_aset,
+        "gedung": aset.gedung,
+        "lantai": aset.lantai or "",
+        "ruangan": aset.ruangan,
+        "kategori": aset.kategori.nama if aset.kategori else "-",
+        "sub_kategori": aset.sub_kategori.nama if aset.sub_kategori else "-",
+        "foto": aset.foto,
+        "total_kerusakan": aset.total_kerusakan or 0,
+        "spesifikasi": aset.spesifikasi or "-",
+        "histori": histori_data
+    }
+    return jsonify(data)
 
 @app.route("/aset/<int:aset_id>/edit", methods=["POST"])
 @login_required
@@ -597,10 +635,17 @@ def tiket_list():
         page=page, per_page=20, error_out=False
     )
     daftar_tiket = pagination.items
+    
+    # Ambil daftar gedung unik dari Aset untuk dropdown
+    gedung_all = [
+        g[0] for g in db.session.query(Aset.gedung).distinct().order_by(Aset.gedung).all() if g[0]
+    ]
+    
     return render_template(
         "tiket/list.html",
         daftar_tiket=daftar_tiket,
         pagination=pagination,
+        gedung_all=gedung_all,
     )
 
 
@@ -614,7 +659,6 @@ def tiket_create_pemindahan():
         flash("Pilih minimal 1 aset.", "danger")
         return redirect(url_for("tiket_list"))
 
-    # Ambil data form
     gedung_asal = request.form.get("gedung_asal", "").strip()
     lantai_asal = request.form.get("lantai_asal", "").strip()
     ruangan_asal = request.form.get("ruangan_asal", "").strip()
@@ -637,33 +681,32 @@ def tiket_create_pemindahan():
         ruangan_tujuan=ruangan_tujuan,
         catatan=catatan,
         foto=foto,
-        status_tiket="Selesai",  # Langsung selesai
+        status_tiket="Selesai",
     )
     db.session.add(tiket)
     db.session.flush()
 
-    # Proses setiap aset
     for aid in aset_ids:
         aset = db.session.get(Aset, int(aid))
         if aset:
-            # Catat histori pindah
             histori = HistoriAset(
                 id_aset=aset.id,
                 jenis_event="pindah",
                 gedung=gedung_tujuan,
                 lantai=lantai_tujuan,
                 ruangan=ruangan_tujuan,
+                gedung_asal=aset.gedung,      
+                lantai_asal=aset.lantai,
+                ruangan_asal=aset.ruangan,
                 id_tiket=tiket.id
             )
             db.session.add(histori)
             
-            # Update lokasi aset
             aset.gedung = gedung_tujuan
             aset.lantai = lantai_tujuan or None
             aset.ruangan = ruangan_tujuan
-            aset.status_aset = "Baik"  # Status tetap baik
+            aset.status_aset = "Baik"
             
-            # Relasi tiket-aset
             db.session.add(TiketAset(id_tiket=tiket.id, id_aset=aset.id))
 
     catat_log(tiket, None, "Selesai")
@@ -784,7 +827,8 @@ def tiket_selesai(tiket_id):
 @app.route("/schedule")
 @login_required
 def schedule():
-    return render_template("schedule.html")
+    daftar_tiket = Tiket.query.order_by(Tiket.created_at.desc()).all()
+    return render_template("schedule.html", daftar_tiket=daftar_tiket)
 
 
 @app.route("/api/schedule-events")

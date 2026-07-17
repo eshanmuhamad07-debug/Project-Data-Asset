@@ -43,8 +43,8 @@ class Aset(db.Model):
     ruangan = db.Column(db.String(100), nullable=False)
     status_aset = db.Column(db.String(20), default="Baik")  # Baik / Rusak
     jenis_aset = db.Column(db.String(20), nullable=False, default="Operasional")
-    # +++ TAMBAHAN: total kerusakan
     total_kerusakan = db.Column(db.Integer, default=0, nullable=False)
+    spesifikasi = db.Column(db.Text, nullable=True)
 
     id_kategori = db.Column(db.Integer, db.ForeignKey("kategori.id"), nullable=True)
     id_sub_kategori = db.Column(db.Integer, db.ForeignKey("sub_kategori.id"), nullable=True)
@@ -106,16 +106,19 @@ class LogStatus(db.Model):
     user_pengubah = db.relationship("User")
 
 
-# +++ TABEL BARU: HistoriAset
 class HistoriAset(db.Model):
     __tablename__ = "histori_aset"
 
     id = db.Column(db.Integer, primary_key=True)
     id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=False)
     jenis_event = db.Column(db.String(20), nullable=False)  # 'pindah', 'rusak', 'perbaikan'
-    gedung = db.Column(db.String(100), nullable=True)      # lokasi tujuan untuk pindah, atau lokasi saat rusak/perbaikan
+    gedung = db.Column(db.String(100), nullable=True)       # lokasi tujuan untuk pindah
     lantai = db.Column(db.String(50), nullable=True)
     ruangan = db.Column(db.String(100), nullable=True)
+    # +++ TAMBAHAN: lokasi asal untuk histori pemindahan
+    gedung_asal = db.Column(db.String(100), nullable=True)
+    lantai_asal = db.Column(db.String(50), nullable=True)
+    ruangan_asal = db.Column(db.String(100), nullable=True)
     tanggal = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     id_tiket = db.Column(db.Integer, db.ForeignKey("tiket.id"), nullable=True)
 
