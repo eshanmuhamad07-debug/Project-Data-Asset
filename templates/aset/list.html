@@ -6,66 +6,113 @@
 {% block content %}
 
 <div class="card">
-  <div class="p-4 sm:p-5 border-b border-slate-100 space-y-3">
-    <div class="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
-      <form method="GET" class="flex flex-col gap-2 w-full lg:w-auto">
-        <div class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
-          <div class="relative">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-            <input type="text" name="q" value="{{ request.args.get('q', '') }}" placeholder="Cari nama atau kode aset..."
-                   class="field-input pl-9 w-full sm:w-64">
-          </div>
-          <select name="status" onchange="this.form.submit()" class="field-input w-full sm:w-40">
+  <div class="p-4 sm:p-5 border-b border-slate-100 space-y-4">
+
+    {% if current_user.role == 'admin' %}
+    <div class="flex flex-wrap items-center justify-end gap-2">
+      <a href="{{ url_for('aset_export') }}" class="btn btn-secondary">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+        Export
+      </a>
+      <form method="POST" action="{{ url_for('aset_import') }}" enctype="multipart/form-data" class="flex items-center gap-1.5">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="btn btn-secondary cursor-pointer relative overflow-hidden">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5"/></svg>
+          <span id="importFileLabel">Import Excel</span>
+          <input type="file" name="file_import" accept=".xlsx" required onchange="document.getElementById('importFileLabel').textContent = this.files[0]?.name || 'Import Excel'"
+                 class="absolute inset-0 opacity-0 cursor-pointer">
+        </label>
+        <button type="submit" class="btn btn-secondary">Unggah</button>
+      </form>
+      <button onclick="openModal('modalTambahAset')" class="btn btn-primary">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        Tambah Aset
+      </button>
+    </div>
+    {% endif %}
+
+    <form method="GET" class="space-y-3">
+      <div class="relative w-full lg:max-w-sm">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+        <input type="text" name="q" value="{{ request.args.get('q', '') }}" placeholder="Cari nama atau kode aset..."
+               class="field-input pl-9 w-full">
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end">
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">Status</label>
+          <select name="status" class="field-input w-full">
             <option value="">Semua Status</option>
             <option value="Baik" {{ 'selected' if request.args.get('status')=='Baik' }}>Baik</option>
             <option value="Rusak" {{ 'selected' if request.args.get('status')=='Rusak' }}>Rusak</option>
             <option value="Dipindahkan" {{ 'selected' if request.args.get('status')=='Dipindahkan' }}>Dipindahkan</option>
           </select>
-          <select name="kategori" id="filterKategori" onchange="onFilterKategoriChange(this)" class="kategoriSelect field-input w-full sm:w-44" data-target="filterSubKategori">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">Kategori</label>
+          <select name="kategori" id="filterKategori" onchange="onFilterKategoriChange(this)" class="kategoriSelect field-input w-full" data-target="filterSubKategori">
             <option value="">Semua Kategori</option>
             {% for k in kategori_all %}
             <option value="{{ k.id }}" {{ 'selected' if request.args.get('kategori')|string==k.id|string }}>{{ k.nama }}</option>
             {% endfor %}
           </select>
-          <select name="jenis" onchange="this.form.submit()" class="field-input w-full sm:w-40">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">Jenis Aset</label>
+          <select name="jenis" class="field-input w-full">
             <option value="">Semua Jenis</option>
             {% for j in jenis_aset_options %}
             <option value="{{ j }}" {{ 'selected' if request.args.get('jenis')==j }}>{{ j }}</option>
             {% endfor %}
           </select>
-          <button type="submit" class="btn btn-secondary shrink-0">Terapkan</button>
+        </div>
+        <div class="flex gap-2">
+          <button type="submit" class="btn btn-primary flex-1 justify-center">Cari</button>
           {% if request.args.get('q') or request.args.get('status') or request.args.get('kategori') or request.args.get('jenis') or request.args.get('sub_kategori') or request.args.get('gedung') or request.args.get('lantai') or request.args.get('ruangan') %}
-          <a href="{{ url_for('aset_list') }}" class="btn btn-secondary shrink-0 text-slate-400">Reset</a>
+          <a href="{{ url_for('aset_list') }}" class="btn btn-secondary shrink-0 text-slate-400" title="Reset semua filter">Reset</a>
           {% endif %}
         </div>
+      </div>
 
-        <details class="group" {{ 'open' if request.args.get('sub_kategori') or request.args.get('gedung') or request.args.get('lantai') or request.args.get('ruangan') }}>
-          <summary class="cursor-pointer select-none inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 w-fit">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform group-open:rotate-90"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
-            Filter Lanjutan
-          </summary>
-          <div class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto mt-2">
-            <select name="sub_kategori" id="filterSubKategori" onchange="this.form.submit()" class="field-input w-full sm:w-44">
+      <details class="group rounded-xl border border-slate-200 bg-slate-50/70" {{ 'open' if request.args.get('sub_kategori') or request.args.get('gedung') or request.args.get('lantai') or request.args.get('ruangan') }}>
+        <summary class="cursor-pointer select-none list-none px-3.5 py-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 w-full">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform group-open:rotate-90"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+          Filter Lanjutan
+          <span class="font-normal text-slate-400">(Sub Kategori · Gedung · Lantai · Ruangan)</span>
+        </summary>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 px-3.5 pb-3.5">
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Sub Kategori</label>
+            <select name="sub_kategori" id="filterSubKategori" class="field-input w-full">
               {% if sub_kategori_terpilih %}
                 <option value="{{ sub_kategori_terpilih.id }}" selected>{{ sub_kategori_terpilih.nama }}</option>
               {% else %}
                 <option value="">{{ 'Pilih Kategori dulu' if not request.args.get('kategori') else 'Semua Sub Kategori' }}</option>
               {% endif %}
             </select>
-            <select name="gedung" id="filterGedung" onchange="onFilterGedungChange(this)" class="field-input w-full sm:w-40">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Gedung</label>
+            <select name="gedung" id="filterGedung" onchange="onFilterGedungChange(this)" class="field-input w-full">
               <option value="">Semua Gedung</option>
               {% for g in gedung_all %}
               <option value="{{ g }}" {{ 'selected' if request.args.get('gedung')==g }}>{{ g }}</option>
               {% endfor %}
             </select>
-            <select name="lantai" id="filterLantai" onchange="onFilterLantaiChange(this)" class="field-input w-full sm:w-36">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Lantai</label>
+            <select name="lantai" id="filterLantai" onchange="onFilterLantaiChange(this)" class="field-input w-full">
               {% if request.args.get('lantai') %}
                 <option value="{{ request.args.get('lantai') }}" selected>Lantai {{ request.args.get('lantai') }}</option>
               {% else %}
                 <option value="">{{ 'Pilih Gedung dulu' if not request.args.get('gedung') else 'Semua Lantai' }}</option>
               {% endif %}
             </select>
-            <select name="ruangan" id="filterRuangan" onchange="this.form.submit()" class="field-input w-full sm:w-44">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Ruangan</label>
+            <select name="ruangan" id="filterRuangan" class="field-input w-full">
               {% if request.args.get('ruangan') %}
                 <option value="{{ request.args.get('ruangan') }}" selected>{{ request.args.get('ruangan') }}</option>
               {% else %}
@@ -73,37 +120,15 @@
               {% endif %}
             </select>
           </div>
-        </details>
-      </form>
+        </div>
+      </details>
 
       {% if current_user.role == 'admin' %}
-      <div class="flex flex-wrap gap-2 w-full lg:w-auto">
-        <a href="{{ url_for('aset_export') }}" class="btn btn-secondary">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-          Export
-        </a>
-        <form method="POST" action="{{ url_for('aset_import') }}" enctype="multipart/form-data" class="flex items-center gap-1.5">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <label class="btn btn-secondary cursor-pointer relative overflow-hidden">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5"/></svg>
-            <span id="importFileLabel">Import Excel</span>
-            <input type="file" name="file_import" accept=".xlsx" required onchange="document.getElementById('importFileLabel').textContent = this.files[0]?.name || 'Import Excel'"
-                   class="absolute inset-0 opacity-0 cursor-pointer">
-          </label>
-          <button type="submit" class="btn btn-secondary">Unggah</button>
-        </form>
-        <button onclick="openModal('modalTambahAset')" class="btn btn-primary">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-          Tambah Aset
-        </button>
-      </div>
+      <p class="text-xs text-slate-400">
+        Klik <b class="text-slate-500">Export</b> untuk unduh data, edit di Excel, lalu <b class="text-slate-500">Import</b> file yang sama untuk memperbarui data (dicocokkan berdasarkan Kode Aset) atau menambah aset baru.
+      </p>
       {% endif %}
-    </div>
-    {% if current_user.role == 'admin' %}
-    <p class="text-xs text-slate-400">
-      Klik <b class="text-slate-500">Export</b> untuk unduh data, edit di Excel, lalu <b class="text-slate-500">Import</b> file yang sama untuk memperbarui data (dicocokkan berdasarkan Kode Aset) atau menambah aset baru.
-    </p>
-    {% endif %}
+    </form>
   </div>
 
   <div class="overflow-x-auto">
@@ -124,13 +149,16 @@
         <tr class="table-row hover:bg-slate-50">
           <td class="td font-mono text-[12px] text-slate-500 whitespace-nowrap">{{ a.kode_aset }}</td>
           <td class="td font-medium text-slate-800">{{ a.nama }}</td>
-          <td class="td whitespace-nowrap text-slate-500">{{ a.gedung }} / {{ a.ruangan }}</td>
+          <td class="td text-slate-500">
+            <div class="font-medium text-slate-600">{{ a.gedung }}{% if a.lantai %} · Lantai {{ a.lantai }}{% endif %}</div>
+            <div class="text-xs text-slate-400">{{ a.ruangan }}</div>
+          </td>
           <td class="td">{{ m.pill(a.jenis_aset, m.jenis_aset_tone(a.jenis_aset)) }}</td>
           <td class="td whitespace-nowrap text-slate-500">{{ a.sub_kategori.nama if a.sub_kategori else '—' }}</td>
           <td class="td">{{ m.pill(a.status_aset, m.aset_tone(a.status_aset)) }}</td>
           {% if current_user.role == 'admin' %}
           <td class="td whitespace-nowrap text-right">
-            <button onclick='openEditAset({{ {"id": a.id, "nama": a.nama, "gedung": a.gedung, "ruangan": a.ruangan, "status_aset": a.status_aset, "jenis_aset": a.jenis_aset, "id_kategori": a.id_kategori, "id_sub_kategori": a.id_sub_kategori} | tojson }})'
+            <button onclick='openEditAset({{ {"id": a.id, "nama": a.nama, "gedung": a.gedung, "lantai": a.lantai, "ruangan": a.ruangan, "status_aset": a.status_aset, "jenis_aset": a.jenis_aset, "id_kategori": a.id_kategori, "id_sub_kategori": a.id_sub_kategori} | tojson }})'
                     class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-indigo-50">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
               Edit
@@ -191,15 +219,19 @@
         <label class="field-label">Nama Aset</label>
         <input name="nama" required class="field-input">
       </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
+      <div class="grid grid-cols-3 gap-3">
+        <div class="col-span-2">
           <label class="field-label">Gedung</label>
           <input name="gedung" required class="field-input">
         </div>
         <div>
-          <label class="field-label">Ruangan</label>
-          <input name="ruangan" required class="field-input">
+          <label class="field-label">Lantai</label>
+          <input name="lantai" placeholder="cth. 2" class="field-input">
         </div>
+      </div>
+      <div>
+        <label class="field-label">Ruangan</label>
+        <input name="ruangan" required class="field-input">
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
@@ -256,15 +288,19 @@
         <label class="field-label">Nama Aset</label>
         <input name="nama" id="editNama" required class="field-input">
       </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
+      <div class="grid grid-cols-3 gap-3">
+        <div class="col-span-2">
           <label class="field-label">Gedung</label>
           <input name="gedung" id="editGedung" required class="field-input">
         </div>
         <div>
-          <label class="field-label">Ruangan</label>
-          <input name="ruangan" id="editRuangan" required class="field-input">
+          <label class="field-label">Lantai</label>
+          <input name="lantai" id="editLantai" placeholder="cth. 2" class="field-input">
         </div>
+      </div>
+      <div>
+        <label class="field-label">Ruangan</label>
+        <input name="ruangan" id="editRuangan" required class="field-input">
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
@@ -310,24 +346,22 @@
 
 {% block scripts %}
 <script>
-// Ganti Kategori di filter -> muat ulang pilihan Sub Kategori (reset), lalu submit form
+// Ganti Kategori di filter -> cuma muat ulang pilihan Sub Kategori (reset),
+// TIDAK langsung submit -- baru diterapkan saat tombol "Terapkan" diklik.
 function onFilterKategoriChange(selectEl) {
   loadSubKategori(selectEl, 'filterSubKategori');
-  selectEl.form.submit();
 }
 
-// Ganti Gedung -> reset pilihan Lantai & Ruangan, lalu submit form
+// Ganti Gedung -> cuma reset pilihan Lantai & Ruangan, tidak langsung submit
 function onFilterGedungChange(selectEl) {
   loadLantai(selectEl, 'filterLantai');
   loadRuangan(selectEl, 'filterLantai', 'filterRuangan');
-  selectEl.form.submit();
 }
 
-// Ganti Lantai -> reset pilihan Ruangan, lalu submit form
+// Ganti Lantai -> cuma reset pilihan Ruangan, tidak langsung submit
 function onFilterLantaiChange(lantaiEl) {
   const gedungEl = document.getElementById('filterGedung');
   loadRuangan(gedungEl, 'filterLantai', 'filterRuangan');
-  lantaiEl.form.submit();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -347,6 +381,7 @@ function openEditAset(data) {
   document.getElementById('formEditAset').action = `/aset/${data.id}/edit`;
   document.getElementById('editNama').value = data.nama;
   document.getElementById('editGedung').value = data.gedung;
+  document.getElementById('editLantai').value = data.lantai || '';
   document.getElementById('editRuangan').value = data.ruangan;
   document.getElementById('editStatus').value = data.status_aset;
   document.getElementById('editJenisAset').value = data.jenis_aset;
