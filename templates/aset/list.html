@@ -184,19 +184,27 @@
     </div>
     <form method="POST" action="{{ url_for('aset_create') }}" enctype="multipart/form-data" class="p-5 space-y-3.5">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      
       <div>
         <label class="field-label">Kode Aset</label>
         <input name="kode_aset" required class="field-input">
       </div>
+      
       <div>
         <label class="field-label">Nama Aset</label>
         <input name="nama" required class="field-input">
       </div>
+      
+      <div>
+        <label class="field-label">Spesifikasi</label>
+        <textarea name="spesifikasi" rows="3" class="field-input" placeholder="Merek, tipe, ukuran, dll."></textarea>
+      </div>
+      
       <div class="grid grid-cols-3 gap-2">
         <div>
           <label class="field-label text-[10px]">Gedung</label>
           <select name="gedung" id="addGedung" required class="field-input text-sm" onchange="loadLantai(this.value, 'addLantai', 'addRuangan', null)">
-            <option value="">Pilih Gedung</option>
+            <option value="">Pilih</option>
             {% for g in gedung_all %}
             <option value="{{ g }}">{{ g }}</option>
             {% endfor %}
@@ -215,11 +223,12 @@
           </select>
         </div>
       </div>
+      
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label">Kategori</label>
           <select name="id_kategori" class="kategoriSelect field-input" data-target="subKategoriAdd">
-            <option value="">Pilih Kategori</option>
+            <option value="">Pilih</option>
             {% for k in kategori_all %}<option value="{{ k.id }}">{{ k.nama }}</option>{% endfor %}
           </select>
         </div>
@@ -230,6 +239,7 @@
           </select>
         </div>
       </div>
+      
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label">Status</label>
@@ -246,10 +256,19 @@
           </select>
         </div>
       </div>
+      
       <div>
-        <label class="field-label">Foto Aset</label>
+        <label class="field-label">Upload Foto</label>
         <input type="file" name="foto" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
+        <p class="text-[10px] text-slate-400 mt-1">Atau gunakan link di bawah</p>
       </div>
+      
+      <div>
+        <label class="field-label">Link Foto (Google Drive / URL)</label>
+        <input name="foto_url" class="field-input" placeholder="https://drive.google.com/... atau URL gambar">
+        <p class="text-[10px] text-slate-400 mt-1">Masukkan link gambar jika tidak upload file</p>
+      </div>
+      
       <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Aset</button>
     </form>
   </div>
@@ -266,15 +285,22 @@
     </div>
     <form id="formEditAset" method="POST" enctype="multipart/form-data" class="p-5 space-y-3.5">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      
       <div>
         <label class="field-label">Nama Aset</label>
         <input name="nama" id="editNama" required class="field-input">
       </div>
+      
+      <div>
+        <label class="field-label">Spesifikasi</label>
+        <textarea name="spesifikasi" id="editSpesifikasi" rows="3" class="field-input" placeholder="Merek, tipe, ukuran, dll."></textarea>
+      </div>
+      
       <div class="grid grid-cols-3 gap-2">
         <div>
           <label class="field-label text-[10px]">Gedung</label>
           <select name="gedung" id="editGedung" required class="field-input text-sm" onchange="loadLantai(this.value, 'editLantai', 'editRuangan', null)">
-            <option value="">Pilih Gedung</option>
+            <option value="">Pilih</option>
             {% for g in gedung_all %}
             <option value="{{ g }}">{{ g }}</option>
             {% endfor %}
@@ -293,11 +319,12 @@
           </select>
         </div>
       </div>
+      
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label">Kategori</label>
           <select name="id_kategori" id="editKategori" class="kategoriSelect field-input" data-target="subKategoriEdit">
-            <option value="">Pilih Kategori</option>
+            <option value="">Pilih</option>
             {% for k in kategori_all %}<option value="{{ k.id }}">{{ k.nama }}</option>{% endfor %}
           </select>
         </div>
@@ -308,6 +335,7 @@
           </select>
         </div>
       </div>
+      
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label">Status</label>
@@ -324,10 +352,19 @@
           </select>
         </div>
       </div>
+      
       <div>
-        <label class="field-label">Ganti Foto (opsional)</label>
+        <label class="field-label">Upload Foto (opsional)</label>
         <input type="file" name="foto" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
+        <p class="text-[10px] text-slate-400 mt-1">Atau gunakan link di bawah</p>
       </div>
+      
+      <div>
+        <label class="field-label">Link Foto (Google Drive / URL)</label>
+        <input name="foto_url" id="editFotoUrl" class="field-input" placeholder="https://drive.google.com/... atau URL gambar">
+        <p class="text-[10px] text-slate-400 mt-1">Isi untuk mengubah link foto</p>
+      </div>
+      
       <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Perubahan</button>
     </form>
   </div>
@@ -391,8 +428,10 @@ window.addEventListener('DOMContentLoaded', () => {
 function openEditAset(data) {
   document.getElementById('formEditAset').action = `/aset/${data.id}/edit`;
   document.getElementById('editNama').value = data.nama;
+  document.getElementById('editSpesifikasi').value = data.spesifikasi || '';
   document.getElementById('editStatus').value = data.status_aset;
   document.getElementById('editJenisAset').value = data.jenis_aset || 'Operasional';
+  document.getElementById('editFotoUrl').value = data.foto_url || '';
   
   const selKategori = document.getElementById('editKategori');
   selKategori.value = data.id_kategori || '';
@@ -403,7 +442,6 @@ function openEditAset(data) {
   gedungEl.value = data.gedung || '';
   if (data.gedung) {
     loadLantai(data.gedung, 'editLantai', 'editRuangan', null);
-    // Tunggu sebentar lalu set lantai & ruangan
     setTimeout(() => {
       const lantaiEl = document.getElementById('editLantai');
       if (data.lantai) {
@@ -420,9 +458,6 @@ function openEditAset(data) {
   openModal('modalEditAset');
 }
 
-// =============================================================
-// FUNGSI DETAIL ASET (dengan Spesifikasi & Histori + Lokasi Asal)
-// =============================================================
 function openDetailAset(asetId) {
   const modal = document.getElementById('modalDetailAset');
   const content = document.getElementById('detailAsetContent');
@@ -449,9 +484,27 @@ function openDetailAset(asetId) {
       return res.json();
     })
     .then(data => {
-      const fotoHtml = data.foto 
-        ? `<img src="/static/uploads/${data.foto}" class="rounded-xl max-h-60 w-full object-cover border border-slate-200" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23f1f5f9%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2394a3b8%22 font-family=%22sans-serif%22 font-size=%2214%22%3EFoto tidak ditemukan%3C/text%3E%3C/svg%3E'">`
-        : `<div class="bg-slate-100 rounded-xl h-40 flex items-center justify-center text-slate-400 text-sm">Tidak ada foto</div>`;
+      // DEBUG: lihat di console apa yang dikirim server
+      console.log('Data aset:', data);
+      console.log('Foto file:', data.foto_file);
+      console.log('Foto URL:', data.foto_url);
+      
+      // +++ PERBAIKAN: Tampilkan foto
+      let fotoHtml = '';
+      if (data.foto) {
+        // Cek apakah foto adalah URL (http/https) atau file lokal
+        if (data.foto.startsWith('http://') || data.foto.startsWith('https://') || data.foto.startsWith('//')) {
+          // Ini adalah URL eksternal
+          fotoHtml = `<img src="${data.foto}" class="rounded-xl max-h-60 w-full object-cover border border-slate-200" 
+                            onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23f1f5f9%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2394a3b8%22 font-family=%22sans-serif%22 font-size=%2214%22%3EFoto tidak ditemukan%3C/text%3E%3C/svg%3E'">`;
+        } else {
+          // Ini adalah file lokal di static/uploads
+          fotoHtml = `<img src="/static/uploads/${data.foto}" class="rounded-xl max-h-60 w-full object-cover border border-slate-200" 
+                            onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23f1f5f9%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2394a3b8%22 font-family=%22sans-serif%22 font-size=%2214%22%3EFoto tidak ditemukan%3C/text%3E%3C/svg%3E'; console.error('Foto tidak ditemukan:', '/static/uploads/${data.foto}');">`;
+        }
+      } else {
+        fotoHtml = `<div class="bg-slate-100 rounded-xl h-40 flex items-center justify-center text-slate-400 text-sm">Tidak ada foto</div>`;
+      }
       
       const statusColor = {
         'Baik': 'text-emerald-600 bg-emerald-50',
@@ -473,15 +526,12 @@ function openDetailAset(asetId) {
             label = '🔄 Pemindahan';
             color = 'text-blue-600';
             icon = '🔄';
-            // Tampilkan asal → tujuan
             let asal = `${h.gedung_asal || '-'}`;
             if (h.lantai_asal) asal += ` / Lantai ${h.lantai_asal}`;
             if (h.ruangan_asal) asal += ` / ${h.ruangan_asal}`;
-            
             let tujuan = `${h.gedung || '-'}`;
             if (h.lantai) tujuan += ` / Lantai ${h.lantai}`;
             if (h.ruangan) tujuan += ` / ${h.ruangan}`;
-            
             detailLokasi = `📍 ${asal} → ${tujuan}`;
           } else if (h.jenis === 'rusak') {
             label = '⚠️ Kerusakan';

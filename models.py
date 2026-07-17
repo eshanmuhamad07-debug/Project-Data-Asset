@@ -37,11 +37,12 @@ class Aset(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     kode_aset = db.Column(db.String(50), unique=True, nullable=False)
     nama = db.Column(db.String(150), nullable=False)
-    foto = db.Column(db.String(255), nullable=True)
+    foto = db.Column(db.String(255), nullable=True)          # untuk upload file
+    foto_url = db.Column(db.String(500), nullable=True)      # +++ TAMBAH: untuk link URL
     gedung = db.Column(db.String(100), nullable=False)
     lantai = db.Column(db.String(50), nullable=True)
     ruangan = db.Column(db.String(100), nullable=False)
-    status_aset = db.Column(db.String(20), default="Baik")  # Baik / Rusak
+    status_aset = db.Column(db.String(20), default="Baik")
     jenis_aset = db.Column(db.String(20), nullable=False, default="Operasional")
     total_kerusakan = db.Column(db.Integer, default=0, nullable=False)
     spesifikasi = db.Column(db.Text, nullable=True)

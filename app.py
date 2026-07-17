@@ -2,7 +2,7 @@ import os
 import io
 from functools import wraps
 from datetime import datetime
-
+import logging
 from flask import (
     Flask, render_template, redirect, url_for, request, flash, jsonify,
     abort, send_file
@@ -29,7 +29,7 @@ from roles import ROLE_ADMIN
 # ---------------------------------------------------------------------------
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
-ALLOWED_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
+ALLOWED_EXT = {"png", "jpg", "jpeg", "gif", "webp", "jpe", "jfif", "bmp", "tiff", "tif"}
 
 app = Flask(__name__)
 
@@ -58,6 +58,7 @@ limiter.init_app(app)
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+logging.basicConfig(level=logging.DEBUG)
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -67,27 +68,44 @@ def allowed_file(filename):
 
 
 def is_valid_image(file_storage):
+    """Solusi #5: pastikan file BENAR-BENAR gambar, bukan cuma nama
+    berekstensi gambar (mis. file .exe yang diganti nama jadi .jpg)."""
     try:
         pos = file_storage.stream.tell()
         Image.open(file_storage.stream).verify()
         file_storage.stream.seek(pos)
         return True
-    except Exception:
+    except Exception as e:
+        logging.debug(f"is_valid_image: Error verifying image: {e}")
         return False
 
 
 def save_upload(file_storage, prefix=""):
+    """Simpan file upload ke static/uploads, return (filename, error).
+    - (filename, None) jika berhasil
+    - (None, error_message) jika gagal
+    """
     if not file_storage or file_storage.filename == "":
-        return None
+        return None, None  # Tidak ada file, bukan error
+    
     if not allowed_file(file_storage.filename):
-        return None
+        return None, f"Ekstensi file tidak diizinkan. Gunakan: {', '.join(ALLOWED_EXT)}"
+    
     if not is_valid_image(file_storage):
-        return None
+        return None, "File yang diupload bukan gambar yang valid (rusak atau tidak sesuai format)."
+    
     filename = secure_filename(file_storage.filename)
+    if not filename:
+        return None, "Nama file tidak valid."
+    
     unique_name = f"{prefix}{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
-    file_storage.save(os.path.join(app.config["UPLOAD_FOLDER"], unique_name))
-    return unique_name
-
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
+    
+    try:
+        file_storage.save(filepath)
+        return unique_name, None
+    except Exception as e:
+        return None, f"Gagal menyimpan file: {str(e)}"
 
 def role_required(*roles):
     def decorator(f):
@@ -317,22 +335,40 @@ def aset_create():
     if jenis_aset not in JENIS_ASET_OPTIONS:
         jenis_aset = "Operasional"
 
-    foto = save_upload(request.files.get("foto"), prefix="aset_")
+    # Upload foto jika ada
+    foto_file = request.files.get("foto")
+    foto = None
+    foto_error = None
+    
+    if foto_file and foto_file.filename:
+        foto, foto_error = save_upload(foto_file, prefix="aset_")
+    
+    # Ambil foto_url jika diisi
+    foto_url = request.form.get("foto_url", "").strip() or None
+
     aset = Aset(
         kode_aset=kode_aset,
         nama=request.form.get("nama"),
         foto=foto,
+        foto_url=foto_url,
         gedung=request.form.get("gedung"),
         lantai=request.form.get("lantai") or None,
         ruangan=request.form.get("ruangan"),
         status_aset=request.form.get("status_aset", "Baik"),
         jenis_aset=jenis_aset,
+        spesifikasi=request.form.get("spesifikasi", "").strip() or None,
         id_kategori=request.form.get("id_kategori") or None,
         id_sub_kategori=request.form.get("id_sub_kategori") or None,
     )
     db.session.add(aset)
     db.session.commit()
-    flash("Aset berhasil ditambahkan.", "success")
+    
+    # Flash message
+    if foto_error:
+        flash(f"Aset berhasil ditambahkan, tetapi foto gagal diupload: {foto_error}", "warning")
+    else:
+        flash("Aset berhasil ditambahkan.", "success")
+    
     return redirect(url_for("aset_list"))
 
 @app.route("/aset/<int:aset_id>/detail")
@@ -349,12 +385,15 @@ def aset_detail(aset_id):
             "gedung": h.gedung or "",
             "lantai": h.lantai or "",
             "ruangan": h.ruangan or "",
-            "gedung_asal": h.gedung_asal or "",      # +++ TAMBAH
-            "lantai_asal": h.lantai_asal or "",      # +++ TAMBAH
-            "ruangan_asal": h.ruangan_asal or "",    # +++ TAMBAH
+            "gedung_asal": h.gedung_asal or "",
+            "lantai_asal": h.lantai_asal or "",
+            "ruangan_asal": h.ruangan_asal or "",
             "tanggal": h.tanggal.strftime("%d-%m-%Y %H:%M"),
             "id_tiket": h.id_tiket
         })
+    
+    # Tentukan foto mana yang akan ditampilkan (prioritas: foto_url > foto)
+    foto_display = aset.foto_url or aset.foto
     
     data = {
         "id": aset.id,
@@ -367,7 +406,9 @@ def aset_detail(aset_id):
         "ruangan": aset.ruangan,
         "kategori": aset.kategori.nama if aset.kategori else "-",
         "sub_kategori": aset.sub_kategori.nama if aset.sub_kategori else "-",
-        "foto": aset.foto,
+        "foto": foto_display,  # kirim foto yang akan ditampilkan
+        "foto_file": aset.foto,      # file upload
+        "foto_url": aset.foto_url,   # link URL
         "total_kerusakan": aset.total_kerusakan or 0,
         "spesifikasi": aset.spesifikasi or "-",
         "histori": histori_data
@@ -384,17 +425,37 @@ def aset_edit(aset_id):
     aset.lantai = request.form.get("lantai") or None
     aset.ruangan = request.form.get("ruangan")
     aset.status_aset = request.form.get("status_aset", aset.status_aset)
+    aset.spesifikasi = request.form.get("spesifikasi", "").strip() or None
+    
+    # Update foto_url jika diisi
+    foto_url = request.form.get("foto_url", "").strip()
+    if foto_url:
+        aset.foto_url = foto_url
+    elif foto_url == "" and request.form.get("hapus_foto"):
+        aset.foto_url = None
+    
     jenis_aset = request.form.get("jenis_aset", aset.jenis_aset)
     aset.jenis_aset = jenis_aset if jenis_aset in JENIS_ASET_OPTIONS else aset.jenis_aset
     aset.id_kategori = request.form.get("id_kategori") or None
     aset.id_sub_kategori = request.form.get("id_sub_kategori") or None
 
-    foto = save_upload(request.files.get("foto"), prefix="aset_")
-    if foto:
-        aset.foto = foto
+    # Upload foto baru jika ada
+    foto_file = request.files.get("foto")
+    foto_error = None
+    
+    if foto_file and foto_file.filename:
+        foto, foto_error = save_upload(foto_file, prefix="aset_")
+        if foto:
+            aset.foto = foto
 
     db.session.commit()
-    flash("Aset berhasil diperbarui.", "success")
+    
+    # Flash message
+    if foto_error:
+        flash(f"Aset berhasil diperbarui, tetapi foto gagal diupload: {foto_error}", "warning")
+    else:
+        flash("Aset berhasil diperbarui.", "success")
+    
     return redirect(url_for("aset_list"))
 
 
