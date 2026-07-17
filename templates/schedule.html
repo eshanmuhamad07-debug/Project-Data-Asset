@@ -1,63 +1,51 @@
 {% import "_macros.html" as m %}
 {% extends "base.html" %}
-{% block title %}Schedule{% endblock %}
+{% block title %}Schedule / Kalender{% endblock %}
 {% block header %}Schedule / Kalender{% endblock %}
 {% block subheader %}<p class="text-xs text-slate-400">Jadwal semua laporan pemindahan &amp; kerusakan</p>{% endblock %}
 {% block content %}
 
 <div class="card p-4 sm:p-5">
-  <div id="calendar" class="w-full"></div>
-</div>
-
-<div class="card p-4 sm:p-5 mt-4">
-  <div class="flex items-center justify-between mb-3">
-    <p class="text-sm font-semibold text-slate-700">📋 Daftar Semua Tiket</p>
-    <div class="flex gap-2">
-      <span class="flex items-center gap-1 text-xs"><span class="w-3 h-3 rounded-full bg-blue-500"></span> Pemindahan</span>
-      <span class="flex items-center gap-1 text-xs"><span class="w-3 h-3 rounded-full bg-rose-500"></span> Kerusakan</span>
-    </div>
+  <!-- Navigasi Bulan -->
+  <div class="flex items-center justify-between mb-4">
+    <a href="{{ url_for('schedule', month=prev_month, year=prev_year) }}" class="btn btn-sm btn-outline">&lt; Prev</a>
+    <h2 class="text-lg font-semibold">{{ bulan_nama }} {{ year }}</h2>
+    <a href="{{ url_for('schedule', month=next_month, year=next_year) }}" class="btn btn-sm btn-outline">Next &gt;</a>
   </div>
-  
+
+  <!-- Grid Kalender -->
   <div class="overflow-x-auto">
-    <table class="w-full">
+    <table class="w-full border-collapse">
       <thead>
-        <tr class="border-b border-slate-100 bg-slate-50/60">
-          <th class="th">#</th>
-          <th class="th">Jenis</th>
-          <th class="th">Pemohon</th>
-          <th class="th">Asal</th>
-          <th class="th">Tujuan</th>
-          <th class="th">Status</th>
-          <th class="th">Tanggal</th>
+        <tr>
+          {% for day in day_names %}
+          <th class="border border-slate-200 bg-slate-50 px-2 py-1 text-center text-xs font-semibold text-slate-600">{{ day }}</th>
+          {% endfor %}
         </tr>
       </thead>
       <tbody>
-        {% for t in daftar_tiket %}
-        <tr class="table-row cursor-pointer hover:bg-slate-50" onclick="window.location='{{ url_for('tiket_detail', tiket_id=t.id) }}'">
-          <td class="td font-semibold text-slate-800">#{{ t.id }}</td>
-          <td class="td">
-            <span class="pill {{ 'bg-blue-50 text-blue-700 border border-blue-100' if t.jenis_tiket == 'Pemindahan' else 'bg-rose-50 text-rose-700 border border-rose-100' }}">
-              <span class="pill-dot {{ 'bg-blue-500' if t.jenis_tiket == 'Pemindahan' else 'bg-rose-500' }}"></span>
-              {{ t.jenis_tiket }}
-            </span>
-          </td>
-          <td class="td">{{ t.nama_pemohon }}</td>
-          <td class="td whitespace-nowrap text-slate-500">{{ t.gedung_asal or '—' }}</td>
-          <td class="td whitespace-nowrap text-slate-500">
-            {% if t.jenis_tiket == 'Pemindahan' %}
-              {{ t.gedung_tujuan or '—' }}
-            {% else %}
-              —
+        {% for week in month_days %}
+        <tr>
+          {% for day in week %}
+          <td class="border border-slate-200 align-top p-1 h-24 w-24 text-xs hover:bg-slate-50 cursor-pointer" onclick="showDay('{{ year }}-{{ month }}-{{ day }}')">
+            <div class="font-semibold text-slate-700 mb-1">{{ day if day != 0 else '' }}</div>
+            {% if day != 0 %}
+              {% set date_obj = datetime(year, month, day) %}
+              {% set tiket_hari = grouped.get(date_obj.date(), []) %}
+              {% for t in tiket_hari[:3] %} {# tampilkan maksimal 3 event #}
+                <div class="text-[10px] leading-tight truncate rounded px-1 py-0.5 mb-0.5 
+                  {% if t.jenis_tiket == 'Pemindahan' %}bg-blue-50 text-blue-700 border border-blue-100
+                  {% else %}bg-rose-50 text-rose-700 border border-rose-100{% endif %}"
+                >
+                  {{ t.jenis_tiket[:3] }} #{{ t.id }}
+                </div>
+              {% endfor %}
+              {% if tiket_hari|length > 3 %}
+                <div class="text-[10px] text-slate-400">+{{ tiket_hari|length - 3 }} lagi</div>
+              {% endif %}
             {% endif %}
           </td>
-          <td class="td">{{ m.pill(t.status_tiket, m.tiket_tone(t.status_tiket)) }}</td>
-          <td class="td whitespace-nowrap text-slate-500">{{ t.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="7" class="py-10 text-center">
-            <p class="text-sm text-slate-400">Belum ada tiket.</p>
-          </td>
+          {% endfor %}
         </tr>
         {% endfor %}
       </tbody>
@@ -65,38 +53,83 @@
   </div>
 </div>
 
+<!-- Modal untuk detail hari -->
+<div id="dayModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/50 p-4">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-y-auto">
+    <div class="flex items-center justify-between p-4 border-b border-slate-200">
+      <h3 class="text-lg font-semibold" id="modalDate">Tanggal</h3>
+      <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+    </div>
+    <div id="modalBody" class="p-4">
+      <!-- Isi akan diisi oleh JavaScript -->
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  var calendarEl = document.getElementById('calendar');
-  var calendar = new FullCalendar.Calendar(calendarEl, {
-    locale: 'id',
-    initialView: 'dayGridMonth',
-    headerToolbar: {
-      left: 'prev,next today',
-      center: 'title',
-      right: 'dayGridMonth,dayGridWeek,listWeek'
-    },
-    events: '/api/schedule-events',
-    eventClick: function(info) {
-      if (info.event.url) {
-        window.location.href = info.event.url;
-        return false;
-      }
-    },
-    eventDidMount: function(info) {
-      // Tambahkan tooltip
-      const props = info.event.extendedProps;
-      if (props) {
-        const tooltip = `Jenis: ${props.jenis || '-'}\nStatus: ${props.status || '-'}\nPemohon: ${props.pemohon || '-'}`;
-        info.el.setAttribute('title', tooltip);
-      }
-    },
-    height: 500,
-  });
-  calendar.render();
+function showDay(dateStr) {
+    // dateStr format: "YYYY-M-D" atau "YYYY-MM-DD"
+    // Kita format menjadi YYYY-MM-DD untuk API
+    const parts = dateStr.split('-').map(Number);
+    const formatted = `${parts[0]}-${String(parts[1]).padStart(2,'0')}-${String(parts[2]).padStart(2,'0')}`;
+    
+    fetch(`/api/tickets-by-date?date=${formatted}`)
+        .then(res => res.json())
+        .then(data => {
+            const modal = document.getElementById('dayModal');
+            const dateLabel = document.getElementById('modalDate');
+            const body = document.getElementById('modalBody');
+            
+            // Ubah format tanggal ke yang lebih terbaca
+            const d = new Date(parts[0], parts[1]-1, parts[2]);
+            dateLabel.textContent = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            
+            if (data.length === 0) {
+                body.innerHTML = '<p class="text-slate-400 text-sm">Tidak ada tiket pada tanggal ini.</p>';
+            } else {
+                let html = '<ul class="divide-y divide-slate-100">';
+                data.forEach(t => {
+                    html += `
+                        <li class="py-2">
+                            <a href="${t.url}" class="block hover:bg-slate-50 p-2 rounded transition">
+                                <span class="inline-block px-2 py-0.5 text-xs rounded 
+                                    ${t.jenis === 'Pemindahan' ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-700'}">
+                                    ${t.jenis}
+                                </span>
+                                <span class="font-medium">#${t.id}</span>
+                                <span class="text-slate-600">- ${t.pemohon}</span>
+                                <span class="float-right text-xs text-slate-400">${t.status}</span>
+                            </a>
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                body.innerHTML = html;
+            }
+            
+            modal.classList.remove('hidden');
+        })
+        .catch(err => {
+            alert('Gagal mengambil data tiket.');
+            console.error(err);
+        });
+}
+
+function closeModal() {
+    document.getElementById('dayModal').classList.add('hidden');
+}
+
+// Tutup modal jika klik di luar area putih
+document.getElementById('dayModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+// Tutup modal dengan tombol ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeModal();
 });
 </script>
 {% endblock %}

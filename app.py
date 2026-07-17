@@ -23,6 +23,9 @@ from models import (
     LogStatus, HistoriAset
 )
 from roles import ROLE_ADMIN
+from collections import defaultdict
+from datetime import datetime, date, timedelta
+import calendar
 
 # ---------------------------------------------------------------------------
 # Konfigurasi Aplikasi
@@ -78,6 +81,13 @@ def is_valid_image(file_storage):
     except Exception as e:
         logging.debug(f"is_valid_image: Error verifying image: {e}")
         return False
+
+def group_tickets_by_date(tickets):
+    grouped = defaultdict(list)
+    for t in tickets:
+        dt = t.created_at.date()
+        grouped[dt].append(t)
+    return grouped
 
 
 def save_upload(file_storage, prefix=""):
@@ -729,7 +739,11 @@ def tiket_create_pemindahan():
     nama_pemohon = request.form.get("nama_pemohon", "").strip()
     catatan = request.form.get("catatan", "").strip()
 
-    foto = save_upload(request.files.get("foto"), prefix="tiket_")
+    foto_file = request.files.get("foto")
+    foto = None
+    foto_error = None
+    if foto_file and foto_file.filename:
+        foto, foto_error = save_upload(foto_file, prefix="tiket_")
 
     tiket = Tiket(
         jenis_tiket="Pemindahan",
@@ -772,8 +786,11 @@ def tiket_create_pemindahan():
 
     catat_log(tiket, None, "Selesai")
     db.session.commit()
-    flash(f"Tiket pemindahan berhasil dibuat. {len(aset_ids)} aset dipindahkan.", "success")
-    return redirect(url_for("tiket_list"))
+    if foto_error:
+        flash(f"Tiket berhasil dibuat, tetapi foto gagal diupload: {foto_error}", "warning")
+    else:
+        flash(f"Tiket pemindahan berhasil dibuat. {len(aset_ids)} aset dipindahkan.", "success")
+        return redirect(url_for("tiket_list"))
 
 
 @app.route("/tiket/create/kerusakan", methods=["POST"])
@@ -792,7 +809,11 @@ def tiket_create_kerusakan():
     nama_pemohon = request.form.get("nama_pemohon", "").strip()
     catatan = request.form.get("catatan", "").strip()
 
-    foto = save_upload(request.files.get("foto"), prefix="tiket_")
+    foto_file = request.files.get("foto")
+    foto = None
+    foto_error = None
+    if foto_file and foto_file.filename:
+        foto, foto_error = save_upload(foto_file, prefix="tiket_")
 
     tiket = Tiket(
         jenis_tiket="Kerusakan",
@@ -831,8 +852,11 @@ def tiket_create_kerusakan():
 
     catat_log(tiket, None, "Pending")
     db.session.commit()
-    flash(f"Tiket kerusakan berhasil dibuat. {len(aset_ids)} aset rusak.", "success")
-    return redirect(url_for("tiket_list"))
+    if foto_error:
+        flash(f"Tiket berhasil dibuat, tetapi foto gagal diupload: {foto_error}", "warning")
+    else:
+        flash(f"Tiket kerusakan berhasil dibuat. {len(aset_ids)} aset rusak.", "success")
+        return redirect(url_for("tiket_list"))
 
 
 @app.route("/tiket/<int:tiket_id>")
@@ -888,8 +912,48 @@ def tiket_selesai(tiket_id):
 @app.route("/schedule")
 @login_required
 def schedule():
-    daftar_tiket = Tiket.query.order_by(Tiket.created_at.desc()).all()
-    return render_template("schedule.html", daftar_tiket=daftar_tiket)
+    # Ambil bulan/tahun dari request
+    today = datetime.today()
+    month = request.args.get('month', type=int, default=today.month)
+    year = request.args.get('year', type=int, default=today.year)
+    
+    # Validasi
+    if month < 1 or month > 12:
+        month = today.month
+    if year < 2000 or year > 2100:
+        year = today.year
+
+    # Ambil semua tiket (atau filter sesuai kebutuhan)
+    semua_tiket = Tiket.query.order_by(Tiket.created_at).all()
+    grouped = group_tickets_by_date(semua_tiket)
+
+    # Buat kalender untuk bulan ini
+    cal = calendar.Calendar(firstweekday=6)  # Minggu sebagai hari pertama (sesuai contoh)
+    month_days = cal.monthdayscalendar(year, month)
+    
+    # Nama hari (pendek)
+    day_names = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
+    
+    # Data untuk navigasi
+    prev_month = month - 1 if month > 1 else 12
+    prev_year = year if month > 1 else year - 1
+    next_month = month + 1 if month < 12 else 1
+    next_year = year if month < 12 else year + 1
+
+    return render_template(
+        "schedule.html",
+        month_days=month_days,
+        day_names=day_names,
+        grouped=grouped,
+        month=month,
+        year=year,
+        prev_month=prev_month,
+        prev_year=prev_year,
+        next_month=next_month,
+        next_year=next_year,
+        bulan_nama=calendar.month_name[month],
+        datetime=datetime
+    )
 
 
 @app.route("/api/schedule-events")
@@ -913,6 +977,33 @@ def api_schedule_events():
             }
         })
     return jsonify(events)
+
+@app.route("/api/tickets-by-date")
+@login_required
+def api_tickets_by_date():
+    date_str = request.args.get('date')
+    if not date_str:
+        return jsonify([])
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify([])
+    
+    # Ambil tiket yang created_at sama dengan target_date (abaikan waktu)
+    tickets = Tiket.query.filter(
+        db.func.date(Tiket.created_at) == target_date
+    ).order_by(Tiket.created_at).all()
+    
+    data = []
+    for t in tickets:
+        data.append({
+            "id": t.id,
+            "jenis": t.jenis_tiket,
+            "pemohon": t.nama_pemohon,
+            "status": t.status_tiket,
+            "url": url_for('tiket_detail', tiket_id=t.id)
+        })
+    return jsonify(data)
 
 
 # ---------------------------------------------------------------------------
