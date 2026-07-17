@@ -20,9 +20,9 @@ from openpyxl.utils import get_column_letter
 from extensions import db, login_manager, csrf, limiter
 from models import (
     User, Kategori, SubKategori, Aset, Tiket, TiketAset,
-    TiketUser, KomentarTiket, LogStatus, Notifikasi
+    LogStatus, HistoriAset
 )
-from roles import ROLE_ADMIN, ROLE_OFFICER, ROLE_TEKNISI, ROLES
+from roles import ROLE_ADMIN
 
 # ---------------------------------------------------------------------------
 # Konfigurasi Aplikasi
@@ -33,14 +33,6 @@ ALLOWED_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
 
 app = Flask(__name__)
 
-# --- Solusi #3: Secret key & kredensial DB dari environment variable ---
-# Sebelum menjalankan di server sungguhan, set env var berikut (jangan pakai
-# nilai default di production):
-#   SECRET_KEY, DB_USER, DB_PASSWORD, DB_HOST, DB_NAME, FLASK_DEBUG
-# Contoh (Linux/Mac):
-#   export SECRET_KEY="ganti-dengan-string-acak-panjang"
-#   export DB_USER=root DB_PASSWORD= DB_HOST=localhost DB_NAME=db_manajemen_aset
-# Kalau env var tidak di-set, dipakai nilai default yang cocok untuk XAMPP lokal.
 app.config["SECRET_KEY"] = os.environ.get(
     "SECRET_KEY", "dev-only-jangan-dipakai-di-production"
 )
@@ -54,12 +46,12 @@ app.config["SQLALCHEMY_DATABASE_URI"] = (
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB per file
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 
 db.init_app(app)
 login_manager.init_app(app)
-csrf.init_app(app)          # Solusi #2: proteksi CSRF di semua form POST
-limiter.init_app(app)       # Solusi #9: rate limit percobaan login
+csrf.init_app(app)
+limiter.init_app(app)
 
 
 @login_manager.user_loader
@@ -75,8 +67,6 @@ def allowed_file(filename):
 
 
 def is_valid_image(file_storage):
-    """Solusi #5: pastikan file BENAR-BENAR gambar, bukan cuma nama
-    berekstensi gambar (mis. file .exe yang diganti nama jadi .jpg)."""
     try:
         pos = file_storage.stream.tell()
         Image.open(file_storage.stream).verify()
@@ -87,7 +77,6 @@ def is_valid_image(file_storage):
 
 
 def save_upload(file_storage, prefix=""):
-    """Simpan file upload ke static/uploads, return nama file atau None."""
     if not file_storage or file_storage.filename == "":
         return None
     if not allowed_file(file_storage.filename):
@@ -100,19 +89,7 @@ def save_upload(file_storage, prefix=""):
     return unique_name
 
 
-def user_terlibat_tiket(tiket):
-    """Solusi #1: True jika current_user adalah admin, atau pembuat/pelaksana
-    tiket ini. Dipakai untuk menutup celah otorisasi di route tiket."""
-    if current_user.role == ROLE_ADMIN:
-        return True
-    return (
-        TiketUser.query.filter_by(id_tiket=tiket.id, id_user=current_user.id).count()
-        > 0
-    )
-
-
 def role_required(*roles):
-    """Decorator untuk membatasi akses route berdasarkan role user."""
     def decorator(f):
         @wraps(f)
         def wrapped(*args, **kwargs):
@@ -134,21 +111,6 @@ def catat_log(tiket, status_lama, status_baru):
     ))
 
 
-def buat_notifikasi(user_id, tiket_id, pesan):
-    db.session.add(Notifikasi(id_user=user_id, id_tiket=tiket_id, pesan=pesan))
-
-
-def notif_count():
-    if not current_user.is_authenticated:
-        return 0
-    return Notifikasi.query.filter_by(id_user=current_user.id, is_read=False).count()
-
-
-@app.context_processor
-def inject_notif():
-    return {"notif_count": notif_count() if current_user.is_authenticated else 0}
-
-
 @app.errorhandler(403)
 def forbidden(e):
     return render_template("403.html"), 403
@@ -156,8 +118,6 @@ def forbidden(e):
 
 @app.errorhandler(IntegrityError)
 def handle_integrity_error(e):
-    """Solusi #9: tangkap error database (mis. data duplikat / masih
-    dipakai tabel lain) dan tampilkan pesan ramah alih-alih halaman 500."""
     db.session.rollback()
     flash(
         "Data tidak bisa disimpan: kemungkinan data duplikat atau masih "
@@ -171,7 +131,7 @@ def handle_integrity_error(e):
 # AUTH
 # ---------------------------------------------------------------------------
 @app.route("/login", methods=["GET", "POST"])
-@limiter.limit("8 per minute", methods=["POST"])  # Solusi #6: cegah brute-force
+@limiter.limit("8 per minute", methods=["POST"])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("dashboard"))
@@ -204,7 +164,7 @@ def logout():
 def dashboard():
     total_aset = Aset.query.count()
     total_pending = Tiket.query.filter_by(status_tiket="Pending").count()
-    total_proses = Tiket.query.filter_by(status_tiket="Proses").count()
+    total_selesai = Tiket.query.filter_by(status_tiket="Selesai").count()
 
     kategori_chart = (
         db.session.query(Kategori.nama, db.func.count(Aset.id))
@@ -221,7 +181,7 @@ def dashboard():
         "dashboard.html",
         total_aset=total_aset,
         total_pending=total_pending,
-        total_proses=total_proses,
+        total_selesai=total_selesai,
         chart_labels=chart_labels,
         chart_values=chart_values,
         tiket_terbaru=tiket_terbaru,
@@ -231,7 +191,6 @@ def dashboard():
 # ---------------------------------------------------------------------------
 # ASET (CRUD)
 # ---------------------------------------------------------------------------
-# Jenis Aset: setiap aset punya salah satu dari dua jenis berikut
 JENIS_ASET_OPTIONS = ["Operasional", "Pusat"]
 
 
@@ -270,7 +229,7 @@ def aset_list():
     page = request.args.get("page", 1, type=int)
     pagination = query.order_by(Aset.id.desc()).paginate(
         page=page, per_page=20, error_out=False
-    )  # Solusi #10: pagination server-side agar tetap cepat untuk data besar
+    )
     daftar_aset = pagination.items
     kategori_all = Kategori.query.all()
     sub_kategori_terpilih = SubKategori.query.get(sub_id) if sub_id else None
@@ -291,7 +250,6 @@ def aset_list():
 @app.route("/api/lantai")
 @login_required
 def api_lantai():
-    """Daftar lantai unik yang ada untuk suatu gedung (dipakai filter cascading)."""
     gedung = request.args.get("gedung", "")
     if not gedung:
         return jsonify([])
@@ -308,7 +266,6 @@ def api_lantai():
 @app.route("/api/ruangan")
 @login_required
 def api_ruangan():
-    """Daftar ruangan unik untuk suatu gedung + lantai (dipakai filter cascading)."""
     gedung = request.args.get("gedung", "")
     lantai = request.args.get("lantai", "")
     if not gedung:
@@ -324,6 +281,27 @@ def api_ruangan():
         .all()
     )
     return jsonify([r[0] for r in hasil])
+
+
+@app.route("/api/aset-by-lokasi")
+@login_required
+def api_aset_by_lokasi():
+    """Ambil daftar aset berdasarkan gedung, lantai, ruangan."""
+    gedung = request.args.get("gedung", "")
+    lantai = request.args.get("lantai", "")
+    ruangan = request.args.get("ruangan", "")
+    
+    if not gedung:
+        return jsonify([])
+    
+    filters = [Aset.gedung == gedung]
+    if lantai:
+        filters.append(Aset.lantai == lantai)
+    if ruangan:
+        filters.append(Aset.ruangan == ruangan)
+    
+    hasil = Aset.query.filter(*filters).all()
+    return jsonify([{"id": a.id, "kode": a.kode_aset, "nama": a.nama} for a in hasil])
 
 
 @app.route("/aset/create", methods=["POST"])
@@ -393,8 +371,27 @@ def aset_delete(aset_id):
     return redirect(url_for("aset_list"))
 
 
+@app.route("/aset/<int:aset_id>/histori")
+@login_required
+def aset_histori(aset_id):
+    """API untuk mengambil histori aset tertentu."""
+    aset = Aset.query.get_or_404(aset_id)
+    histori = HistoriAset.query.filter_by(id_aset=aset_id).order_by(HistoriAset.tanggal.desc()).all()
+    data = []
+    for h in histori:
+        data.append({
+            "jenis": h.jenis_event,
+            "gedung": h.gedung or "",
+            "lantai": h.lantai or "",
+            "ruangan": h.ruangan or "",
+            "tanggal": h.tanggal.strftime("%d-%m-%Y %H:%M"),
+            "id_tiket": h.id_tiket
+        })
+    return jsonify(data)
+
+
 # ---------------------------------------------------------------------------
-# EXPORT / IMPORT ASET (Excel) -- fitur baru
+# EXPORT / IMPORT ASET (Excel)
 # ---------------------------------------------------------------------------
 EXPORT_HEADERS = ["kode_aset", "nama", "gedung", "lantai", "ruangan", "status_aset", "jenis_aset", "kategori", "sub_kategori"]
 
@@ -403,8 +400,6 @@ EXPORT_HEADERS = ["kode_aset", "nama", "gedung", "lantai", "ruangan", "status_as
 @login_required
 @role_required(ROLE_ADMIN)
 def aset_export():
-    """Unduh seluruh data aset sebagai file .xlsx. File hasil export ini bisa
-    diedit lalu di-import ulang lewat /aset/import untuk memperbarui data."""
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Data Aset"
@@ -442,11 +437,6 @@ def aset_export():
 @login_required
 @role_required(ROLE_ADMIN)
 def aset_import():
-    """Import data aset dari file .xlsx (format sama dengan hasil /aset/export).
-    Aset dicocokkan berdasarkan `kode_aset`: kalau kode sudah ada -> datanya
-    DIPERBARUI, kalau belum ada -> dibuat sebagai aset baru. Kategori/sub-
-    kategori yang belum ada di sistem akan otomatis dibuat agar prosesnya
-    tetap lancar tanpa harus bolak-balik menambahkan kategori dulu."""
     file = request.files.get("file_import")
     if not file or file.filename == "":
         flash("Pilih file Excel (.xlsx) terlebih dahulu.", "danger")
@@ -468,7 +458,7 @@ def aset_import():
 
     for i, row in enumerate(rows, start=2):
         if not row or not any(row):
-            continue  # baris kosong dilewati diam-diam
+            continue
 
         kolom = (list(row) + [None] * len(EXPORT_HEADERS))[: len(EXPORT_HEADERS)]
         kode_aset, nama, gedung, lantai, ruangan, status_aset, jenis_aset, nama_kategori, nama_sub = kolom
@@ -480,7 +470,6 @@ def aset_import():
             error_baris.append(f"Baris {i}: kode_aset atau nama kosong")
             continue
 
-        # Cari/buat kategori & sub-kategori berdasarkan nama (opsional)
         id_kategori = None
         id_sub_kategori = None
         if nama_kategori:
@@ -506,7 +495,7 @@ def aset_import():
                     db.session.flush()
                 id_sub_kategori = sub.id
 
-        status_valid = status_aset if status_aset in ("Baik", "Rusak", "Dipindahkan") else "Baik"
+        status_valid = status_aset if status_aset in ("Baik", "Rusak") else "Baik"
         jenis_valid = jenis_aset if jenis_aset in JENIS_ASET_OPTIONS else "Operasional"
         aset = Aset.query.filter_by(kode_aset=kode_aset).first()
 
@@ -585,84 +574,160 @@ def sub_kategori_create():
 @app.route("/api/sub-kategori/<int:kategori_id>")
 @login_required
 def api_sub_kategori(kategori_id):
-    """Dipakai oleh chained dropdown vanilla JS di form aset."""
     subs = SubKategori.query.filter_by(id_kategori=kategori_id).all()
     return jsonify([{"id": s.id, "nama": s.nama} for s in subs])
 
 
 # ---------------------------------------------------------------------------
-# TIKET
+# TIKET (LAPORAN)
 # ---------------------------------------------------------------------------
 @app.route("/tiket")
 @login_required
 def tiket_list():
     status = request.args.get("status", "")
+    jenis = request.args.get("jenis", "")
     query = Tiket.query
     if status:
         query = query.filter_by(status_tiket=status)
-
-    # teknisi/officer hanya lihat tiket miliknya (pembuat/pelaksana) + admin lihat semua
-    if current_user.role != "admin":
-        my_ids = [
-            tu.id_tiket for tu in TiketUser.query.filter_by(id_user=current_user.id).all()
-        ]
-        query = query.filter(Tiket.id.in_(my_ids)) if my_ids else query.filter(False)
+    if jenis:
+        query = query.filter_by(jenis_tiket=jenis)
 
     page = request.args.get("page", 1, type=int)
     pagination = query.order_by(Tiket.created_at.desc()).paginate(
         page=page, per_page=20, error_out=False
     )
     daftar_tiket = pagination.items
-    daftar_aset = Aset.query.all()
     return render_template(
         "tiket/list.html",
         daftar_tiket=daftar_tiket,
-        daftar_aset=daftar_aset,
         pagination=pagination,
     )
 
 
-@app.route("/tiket/create", methods=["POST"])
+@app.route("/tiket/create/pemindahan", methods=["POST"])
 @login_required
-@role_required(ROLE_ADMIN, ROLE_OFFICER)
-def tiket_create():
-    jenis = request.form.get("jenis_tiket")
-    aset_ids = request.form.getlist("aset_ids")
+@role_required(ROLE_ADMIN)
+def tiket_create_pemindahan():
+    """Buat tiket pemindahan."""
+    aset_ids = request.form.getlist("aset_ids[]")
     if not aset_ids:
         flash("Pilih minimal 1 aset.", "danger")
         return redirect(url_for("tiket_list"))
 
+    # Ambil data form
+    gedung_asal = request.form.get("gedung_asal", "").strip()
+    lantai_asal = request.form.get("lantai_asal", "").strip()
+    ruangan_asal = request.form.get("ruangan_asal", "").strip()
+    gedung_tujuan = request.form.get("gedung_tujuan", "").strip()
+    lantai_tujuan = request.form.get("lantai_tujuan", "").strip()
+    ruangan_tujuan = request.form.get("ruangan_tujuan", "").strip()
+    nama_pemohon = request.form.get("nama_pemohon", "").strip()
+    catatan = request.form.get("catatan", "").strip()
+
     foto = save_upload(request.files.get("foto"), prefix="tiket_")
+
     tiket = Tiket(
-        jenis_tiket=jenis,
-        nama_pemohon=request.form.get("nama_pemohon"),
-        gedung_tujuan=request.form.get("gedung_tujuan"),
-        ruangan_tujuan=request.form.get("ruangan_tujuan"),
-        catatan=request.form.get("catatan"),
+        jenis_tiket="Pemindahan",
+        nama_pemohon=nama_pemohon,
+        gedung_asal=gedung_asal,
+        lantai_asal=lantai_asal,
+        ruangan_asal=ruangan_asal,
+        gedung_tujuan=gedung_tujuan,
+        lantai_tujuan=lantai_tujuan,
+        ruangan_tujuan=ruangan_tujuan,
+        catatan=catatan,
         foto=foto,
-        status_tiket="Pending",
+        status_tiket="Selesai",  # Langsung selesai
     )
     db.session.add(tiket)
-    db.session.flush()  # supaya tiket.id tersedia
+    db.session.flush()
+
+    # Proses setiap aset
+    for aid in aset_ids:
+        aset = db.session.get(Aset, int(aid))
+        if aset:
+            # Catat histori pindah
+            histori = HistoriAset(
+                id_aset=aset.id,
+                jenis_event="pindah",
+                gedung=gedung_tujuan,
+                lantai=lantai_tujuan,
+                ruangan=ruangan_tujuan,
+                id_tiket=tiket.id
+            )
+            db.session.add(histori)
+            
+            # Update lokasi aset
+            aset.gedung = gedung_tujuan
+            aset.lantai = lantai_tujuan or None
+            aset.ruangan = ruangan_tujuan
+            aset.status_aset = "Baik"  # Status tetap baik
+            
+            # Relasi tiket-aset
+            db.session.add(TiketAset(id_tiket=tiket.id, id_aset=aset.id))
+
+    catat_log(tiket, None, "Selesai")
+    db.session.commit()
+    flash(f"Tiket pemindahan berhasil dibuat. {len(aset_ids)} aset dipindahkan.", "success")
+    return redirect(url_for("tiket_list"))
+
+
+@app.route("/tiket/create/kerusakan", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def tiket_create_kerusakan():
+    """Buat tiket kerusakan."""
+    aset_ids = request.form.getlist("aset_ids[]")
+    if not aset_ids:
+        flash("Pilih minimal 1 aset.", "danger")
+        return redirect(url_for("tiket_list"))
+
+    gedung_asal = request.form.get("gedung_asal", "").strip()
+    lantai_asal = request.form.get("lantai_asal", "").strip()
+    ruangan_asal = request.form.get("ruangan_asal", "").strip()
+    nama_pemohon = request.form.get("nama_pemohon", "").strip()
+    catatan = request.form.get("catatan", "").strip()
+
+    foto = save_upload(request.files.get("foto"), prefix="tiket_")
+
+    tiket = Tiket(
+        jenis_tiket="Kerusakan",
+        nama_pemohon=nama_pemohon,
+        gedung_asal=gedung_asal,
+        lantai_asal=lantai_asal,
+        ruangan_asal=ruangan_asal,
+        catatan=catatan,
+        foto=foto,
+        status_tiket="Pending",  # Menunggu perbaikan
+    )
+    db.session.add(tiket)
+    db.session.flush()
 
     for aid in aset_ids:
         aset = db.session.get(Aset, int(aid))
-        status_awal = aset.status_aset if aset else None
-        db.session.add(TiketAset(
-            id_tiket=tiket.id, id_aset=int(aid), status_sebelum=status_awal
-        ))
         if aset:
-            aset.status_aset = "Dipindahkan" if jenis == "Pemindahan" else "Rusak"
+            # Update status aset menjadi Rusak
+            aset.status_aset = "Rusak"
+            # Increment total kerusakan
+            aset.total_kerusakan = (aset.total_kerusakan or 0) + 1
+            
+            # Catat histori rusak
+            histori = HistoriAset(
+                id_aset=aset.id,
+                jenis_event="rusak",
+                gedung=aset.gedung,
+                lantai=aset.lantai,
+                ruangan=aset.ruangan,
+                id_tiket=tiket.id
+            )
+            db.session.add(histori)
+            
+            # Relasi tiket-aset
+            db.session.add(TiketAset(id_tiket=tiket.id, id_aset=aset.id))
 
-    db.session.add(TiketUser(id_tiket=tiket.id, id_user=current_user.id, peran_di_tiket="pembuat"))
     catat_log(tiket, None, "Pending")
-
-    # Notifikasi ke semua admin
-    for admin in User.query.filter_by(role="admin").all():
-        buat_notifikasi(admin.id, tiket.id, f"Tiket baru #{tiket.id} menunggu review.")
-
     db.session.commit()
-    flash("Tiket berhasil dibuat.", "success")
+    flash(f"Tiket kerusakan berhasil dibuat. {len(aset_ids)} aset rusak.", "success")
     return redirect(url_for("tiket_list"))
 
 
@@ -670,154 +735,79 @@ def tiket_create():
 @login_required
 def tiket_detail(tiket_id):
     tiket = Tiket.query.get_or_404(tiket_id)
-    if not user_terlibat_tiket(tiket):  # Solusi #1
-        abort(403)
-    calon_pelaksana = User.query.filter_by(
-        role=ROLE_OFFICER if tiket.jenis_tiket == "Pemindahan" else ROLE_TEKNISI,
-        is_active=True,
-    ).all()
-    return render_template("tiket/detail.html", tiket=tiket, calon_pelaksana=calon_pelaksana)
-
-
-@app.route("/tiket/<int:tiket_id>/approve", methods=["POST"])
-@login_required
-@role_required(ROLE_ADMIN)
-def tiket_approve(tiket_id):
-    tiket = Tiket.query.get_or_404(tiket_id)
-    pelaksana_ids = request.form.getlist("pelaksana_ids")
-    catatan_internal = request.form.get("catatan_internal", "").strip()
-
-    # Hapus pelaksana lama (selain pembuat), lalu tambahkan yang baru
-    TiketUser.query.filter_by(id_tiket=tiket.id, peran_di_tiket="pelaksana").delete()
-    for uid in pelaksana_ids:
-        db.session.add(TiketUser(id_tiket=tiket.id, id_user=int(uid), peran_di_tiket="pelaksana"))
-        buat_notifikasi(int(uid), tiket.id, f"Anda ditunjuk sebagai pelaksana tiket #{tiket.id}.")
-
-    if catatan_internal:
-        db.session.add(KomentarTiket(id_tiket=tiket.id, id_user=current_user.id, pesan=f"[Catatan Internal] {catatan_internal}"))
-
-    catat_log(tiket, tiket.status_tiket, "Disetujui")
-    tiket.status_tiket = "Disetujui"
-    db.session.commit()
-    flash("Tiket disetujui dan pelaksana ditugaskan.", "success")
-    return redirect(url_for("tiket_detail", tiket_id=tiket.id))
-
-
-@app.route("/tiket/<int:tiket_id>/tolak", methods=["POST"])
-@login_required
-@role_required(ROLE_ADMIN)
-def tiket_tolak(tiket_id):
-    tiket = Tiket.query.get_or_404(tiket_id)
-
-    # Solusi #7: kembalikan status aset ke kondisi sebelum tiket dibuat --
-    # sebelumnya status aset (mis. "Rusak"/"Dipindahkan") tidak pernah
-    # dikembalikan saat tiket ditolak, jadi aset selamanya nyangkut salah status.
-    for ta in tiket.aset_terkait:
-        if ta.aset and ta.status_sebelum:
-            ta.aset.status_aset = ta.status_sebelum
-
-    catat_log(tiket, tiket.status_tiket, "Ditolak")
-    tiket.status_tiket = "Ditolak"
-    db.session.commit()
-    flash("Tiket ditolak, status aset dikembalikan seperti semula.", "info")
-    return redirect(url_for("tiket_detail", tiket_id=tiket.id))
-
-
-@app.route("/tiket/<int:tiket_id>/assign", methods=["POST"])
-@login_required
-@role_required(ROLE_ADMIN)
-def tiket_assign_edit(tiket_id):
-    """Admin bisa mengedit pelaksana kapan saja meski status Proses."""
-    tiket = Tiket.query.get_or_404(tiket_id)
-    pelaksana_ids = request.form.getlist("pelaksana_ids")
-
-    TiketUser.query.filter_by(id_tiket=tiket.id, peran_di_tiket="pelaksana").delete()
-    for uid in pelaksana_ids:
-        db.session.add(TiketUser(id_tiket=tiket.id, id_user=int(uid), peran_di_tiket="pelaksana"))
-        buat_notifikasi(int(uid), tiket.id, f"Penugasan Anda pada tiket #{tiket.id} diperbarui.")
-
-    db.session.commit()
-    flash("Daftar pelaksana diperbarui.", "success")
-    return redirect(url_for("tiket_detail", tiket_id=tiket.id))
-
-
-@app.route("/tiket/<int:tiket_id>/mulai", methods=["POST"])
-@login_required
-def tiket_mulai(tiket_id):
-    tiket = Tiket.query.get_or_404(tiket_id)
-    if not user_terlibat_tiket(tiket):  # Solusi #1
-        abort(403)
-    catat_log(tiket, tiket.status_tiket, "Proses")
-    tiket.status_tiket = "Proses"
-    db.session.commit()
-    flash("Tiket mulai diproses.", "success")
-    return redirect(url_for("tiket_detail", tiket_id=tiket.id))
+    return render_template("tiket/detail.html", tiket=tiket)
 
 
 @app.route("/tiket/<int:tiket_id>/selesai", methods=["POST"])
 @login_required
+@role_required(ROLE_ADMIN)
 def tiket_selesai(tiket_id):
+    """Tandai tiket kerusakan selesai (aset sudah diperbaiki)."""
     tiket = Tiket.query.get_or_404(tiket_id)
-    if not user_terlibat_tiket(tiket):  # Solusi #1
-        abort(403)
-    catat_log(tiket, tiket.status_tiket, "Selesai")
-    tiket.status_tiket = "Selesai"
+    
+    if tiket.jenis_tiket != "Kerusakan":
+        flash("Hanya tiket kerusakan yang bisa ditandai selesai.", "danger")
+        return redirect(url_for("tiket_detail", tiket_id=tiket.id))
+    
+    if tiket.status_tiket != "Pending":
+        flash("Tiket sudah selesai.", "warning")
+        return redirect(url_for("tiket_detail", tiket_id=tiket.id))
 
+    # Proses setiap aset
     for ta in tiket.aset_terkait:
         aset = ta.aset
-        if tiket.jenis_tiket == "Pemindahan":
-            aset.gedung = tiket.gedung_tujuan or aset.gedung
-            aset.ruangan = tiket.ruangan_tujuan or aset.ruangan
+        if aset:
+            # Kembalikan status aset menjadi Baik
             aset.status_aset = "Baik"
-        else:
-            aset.status_aset = "Baik"
+            
+            # Catat histori perbaikan
+            histori = HistoriAset(
+                id_aset=aset.id,
+                jenis_event="perbaikan",
+                gedung=aset.gedung,
+                lantai=aset.lantai,
+                ruangan=aset.ruangan,
+                id_tiket=tiket.id
+            )
+            db.session.add(histori)
 
+    catat_log(tiket, "Pending", "Selesai")
+    tiket.status_tiket = "Selesai"
     db.session.commit()
-    flash("Tiket selesai. Data aset diperbarui otomatis.", "success")
-    return redirect(url_for("tiket_detail", tiket_id=tiket.id))
-
-
-@app.route("/tiket/<int:tiket_id>/komentar", methods=["POST"])
-@login_required
-def tiket_komentar(tiket_id):
-    tiket = Tiket.query.get_or_404(tiket_id)
-    if not user_terlibat_tiket(tiket):  # Solusi #1
-        abort(403)
-    foto = save_upload(request.files.get("foto"), prefix="komentar_")
-    db.session.add(KomentarTiket(
-        id_tiket=tiket.id,
-        id_user=current_user.id,
-        pesan=request.form.get("pesan"),
-        foto_komentar=foto,
-    ))
-
-    # notifikasi ke admin jika yang komentar pelaksana (misal minta bantuan)
-    if current_user.role != "admin":
-        for admin in User.query.filter_by(role="admin").all():
-            buat_notifikasi(admin.id, tiket.id, f"Komentar baru di tiket #{tiket.id} dari {current_user.name}.")
-
-    db.session.commit()
-    flash("Komentar ditambahkan.", "success")
+    flash("Tiket kerusakan selesai. Aset sudah diperbaiki.", "success")
     return redirect(url_for("tiket_detail", tiket_id=tiket.id))
 
 
 # ---------------------------------------------------------------------------
-# NOTIFIKASI
+# SCHEDULE (KALENDER)
 # ---------------------------------------------------------------------------
-@app.route("/notifikasi")
+@app.route("/schedule")
 @login_required
-def notifikasi_list():
-    daftar = Notifikasi.query.filter_by(id_user=current_user.id).order_by(Notifikasi.created_at.desc()).all()
-    for n in daftar:
-        n.is_read = True
-    db.session.commit()
-    return render_template("notifikasi.html", daftar=daftar)
+def schedule():
+    return render_template("schedule.html")
 
 
-@app.route("/api/notifikasi/count")
+@app.route("/api/schedule-events")
 @login_required
-def api_notif_count():
-    return jsonify({"count": notif_count()})
+def api_schedule_events():
+    """API untuk FullCalendar - ambil semua tiket sebagai event."""
+    tiket_all = Tiket.query.order_by(Tiket.created_at).all()
+    events = []
+    for t in tiket_all:
+        color = "#3b82f6" if t.jenis_tiket == "Pemindahan" else "#ef4444"  # Biru untuk pindah, merah untuk rusak
+        events.append({
+            "id": t.id,
+            "title": f"#{t.id} - {t.jenis_tiket} - {t.nama_pemohon}",
+            "start": t.created_at.isoformat(),
+            "url": url_for("tiket_detail", tiket_id=t.id),
+            "color": color,
+            "extendedProps": {
+                "jenis": t.jenis_tiket,
+                "status": t.status_tiket,
+                "pemohon": t.nama_pemohon
+            }
+        })
+    return jsonify(events)
 
 
 # ---------------------------------------------------------------------------
@@ -842,10 +832,10 @@ def users_create():
     if User.query.filter_by(email=email).first():
         flash("Email sudah terdaftar.", "danger")
         return redirect(url_for("users_list"))
-    if len(password) < 8:  # Solusi #11: validasi minimal password
+    if len(password) < 8:
         flash("Password minimal 8 karakter.", "danger")
         return redirect(url_for("users_list"))
-    if role not in ROLES:  # Solusi #12: hanya izinkan role yang valid
+    if role != "admin":  # Hanya admin yang boleh
         flash("Role tidak valid.", "danger")
         return redirect(url_for("users_list"))
 
@@ -853,7 +843,7 @@ def users_create():
         name=request.form.get("name"),
         email=email,
         password=generate_password_hash(password),
-        role=role,
+        role="admin",
     ))
     db.session.commit()
     flash("User berhasil ditambahkan.", "success")
@@ -864,9 +854,6 @@ def users_create():
 @login_required
 @role_required(ROLE_ADMIN)
 def users_toggle(user_id):
-    """Solusi #8: nonaktifkan/aktifkan akun (soft-delete) alih-alih hapus
-    permanen -- menghapus user yang punya riwayat tiket/komentar akan gagal
-    karena foreign key (IntegrityError)."""
     if user_id == current_user.id:
         flash("Tidak bisa menonaktifkan akun sendiri.", "danger")
         return redirect(url_for("users_list"))
@@ -881,7 +868,5 @@ def users_toggle(user_id):
 
 
 if __name__ == "__main__":
-    # Solusi #4: debug mode HARUS mati saat aplikasi diakses publik
-    # (debugger Werkzeug bisa dieksploitasi jadi remote code execution).
     debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
     app.run(debug=debug_mode)

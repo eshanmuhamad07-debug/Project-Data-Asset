@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Schedule{% endblock %}
+{% block header %}Schedule / Kalender{% endblock %}
+{% block subheader %}<p class="text-xs text-slate-400">Jadwal semua laporan pemindahan &amp; kerusakan</p>{% endblock %}
+{% block content %}
+
+<div class="card p-4 sm:p-5">
+  <div id="calendar" class="w-full"></div>
+</div>
+
+<div class="card p-4 sm:p-5 mt-4">
+  <div class="flex items-center justify-between mb-3">
+    <p class="text-sm font-semibold text-slate-700">📋 Daftar Semua Tiket</p>
+    <div class="flex gap-2">
+      <span class="flex items-center gap-1 text-xs"><span class="w-3 h-3 rounded-full bg-blue-500"></span> Pemindahan</span>
+      <span class="flex items-center gap-1 text-xs"><span class="w-3 h-3 rounded-full bg-rose-500"></span> Kerusakan</span>
+    </div>
+  </div>
+  
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="border-b border-slate-100 bg-slate-50/60">
+          <th class="th">#</th>
+          <th class="th">Jenis</th>
+          <th class="th">Pemohon</th>
+          <th class="th">Asal</th>
+          <th class="th">Tujuan</th>
+          <th class="th">Status</th>
+          <th class="th">Tanggal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in daftar_tiket %}
+        <tr class="table-row cursor-pointer hover:bg-slate-50" onclick="window.location='{{ url_for('tiket_detail', tiket_id=t.id) }}'">
+          <td class="td font-semibold text-slate-800">#{{ t.id }}</td>
+          <td class="td">
+            <span class="pill {{ 'bg-blue-50 text-blue-700 border border-blue-100' if t.jenis_tiket == 'Pemindahan' else 'bg-rose-50 text-rose-700 border border-rose-100' }}">
+              <span class="pill-dot {{ 'bg-blue-500' if t.jenis_tiket == 'Pemindahan' else 'bg-rose-500' }}"></span>
+              {{ t.jenis_tiket }}
+            </span>
+          </td>
+          <td class="td">{{ t.nama_pemohon }}</td>
+          <td class="td whitespace-nowrap text-slate-500">{{ t.gedung_asal or '—' }}</td>
+          <td class="td whitespace-nowrap text-slate-500">
+            {% if t.jenis_tiket == 'Pemindahan' %}
+              {{ t.gedung_tujuan or '—' }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td class="td">{{ m.pill(t.status_tiket, m.tiket_tone(t.status_tiket)) }}</td>
+          <td class="td whitespace-nowrap text-slate-500">{{ t.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="py-10 text-center">
+            <p class="text-sm text-slate-400">Belum ada tiket.</p>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var calendarEl = document.getElementById('calendar');
+  var calendar = new FullCalendar.Calendar(calendarEl, {
+    locale: 'id',
+    initialView: 'dayGridMonth',
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: 'dayGridMonth,dayGridWeek,listWeek'
+    },
+    events: '/api/schedule-events',
+    eventClick: function(info) {
+      if (info.event.url) {
+        window.location.href = info.event.url;
+        return false;
+      }
+    },
+    eventDidMount: function(info) {
+      // Tambahkan tooltip
+      const props = info.event.extendedProps;
+      if (props) {
+        const tooltip = `Jenis: ${props.jenis || '-'}\nStatus: ${props.status || '-'}\nPemohon: ${props.pemohon || '-'}`;
+        info.el.setAttribute('title', tooltip);
+      }
+    },
+    height: 500,
+  });
+  calendar.render();
+});
+</script>
+{% endblock %}

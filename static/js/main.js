@@ -177,3 +177,116 @@ setInterval(async () => {
     }
   } catch (err) { /* diamkan jika gagal, tidak kritikal */ }
 }, 30000);
+
+// =============================================================
+// FUNGSI UNTUK DROPDOWN DINAMIS (untuk form tiket)
+// =============================================================
+
+// Fungsi load lantai berdasarkan gedung
+window.loadLantai = function(gedung, lantaiTargetId, ruanganTargetId, asetTargetId) {
+  const lantaiEl = document.getElementById(lantaiTargetId);
+  if (!lantaiEl) return;
+  
+  if (!gedung) {
+    lantaiEl.innerHTML = '<option value="">Pilih Gedung</option>';
+    return;
+  }
+  
+  fetch(`/api/lantai?gedung=${encodeURIComponent(gedung)}`)
+    .then(res => res.json())
+    .then(data => {
+      lantaiEl.innerHTML = '<option value="">Pilih Lantai</option>';
+      data.forEach(lt => {
+        const opt = document.createElement('option');
+        opt.value = lt;
+        opt.textContent = `Lantai ${lt}`;
+        lantaiEl.appendChild(opt);
+      });
+      // Reset ruangan & aset
+      if (ruanganTargetId) {
+        const ruanganEl = document.getElementById(ruanganTargetId);
+        if (ruanganEl) ruanganEl.innerHTML = '<option value="">Pilih Lantai dulu</option>';
+      }
+      if (asetTargetId) {
+        const asetEl = document.getElementById(asetTargetId);
+        if (asetEl) asetEl.innerHTML = '<p class="text-xs text-slate-400">Pilih lokasi terlebih dahulu</p>';
+      }
+    });
+};
+
+// Fungsi load ruangan berdasarkan gedung + lantai
+window.loadRuanganByGedungLantai = function(gedungId, lantaiId, ruanganTargetId, asetTargetId) {
+  const gedungEl = document.getElementById(gedungId);
+  const lantaiEl = document.getElementById(lantaiId);
+  const ruanganEl = document.getElementById(ruanganTargetId);
+  if (!ruanganEl || !gedungEl) return;
+  
+  const gedung = gedungEl.value;
+  const lantai = lantaiEl ? lantaiEl.value : '';
+  
+  if (!gedung) {
+    ruanganEl.innerHTML = '<option value="">Pilih Gedung</option>';
+    return;
+  }
+  
+  let url = `/api/ruangan?gedung=${encodeURIComponent(gedung)}`;
+  if (lantai) url += `&lantai=${encodeURIComponent(lantai)}`;
+  
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      ruanganEl.innerHTML = '<option value="">Pilih Ruangan</option>';
+      data.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = r;
+        ruanganEl.appendChild(opt);
+      });
+      // Reset aset
+      if (asetTargetId) {
+        const asetEl = document.getElementById(asetTargetId);
+        if (asetEl) asetEl.innerHTML = '<p class="text-xs text-slate-400">Pilih ruangan terlebih dahulu</p>';
+      }
+    });
+};
+
+// Fungsi load aset berdasarkan lokasi
+window.loadAsetByLokasi = function(gedungId, lantaiId, ruanganId, asetTargetId) {
+  const gedungEl = document.getElementById(gedungId);
+  const lantaiEl = document.getElementById(lantaiId);
+  const ruanganEl = document.getElementById(ruanganId);
+  const asetEl = document.getElementById(asetTargetId);
+  if (!asetEl || !gedungEl) return;
+  
+  const gedung = gedungEl.value;
+  const lantai = lantaiEl ? lantaiEl.value : '';
+  const ruangan = ruanganEl ? ruanganEl.value : '';
+  
+  if (!gedung || !ruangan) {
+    asetEl.innerHTML = '<p class="text-xs text-slate-400">Pilih ruangan terlebih dahulu</p>';
+    return;
+  }
+  
+  let url = `/api/aset-by-lokasi?gedung=${encodeURIComponent(gedung)}`;
+  if (lantai) url += `&lantai=${encodeURIComponent(lantai)}`;
+  if (ruangan) url += `&ruangan=${encodeURIComponent(ruangan)}`;
+  
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (data.length === 0) {
+        asetEl.innerHTML = '<p class="text-xs text-slate-400">Tidak ada aset di lokasi ini</p>';
+        return;
+      }
+      asetEl.innerHTML = '';
+      data.forEach(a => {
+        const label = document.createElement('label');
+        label.className = 'flex items-center gap-2 text-sm text-slate-600 px-1.5 py-1 rounded-lg hover:bg-slate-50';
+        label.innerHTML = `
+          <input type="checkbox" name="aset_ids[]" value="${a.id}" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+          <span class="font-mono text-[11px] text-slate-400">${a.kode}</span> ${a.nama}
+        `;
+        asetEl.appendChild(label);
+      });
+    });
+};
