@@ -1,0 +1,136 @@
+{% import "_macros.html" as m %}
+{% extends "base.html" %}
+{% block title %}Tiket Request{% endblock %}
+{% block header %}Tiket Request{% endblock %}
+{% block subheader %}<p class="text-xs text-slate-400">{{ pagination.total if pagination else 0 }} tiket</p>{% endblock %}
+{% block content %}
+
+<div class="card">
+  <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+    <form method="GET" class="flex gap-2">
+      <select name="status" onchange="this.form.submit()" class="field-input w-full sm:w-48">
+        <option value="">Semua Status</option>
+        {% for s in ['Pending','Disetujui','Proses','Selesai','Ditolak'] %}
+        <option value="{{ s }}" {{ 'selected' if request.args.get('status')==s }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      {% if request.args.get('status') %}
+      <a href="{{ url_for('tiket_list') }}" class="btn btn-secondary shrink-0 text-slate-400">Reset</a>
+      {% endif %}
+    </form>
+    {% if current_user.role in ['admin', 'officer'] %}
+    <button onclick="openModal('modalBuatTiket')" class="btn btn-primary">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+      Buat Tiket
+    </button>
+    {% endif %}
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="border-b border-slate-100 bg-slate-50/60">
+          <th class="th">#</th>
+          <th class="th">Jenis</th>
+          <th class="th">Pemohon</th>
+          <th class="th">Tujuan</th>
+          <th class="th">Status</th>
+          <th class="th">Dibuat</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in daftar_tiket %}
+        <tr class="table-row cursor-pointer hover:bg-slate-50" onclick="window.location='{{ url_for('tiket_detail', tiket_id=t.id) }}'">
+          <td class="td font-semibold text-slate-800">#{{ t.id }}</td>
+          <td class="td">{{ t.jenis_tiket }}</td>
+          <td class="td">{{ t.nama_pemohon }}</td>
+          <td class="td whitespace-nowrap text-slate-500">{{ t.gedung_tujuan or '—' }} / {{ t.ruangan_tujuan or '—' }}</td>
+          <td class="td">{{ m.pill(t.status_tiket, m.tiket_tone(t.status_tiket)) }}</td>
+          <td class="td whitespace-nowrap text-slate-500">{{ t.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="py-14 text-center">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" class="mx-auto text-slate-300 mb-2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z"/></svg>
+            <p class="text-sm text-slate-400">Belum ada tiket.</p>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagination and pagination.pages > 1 %}
+  <div class="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-slate-100 text-xs text-slate-500">
+    <span>Halaman {{ pagination.page }} dari {{ pagination.pages }}</span>
+    <div class="flex gap-2">
+      {% if pagination.has_prev %}
+        <a href="{{ url_for('tiket_list', page=pagination.prev_num, status=request.args.get('status','')) }}" class="btn btn-secondary btn-sm">&lsaquo; Sebelumnya</a>
+      {% endif %}
+      {% if pagination.has_next %}
+        <a href="{{ url_for('tiket_list', page=pagination.next_num, status=request.args.get('status','')) }}" class="btn btn-secondary btn-sm">Berikutnya &rsaquo;</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Modal Buat Tiket -->
+<div id="modalBuatTiket" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <h2 class="font-display font-bold text-slate-800">Buat Tiket Request</h2>
+      <button onclick="closeModal('modalBuatTiket')" class="text-slate-400 hover:text-slate-600">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form method="POST" action="{{ url_for('tiket_create') }}" enctype="multipart/form-data" class="p-5 space-y-3.5">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div>
+        <label class="field-label">Jenis Tiket</label>
+        <select name="jenis_tiket" required class="field-input">
+          <option value="Pemindahan">Pemindahan</option>
+          <option value="Perbaikan">Perbaikan</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label">Nama Pemohon</label>
+        <input name="nama_pemohon" required class="field-input">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="field-label">Gedung Tujuan</label>
+          <input name="gedung_tujuan" class="field-input">
+        </div>
+        <div>
+          <label class="field-label">Ruangan Tujuan</label>
+          <input name="ruangan_tujuan" class="field-input">
+        </div>
+      </div>
+      <div>
+        <label class="field-label">Pilih Aset</label>
+        <div class="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2.5 space-y-1.5">
+          {% for a in daftar_aset %}
+          <label class="flex items-center gap-2 text-sm text-slate-600 px-1.5 py-1 rounded-lg hover:bg-slate-50">
+            <input type="checkbox" name="aset_ids" value="{{ a.id }}" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+            <span class="font-mono text-[11px] text-slate-400">{{ a.kode_aset }}</span> {{ a.nama }}
+          </label>
+          {% else %}
+          <p class="text-xs text-slate-400">Belum ada data aset.</p>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <label class="field-label">Catatan</label>
+        <textarea name="catatan" rows="2" class="field-input"></textarea>
+      </div>
+      <div>
+        <label class="field-label">Upload Foto</label>
+        <input type="file" name="foto" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
+      </div>
+      <button type="submit" class="btn btn-primary w-full py-2.5">Kirim Tiket</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

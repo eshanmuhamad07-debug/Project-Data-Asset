@@ -1,0 +1,19 @@
+{% macro pill(label, tone='slate') %}
+{% set map = {
+  'emerald': ('bg-emerald-50 text-emerald-700 border border-emerald-100', 'bg-emerald-500'),
+  'rose':    ('bg-rose-50 text-rose-700 border border-rose-100', 'bg-rose-500'),
+  'sky':     ('bg-sky-50 text-sky-700 border border-sky-100', 'bg-sky-500'),
+  'amber':   ('bg-amber-50 text-amber-700 border border-amber-100', 'bg-amber-500'),
+  'indigo':  ('bg-indigo-50 text-indigo-700 border border-indigo-100', 'bg-indigo-500'),
+  'violet':  ('bg-violet-50 text-violet-700 border border-violet-100', 'bg-violet-500'),
+  'slate':   ('bg-slate-100 text-slate-600 border border-slate-200', 'bg-slate-400'),
+} %}
+{% set cls, dot = map.get(tone, map['slate']) %}
+<span class="pill {{ cls }}"><span class="pill-dot {{ dot }}"></span>{{ label }}</span>
+{% endmacro %}
+
+{% macro aset_tone(status) %}{{ 'emerald' if status=='Baik' else 'rose' if status=='Rusak' else 'sky' }}{% endmacro %}
+
+{% macro jenis_aset_tone(jenis) %}{{ 'violet' if jenis=='Pusat' else 'sky' }}{% endmacro %}
+
+{% macro tiket_tone(status) %}{{ 'amber' if status=='Pending' else 'sky' if status=='Disetujui' else 'indigo' if status=='Proses' else 'emerald' if status=='Selesai' else 'rose' }}{% endmacro %}

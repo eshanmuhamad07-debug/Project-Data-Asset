@@ -1,0 +1,109 @@
+{% import "_macros.html" as m %}
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block header %}Dashboard{% endblock %}
+{% block subheader %}<p class="text-xs text-slate-400">Ringkasan aset dan tiket saat ini</p>{% endblock %}
+{% block content %}
+
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+  <div class="card p-5 flex items-start justify-between">
+    <div>
+      <p class="text-xs font-medium text-slate-400 mb-1.5">Total Aset</p>
+      <p class="font-display text-2xl font-bold text-slate-800">{{ total_aset }}</p>
+      <p class="text-xs text-slate-400 mt-1">Seluruh aset terdaftar</p>
+    </div>
+    <span class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+    </span>
+  </div>
+
+  <div class="card p-5 flex items-start justify-between">
+    <div>
+      <p class="text-xs font-medium text-slate-400 mb-1.5">Tiket Pending</p>
+      <p class="font-display text-2xl font-bold text-slate-800">{{ total_pending }}</p>
+      <p class="text-xs text-slate-400 mt-1">Menunggu review admin</p>
+    </div>
+    <span class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    </span>
+  </div>
+
+  <div class="card p-5 flex items-start justify-between">
+    <div>
+      <p class="text-xs font-medium text-slate-400 mb-1.5">Tiket Diproses</p>
+      <p class="font-display text-2xl font-bold text-slate-800">{{ total_proses }}</p>
+      <p class="text-xs text-slate-400 mt-1">Sedang dikerjakan tim</p>
+    </div>
+    <span class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L1.5 3l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"/></svg>
+    </span>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="card p-5 lg:col-span-1">
+    <p class="text-sm font-semibold text-slate-700 mb-4">Aset per Kategori</p>
+    {% if chart_labels %}
+    <canvas id="kategoriChart" class="w-full"></canvas>
+    {% else %}
+    <div class="py-10 text-center">
+      <p class="text-xs text-slate-400">Belum ada data kategori.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card p-5 lg:col-span-2">
+    <div class="flex items-center justify-between mb-3">
+      <p class="text-sm font-semibold text-slate-700">Tiket Terbaru</p>
+      <a href="{{ url_for('tiket_list') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat semua &rarr;</a>
+    </div>
+    <div class="overflow-x-auto -mx-5">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-slate-100">
+            <th class="th">#</th>
+            <th class="th">Jenis</th>
+            <th class="th">Pemohon</th>
+            <th class="th">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tiket_terbaru %}
+          <tr class="table-row hover:bg-slate-50">
+            <td class="td font-medium"><a class="text-indigo-600 hover:text-indigo-700" href="{{ url_for('tiket_detail', tiket_id=t.id) }}">#{{ t.id }}</a></td>
+            <td class="td">{{ t.jenis_tiket }}</td>
+            <td class="td">{{ t.nama_pemohon }}</td>
+            <td class="td">{{ m.pill(t.status_tiket, m.tiket_tone(t.status_tiket)) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="py-10 text-center text-sm text-slate-400">Belum ada tiket.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if chart_labels %}
+new Chart(document.getElementById('kategoriChart'), {
+  type: 'doughnut',
+  data: {
+    labels: {{ chart_labels | tojson }},
+    datasets: [{
+      data: {{ chart_values | tojson }},
+      backgroundColor: ['#4f46e5','#0ea5e9','#f59e0b','#10b981','#f43f5e','#8b5cf6','#0d9488'],
+      borderWidth: 0,
+    }]
+  },
+  options: {
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14, font: { size: 11, family: 'Inter' } } } },
+    cutout: '65%',
+  }
+});
+{% endif %}
+</script>
+{% endblock %}
