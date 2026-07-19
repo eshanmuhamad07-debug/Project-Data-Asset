@@ -359,6 +359,7 @@ def aset_create():
     aset = Aset(
         kode_aset=kode_aset,
         nama=request.form.get("nama"),
+        merek=request.form.get("merek", "").strip() or None,
         foto=foto,
         foto_url=foto_url,
         gedung=request.form.get("gedung"),
@@ -409,6 +410,7 @@ def aset_detail(aset_id):
         "id": aset.id,
         "kode_aset": aset.kode_aset,
         "nama": aset.nama,
+        "merek": aset.merek or "-",
         "jenis_aset": aset.jenis_aset,
         "status_aset": aset.status_aset,
         "gedung": aset.gedung,
@@ -431,6 +433,7 @@ def aset_detail(aset_id):
 def aset_edit(aset_id):
     aset = Aset.query.get_or_404(aset_id)
     aset.nama = request.form.get("nama")
+    aset.merek = request.form.get("merek", "").strip() or None
     aset.gedung = request.form.get("gedung")
     aset.lantai = request.form.get("lantai") or None
     aset.ruangan = request.form.get("ruangan")
@@ -502,7 +505,7 @@ def aset_histori(aset_id):
 # ---------------------------------------------------------------------------
 # EXPORT / IMPORT ASET (Excel)
 # ---------------------------------------------------------------------------
-EXPORT_HEADERS = ["kode_aset", "nama", "gedung", "lantai", "ruangan", "status_aset", "jenis_aset", "kategori", "sub_kategori"]
+EXPORT_HEADERS = ["kode_aset", "nama", "merek", "gedung", "lantai", "ruangan", "status_aset", "jenis_aset", "kategori", "sub_kategori"]
 
 
 @app.route("/aset/export")
@@ -518,6 +521,7 @@ def aset_export():
         ws.append([
             aset.kode_aset,
             aset.nama,
+            aset.merek or "",
             aset.gedung,
             aset.lantai or "",
             aset.ruangan,
@@ -570,7 +574,7 @@ def aset_import():
             continue
 
         kolom = (list(row) + [None] * len(EXPORT_HEADERS))[: len(EXPORT_HEADERS)]
-        kode_aset, nama, gedung, lantai, ruangan, status_aset, jenis_aset, nama_kategori, nama_sub = kolom
+        kode_aset, nama, merek, gedung, lantai, ruangan, status_aset, jenis_aset, nama_kategori, nama_sub = kolom
 
         kode_aset = str(kode_aset).strip() if kode_aset else ""
         nama = str(nama).strip() if nama else ""
@@ -870,7 +874,7 @@ def tiket_detail(tiket_id):
 @login_required
 @role_required(ROLE_ADMIN)
 def tiket_selesai(tiket_id):
-    """Tandai tiket kerusakan selesai (aset sudah diperbaiki)."""
+    """Tandai tiket kerusakan selesai (aset sudah diperbaiki) dengan bukti foto & catatan."""
     tiket = Tiket.query.get_or_404(tiket_id)
     
     if tiket.jenis_tiket != "Kerusakan":
@@ -880,7 +884,29 @@ def tiket_selesai(tiket_id):
     if tiket.status_tiket != "Pending":
         flash("Tiket sudah selesai.", "warning")
         return redirect(url_for("tiket_detail", tiket_id=tiket.id))
-
+    
+    # Ambil foto perbaikan
+    foto_perbaikan_file = request.files.get("foto_perbaikan")
+    foto_perbaikan = None
+    foto_perbaikan_error = None
+    
+    if not foto_perbaikan_file or not foto_perbaikan_file.filename:
+        flash("Harap upload foto bukti perbaikan.", "danger")
+        return redirect(url_for("tiket_detail", tiket_id=tiket.id))
+    
+    # Validasi dan upload
+    foto_perbaikan, foto_perbaikan_error = save_upload(foto_perbaikan_file, prefix="perbaikan_")
+    
+    if foto_perbaikan_error:
+        flash(f"Gagal upload foto perbaikan: {foto_perbaikan_error}", "danger")
+        return redirect(url_for("tiket_detail", tiket_id=tiket.id))
+    
+    # Ambil catatan perbaikan
+    catatan_perbaikan = request.form.get("catatan_perbaikan", "").strip()
+    if not catatan_perbaikan:
+        flash("Harap isi catatan perbaikan.", "danger")
+        return redirect(url_for("tiket_detail", tiket_id=tiket.id))
+    
     # Proses setiap aset
     for ta in tiket.aset_terkait:
         aset = ta.aset
@@ -895,14 +921,20 @@ def tiket_selesai(tiket_id):
                 gedung=aset.gedung,
                 lantai=aset.lantai,
                 ruangan=aset.ruangan,
-                id_tiket=tiket.id
+                id_tiket=tiket.id,
+                catatan=catatan_perbaikan  # <-- tambahkan field catatan di HistoriAset jika ada
             )
             db.session.add(histori)
-
-    catat_log(tiket, "Pending", "Selesai")
+    
+    # Update tiket
     tiket.status_tiket = "Selesai"
+    tiket.foto_perbaikan = foto_perbaikan
+    tiket.catatan_perbaikan = catatan_perbaikan
+    
+    catat_log(tiket, "Pending", "Selesai")
     db.session.commit()
-    flash("Tiket kerusakan selesai. Aset sudah diperbaiki.", "success")
+    
+    flash("Tiket kerusakan selesai. Aset sudah diperbaiki dengan bukti foto dan catatan.", "success")
     return redirect(url_for("tiket_detail", tiket_id=tiket.id))
 
 
@@ -1062,7 +1094,5 @@ def users_toggle(user_id):
     )
     return redirect(url_for("users_list"))
 
-
 if __name__ == "__main__":
-    debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
-    app.run(debug=debug_mode)
+    app.run(debug=True)

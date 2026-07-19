@@ -37,8 +37,9 @@ class Aset(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     kode_aset = db.Column(db.String(50), unique=True, nullable=False)
     nama = db.Column(db.String(150), nullable=False)
-    foto = db.Column(db.String(255), nullable=True)          # untuk upload file
-    foto_url = db.Column(db.String(500), nullable=True)      # +++ TAMBAH: untuk link URL
+    merek = db.Column(db.String(100))
+    foto = db.Column(db.String(255), nullable=True)          
+    foto_url = db.Column(db.String(500), nullable=True)      
     gedung = db.Column(db.String(100), nullable=False)
     lantai = db.Column(db.String(50), nullable=True)
     ruangan = db.Column(db.String(100), nullable=False)
@@ -73,6 +74,9 @@ class Tiket(db.Model):
     foto = db.Column(db.String(255), nullable=True)
     status_tiket = db.Column(db.String(20), default="Pending")  # Pending / Selesai
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    foto_perbaikan = db.Column(db.String(255)) 
+    catatan_perbaikan = db.Column(db.Text) 
 
     # Relasi ke aset (melalui TiketAset)
     aset_terkait = db.relationship("TiketAset", backref="tiket", cascade="all, delete-orphan")
@@ -116,12 +120,12 @@ class HistoriAset(db.Model):
     gedung = db.Column(db.String(100), nullable=True)       # lokasi tujuan untuk pindah
     lantai = db.Column(db.String(50), nullable=True)
     ruangan = db.Column(db.String(100), nullable=True)
-    # +++ TAMBAHAN: lokasi asal untuk histori pemindahan
     gedung_asal = db.Column(db.String(100), nullable=True)
     lantai_asal = db.Column(db.String(50), nullable=True)
     ruangan_asal = db.Column(db.String(100), nullable=True)
     tanggal = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     id_tiket = db.Column(db.Integer, db.ForeignKey("tiket.id"), nullable=True)
+    catatan = db.Column(db.Text)
 
     aset = db.relationship("Aset")
     tiket = db.relationship("Tiket")
