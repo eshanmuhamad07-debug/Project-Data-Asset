@@ -1,0 +1,143 @@
+{% import "_macros.html" as m %}
+{% extends "base.html" %}
+{% block title %}History #{{ tiket.id }}{% endblock %}
+{% block header %}
+<a href="{{ url_for('history_list') }}" class="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-600 text-xs font-medium mb-0.5">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+  History
+</a>
+<div>History #{{ tiket.id }}</div>
+{% endblock %}
+{% block content %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+  <!-- Info Tiket -->
+  <div class="card p-5 sm:p-6 lg:col-span-2 space-y-5">
+    <div class="flex items-start justify-between flex-wrap gap-3">
+      <div>
+        <p class="text-xs text-slate-400 mb-1">
+          <span class="pill {{ 'bg-blue-50 text-blue-700 border border-blue-100' if tiket.jenis_tiket == 'Pemindahan' else 'bg-rose-50 text-rose-700 border border-rose-100' }}">
+            <span class="pill-dot {{ 'bg-blue-500' if tiket.jenis_tiket == 'Pemindahan' else 'bg-rose-500' }}"></span>
+            {{ tiket.jenis_tiket }}
+          </span>
+          &bull; {{ tiket.created_at.strftime('%d %b %Y, %H:%M') }}
+        </p>
+        <h2 class="font-display font-bold text-lg text-slate-800">{{ tiket.nama_pemohon }}</h2>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 text-sm border-t border-slate-100 pt-4">
+      <div>
+        <p class="text-xs text-slate-400 mb-0.5">📍 Lokasi Asal</p>
+        <p class="font-medium text-slate-700">
+          {{ tiket.gedung_asal or '—' }} 
+          {% if tiket.lantai_asal %}/ Lantai {{ tiket.lantai_asal }}{% endif %}
+          {% if tiket.ruangan_asal %}/ {{ tiket.ruangan_asal }}{% endif %}
+        </p>
+      </div>
+      <div>
+        <p class="text-xs text-slate-400 mb-0.5">🎯 Lokasi Tujuan</p>
+        <p class="font-medium text-slate-700">
+          {% if tiket.jenis_tiket == 'Pemindahan' %}
+            {{ tiket.gedung_tujuan or '—' }}
+            {% if tiket.lantai_tujuan %}/ Lantai {{ tiket.lantai_tujuan }}{% endif %}
+            {% if tiket.ruangan_tujuan %}/ {{ tiket.ruangan_tujuan }}{% endif %}
+          {% else %}
+            —
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+    <div>
+      <p class="text-xs text-slate-400 mb-1">Catatan</p>
+      <p class="text-sm text-slate-600 leading-relaxed">{{ tiket.catatan or '—' }}</p>
+    </div>
+
+    {% if tiket.foto %}
+    <div class="bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center" style="min-height: 150px; max-height: 450px;">
+      <img src="{{ url_for('static', filename='uploads/' + tiket.foto) }}" 
+           style="width: 100%; height: auto; max-height: 450px; object-fit: contain; display: block;"
+           class="border border-slate-200 rounded-lg"
+           onerror="this.parentElement.innerHTML='<div class=\\'text-slate-400 text-sm p-4\\'>Foto tidak ditemukan</div>'">
+    </div>
+    {% endif %}
+
+    <div>
+      <p class="text-xs text-slate-400 mb-2">Aset Terkait</p>
+      <div class="flex flex-wrap gap-1.5">
+        {% for ta in tiket.aset_terkait %}
+        <a href="{{ url_for('aset_list') }}?q={{ ta.aset.nama }}" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-600 hover:bg-indigo-50 hover:border-indigo-200 transition-all">
+          <span class="font-mono text-[10px] text-slate-400">{{ ta.aset.kode_aset }}</span>{{ ta.aset.nama }}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Log Status & Histori Aset -->
+  <div class="card p-5 sm:p-6 space-y-5">
+    <div>
+      <p class="text-sm font-semibold text-slate-700 mb-3">Riwayat Status</p>
+      <ol class="relative border-l border-slate-200 ml-1.5 space-y-4">
+        {% for log in tiket.log_status %}
+        <li class="ml-4">
+          <div class="absolute w-2 h-2 bg-indigo-500 rounded-full -left-1 mt-1.5 ring-4 ring-white"></div>
+          <p class="text-[11px] text-slate-400">{{ log.created_at.strftime('%d-%m-%Y %H:%M') }}</p>
+          <p class="text-sm text-slate-600">{{ log.user_pengubah.name }} mengubah status ke <span class="font-semibold text-slate-800">{{ log.status_baru }}</span></p>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+
+    <div class="border-t border-slate-100 pt-4">
+      <p class="text-sm font-semibold text-slate-700 mb-3">Histori Aset</p>
+      {% for ta in tiket.aset_terkait %}
+        <div class="mb-3">
+          <p class="text-xs font-medium text-slate-600">{{ ta.aset.nama }}</p>
+          <div id="histori-{{ ta.aset.id }}" class="space-y-1 mt-1">
+            <p class="text-xs text-slate-400">Memuat histori...</p>
+          </div>
+        </div>
+      {% else %}
+        <p class="text-xs text-slate-400">Tidak ada aset terkait.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  {% for ta in tiket.aset_terkait %}
+  fetch('/aset/{{ ta.aset.id }}/histori')
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById('histori-{{ ta.aset.id }}');
+      if (data.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400">Belum ada histori.</p>';
+        return;
+      }
+      container.innerHTML = data.map(h => {
+        let label = '', color = '';
+        if (h.jenis === 'pindah') { label = '🔄 Pindah ke'; color = 'text-blue-600'; }
+        else if (h.jenis === 'rusak') { label = '⚠️ Rusak'; color = 'text-rose-600'; }
+        else if (h.jenis === 'perbaikan') { label = '✅ Diperbaiki'; color = 'text-emerald-600'; }
+        let lokasi = '';
+        if (h.gedung) {
+          lokasi = h.gedung;
+          if (h.lantai) lokasi += ` / Lantai ${h.lantai}`;
+          if (h.ruangan) lokasi += ` / ${h.ruangan}`;
+        }
+        return `<p class="text-xs ${color}">${label} ${lokasi || ''} <span class="text-slate-400">(${h.tanggal})</span></p>`;
+      }).join('');
+    })
+    .catch(() => {
+      document.getElementById('histori-{{ ta.aset.id }}').innerHTML = '<p class="text-xs text-slate-400">Gagal memuat histori.</p>';
+    });
+  {% endfor %}
+});
+</script>
+{% endblock %}

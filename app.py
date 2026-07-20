@@ -1,8 +1,9 @@
 import os
 import io
 from functools import wraps
-from datetime import datetime
-import logging
+from datetime import datetime, timedelta, timezone
+import pytz
+
 from flask import (
     Flask, render_template, redirect, url_for, request, flash, jsonify,
     abort, send_file
@@ -16,16 +17,14 @@ from sqlalchemy.exc import IntegrityError
 from PIL import Image
 import openpyxl
 from openpyxl.utils import get_column_letter
+import re
 
 from extensions import db, login_manager, csrf, limiter
 from models import (
     User, Kategori, SubKategori, Aset, Tiket, TiketAset,
-    LogStatus, HistoriAset
+    LogStatus, HistoriAset, AktivitasLog 
 )
 from roles import ROLE_ADMIN
-from collections import defaultdict
-from datetime import datetime, date, timedelta
-import calendar
 
 # ---------------------------------------------------------------------------
 # Konfigurasi Aplikasi
@@ -61,7 +60,9 @@ limiter.init_app(app)
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-logging.basicConfig(level=logging.DEBUG)
+# Set timezone ke WIB (UTC+7)
+WIB = pytz.timezone('Asia/Jakarta')
+
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -69,87 +70,63 @@ logging.basicConfig(level=logging.DEBUG)
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXT
 
-def convert_gdrive_to_thumbnail(url):
-    """
-    Konversi link Google Drive view/open menjadi link thumbnail.
-    Contoh:
-    https://drive.google.com/file/d/ID/view -> https://drive.google.com/thumbnail?id=ID&sz=w1000
-    """
-    if not url:
-        return url
-    
-    import re
-    
-    # Deteksi link Google Drive
-    if 'drive.google.com' in url:
-        # Pattern 1: /file/d/ID/view
-        match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
-        if match:
-            file_id = match.group(1)
-            return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
-        
-        # Pattern 2: open?id=ID
-        match = re.search(r'[?&]id=([a-zA-Z0-9_-]+)', url)
-        if match:
-            file_id = match.group(1)
-            return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
-        
-        # Pattern 3: uc?id=ID (sudah direct, ubah ke thumbnail)
-        match = re.search(r'[?&]id=([a-zA-Z0-9_-]+)', url)
-        if match:
-            file_id = match.group(1)
-            return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
-    
-    # Jika bukan Google Drive, return as-is
-    return url
-
 
 def is_valid_image(file_storage):
-    """Solusi #5: pastikan file BENAR-BENAR gambar, bukan cuma nama
-    berekstensi gambar (mis. file .exe yang diganti nama jadi .jpg)."""
     try:
         pos = file_storage.stream.tell()
         Image.open(file_storage.stream).verify()
         file_storage.stream.seek(pos)
         return True
-    except Exception as e:
-        logging.debug(f"is_valid_image: Error verifying image: {e}")
+    except Exception:
         return False
-
-def group_tickets_by_date(tickets):
-    grouped = defaultdict(list)
-    for t in tickets:
-        dt = t.created_at.date()
-        grouped[dt].append(t)
-    return grouped
 
 
 def save_upload(file_storage, prefix=""):
-    """Simpan file upload ke static/uploads, return (filename, error).
-    - (filename, None) jika berhasil
-    - (None, error_message) jika gagal
-    """
     if not file_storage or file_storage.filename == "":
-        return None, None  # Tidak ada file, bukan error
-    
+        return None, None
     if not allowed_file(file_storage.filename):
         return None, f"Ekstensi file tidak diizinkan. Gunakan: {', '.join(ALLOWED_EXT)}"
-    
     if not is_valid_image(file_storage):
-        return None, "File yang diupload bukan gambar yang valid (rusak atau tidak sesuai format)."
-    
+        return None, "File yang diupload bukan gambar yang valid."
     filename = secure_filename(file_storage.filename)
     if not filename:
         return None, "Nama file tidak valid."
-    
-    unique_name = f"{prefix}{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
+    unique_name = f"{prefix}{datetime.now(WIB).strftime('%Y%m%d%H%M%S%f')}_{filename}"
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
-    
     try:
         file_storage.save(filepath)
         return unique_name, None
     except Exception as e:
         return None, f"Gagal menyimpan file: {str(e)}"
+
+
+def convert_gdrive_to_thumbnail(url):
+    if not url:
+        return url
+    if 'drive.google.com' not in url:
+        return url
+    match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
+    if match:
+        file_id = match.group(1)
+        return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
+    match = re.search(r'[?&]id=([a-zA-Z0-9_-]+)', url)
+    if match:
+        file_id = match.group(1)
+        return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
+    return url
+
+def catat_aktivitas(aksi, target_model, target_id, deskripsi=None, data_lama=None, data_baru=None):
+    """Catat aktivitas admin ke tabel aktivitas_log."""
+    log = AktivitasLog(
+        id_user=current_user.id,
+        aksi=aksi,
+        target_model=target_model,
+        target_id=target_id,
+        deskripsi=deskripsi,
+        data_lama=data_lama,
+        data_baru=data_baru
+    )
+    db.session.add(log)
 
 def role_required(*roles):
     def decorator(f):
@@ -225,8 +202,8 @@ def logout():
 @login_required
 def dashboard():
     total_aset = Aset.query.count()
-    total_pending = Tiket.query.filter_by(status_tiket="Pending").count()
-    total_selesai = Tiket.query.filter_by(status_tiket="Selesai").count()
+    total_history = Tiket.query.count()  # semua tiket = history
+    total_rusak = Aset.query.filter_by(status_aset="Rusak").count()
 
     kategori_chart = (
         db.session.query(Kategori.nama, db.func.count(Aset.id))
@@ -237,16 +214,16 @@ def dashboard():
     chart_labels = [k[0] for k in kategori_chart]
     chart_values = [k[1] for k in kategori_chart]
 
-    tiket_terbaru = Tiket.query.order_by(Tiket.created_at.desc()).limit(5).all()
+    history_terbaru = Tiket.query.order_by(Tiket.created_at.desc()).limit(5).all()
 
     return render_template(
         "dashboard.html",
         total_aset=total_aset,
-        total_pending=total_pending,
-        total_selesai=total_selesai,
+        total_history=total_history,
+        total_rusak=total_rusak,
         chart_labels=chart_labels,
         chart_values=chart_values,
-        tiket_terbaru=tiket_terbaru,
+        history_terbaru=history_terbaru,
     )
 
 
@@ -348,20 +325,16 @@ def api_ruangan():
 @app.route("/api/aset-by-lokasi")
 @login_required
 def api_aset_by_lokasi():
-    """Ambil daftar aset berdasarkan gedung, lantai, ruangan."""
     gedung = request.args.get("gedung", "")
     lantai = request.args.get("lantai", "")
     ruangan = request.args.get("ruangan", "")
-    
     if not gedung:
         return jsonify([])
-    
     filters = [Aset.gedung == gedung]
     if lantai:
         filters.append(Aset.lantai == lantai)
     if ruangan:
         filters.append(Aset.ruangan == ruangan)
-    
     hasil = Aset.query.filter(*filters).all()
     return jsonify([{"id": a.id, "kode": a.kode_aset, "nama": a.nama} for a in hasil])
 
@@ -379,15 +352,12 @@ def aset_create():
     if jenis_aset not in JENIS_ASET_OPTIONS:
         jenis_aset = "Operasional"
 
-    # Upload foto jika ada
     foto_file = request.files.get("foto")
     foto = None
     foto_error = None
-    
     if foto_file and foto_file.filename:
         foto, foto_error = save_upload(foto_file, prefix="aset_")
-    
-    # Ambil foto_url jika diisi
+
     foto_url_raw = request.form.get("foto_url", "").strip()
     foto_url = convert_gdrive_to_thumbnail(foto_url_raw) if foto_url_raw else None
 
@@ -407,22 +377,139 @@ def aset_create():
         id_sub_kategori=request.form.get("id_sub_kategori") or None,
     )
     db.session.add(aset)
+    catat_aktivitas(
+        aksi="CREATE",
+        target_model="Aset",
+        target_id=aset.id,
+        deskripsi=f"Menambahkan aset baru: {aset.nama} ({aset.kode_aset})",
+        data_baru={
+            "kode_aset": aset.kode_aset,
+            "nama": aset.nama,
+            "merek": aset.merek,
+            "jenis": aset.jenis_aset,
+            "gedung": aset.gedung,
+            "lantai": aset.lantai,
+            "ruangan": aset.ruangan,
+            "status": aset.status_aset,
+            "spesifikasi": aset.spesifikasi
+        }
+    )
     db.session.commit()
     
-    # Flash message
     if foto_error:
         flash(f"Aset berhasil ditambahkan, tetapi foto gagal diupload: {foto_error}", "warning")
     else:
         flash("Aset berhasil ditambahkan.", "success")
+    return redirect(url_for("aset_list"))
+
+
+@app.route("/aset/<int:aset_id>/edit", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def aset_edit(aset_id):
+    aset = Aset.query.get_or_404(aset_id)
+
+    # Simpan data lama
+    data_lama = {
+        "nama": aset.nama,
+        "merek": aset.merek,
+        "jenis": aset.jenis_aset,
+        "gedung": aset.gedung,
+        "lantai": aset.lantai,
+        "ruangan": aset.ruangan,
+        "status": aset.status_aset,
+        "spesifikasi": aset.spesifikasi
+    }
+
+    # ... (ubah data) 
+    aset.nama = request.form.get("nama")
+    aset.merek = request.form.get("merek", "").strip() or None
+    aset.gedung = request.form.get("gedung")
+    aset.lantai = request.form.get("lantai") or None
+    aset.ruangan = request.form.get("ruangan")
+    aset.status_aset = request.form.get("status_aset", aset.status_aset)
+    aset.spesifikasi = request.form.get("spesifikasi", "").strip() or None
     
+    foto_url_raw = request.form.get("foto_url", "").strip()
+    if foto_url_raw:
+        aset.foto_url = convert_gdrive_to_thumbnail(foto_url_raw)
+    elif foto_url_raw == "" and request.form.get("hapus_foto"):
+        aset.foto_url = None
+    
+    jenis_aset = request.form.get("jenis_aset", aset.jenis_aset)
+    aset.jenis_aset = jenis_aset if jenis_aset in JENIS_ASET_OPTIONS else aset.jenis_aset
+    aset.id_kategori = request.form.get("id_kategori") or None
+    aset.id_sub_kategori = request.form.get("id_sub_kategori") or None
+
+    foto_file = request.files.get("foto")
+    foto_error = None
+    if foto_file and foto_file.filename:
+        foto, foto_error = save_upload(foto_file, prefix="aset_")
+        if foto:
+            aset.foto = foto
+
+    # Setelah perubahan, catat
+    catat_aktivitas(
+        aksi="UPDATE",
+        target_model="Aset",
+        target_id=aset.id,
+        deskripsi=f"Mengupdate aset: {aset.nama} ({aset.kode_aset})",
+        data_lama=data_lama,
+        data_baru={
+            "nama": aset.nama,
+            "gedung": aset.gedung,
+            "ruangan": aset.ruangan,
+            "status": aset.status_aset
+        }
+    )
+
+    db.session.commit()
+    
+    if foto_error:
+        flash(f"Aset berhasil diperbarui, tetapi foto gagal diupload: {foto_error}", "warning")
+    else:
+        flash("Aset berhasil diperbarui.", "success")
+    return redirect(url_for("aset_list"))
+
+
+@app.route("/aset/<int:aset_id>/delete", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def aset_delete(aset_id):
+    aset = Aset.query.get_or_404(aset_id)
+    
+    # Simpan data sebelum dihapus
+    data_lama = {
+        "kode_aset": aset.kode_aset,
+        "nama": aset.nama,
+        "merek": aset.merek,
+        "jenis": aset.jenis_aset,
+        "gedung": aset.gedung,
+        "lantai": aset.lantai,
+        "ruangan": aset.ruangan,
+        "status": aset.status_aset,
+        "spesifikasi": aset.spesifikasi
+    }
+    
+    # Catat aktivitas DELETE
+    catat_aktivitas(
+        aksi="DELETE",
+        target_model="Aset",
+        target_id=aset.id,
+        deskripsi=f"Menghapus aset: {aset.nama} ({aset.kode_aset})",
+        data_lama=data_lama,
+        data_baru=None
+    )
+    
+    db.session.delete(aset)
+    db.session.commit()
+    flash("Aset berhasil dihapus.", "success")
     return redirect(url_for("aset_list"))
 
 @app.route("/aset/<int:aset_id>/detail")
 @login_required
 def aset_detail(aset_id):
-    """API untuk mengambil detail aset + histori (dipakai modal detail)."""
     aset = Aset.query.get_or_404(aset_id)
-    
     histori = HistoriAset.query.filter_by(id_aset=aset_id).order_by(HistoriAset.tanggal.desc()).all()
     histori_data = []
     for h in histori:
@@ -438,10 +525,9 @@ def aset_detail(aset_id):
             "id_tiket": h.id_tiket
         })
     
-    # Tentukan foto mana yang akan ditampilkan (prioritas: foto_url > foto)
     foto_display = None
     if aset.foto_url:
-        foto_display = aset.foto_url  # Sudah thumbnail
+        foto_display = aset.foto_url
     elif aset.foto:
         foto_display = aset.foto
     
@@ -449,7 +535,7 @@ def aset_detail(aset_id):
         "id": aset.id,
         "kode_aset": aset.kode_aset,
         "nama": aset.nama,
-        "merek": aset.merek or "-",
+        "merek": aset.merek or "",
         "jenis_aset": aset.jenis_aset,
         "status_aset": aset.status_aset,
         "gedung": aset.gedung,
@@ -457,75 +543,19 @@ def aset_detail(aset_id):
         "ruangan": aset.ruangan,
         "kategori": aset.kategori.nama if aset.kategori else "-",
         "sub_kategori": aset.sub_kategori.nama if aset.sub_kategori else "-",
-        "foto": foto_display,  # kirim foto yang akan ditampilkan
-        "foto_file": aset.foto,      # file upload
-        "foto_url": aset.foto_url,   # link URL
+        "foto": foto_display,
+        "foto_file": aset.foto,
+        "foto_url": aset.foto_url,
         "total_kerusakan": aset.total_kerusakan or 0,
         "spesifikasi": aset.spesifikasi or "-",
         "histori": histori_data
     }
     return jsonify(data)
 
-@app.route("/aset/<int:aset_id>/edit", methods=["POST"])
-@login_required
-@role_required(ROLE_ADMIN)
-def aset_edit(aset_id):
-    aset = Aset.query.get_or_404(aset_id)
-    aset.nama = request.form.get("nama")
-    aset.merek = request.form.get("merek", "").strip() or None
-    aset.gedung = request.form.get("gedung")
-    aset.lantai = request.form.get("lantai") or None
-    aset.ruangan = request.form.get("ruangan")
-    aset.status_aset = request.form.get("status_aset", aset.status_aset)
-    aset.spesifikasi = request.form.get("spesifikasi", "").strip() or None
-    
-    # Update foto_url jika diisi
-    foto_url_raw = request.form.get("foto_url", "").strip()
-    if foto_url_raw:
-        aset.foto_url = convert_gdrive_to_thumbnail(foto_url_raw)
-    elif foto_url_raw == "" and request.form.get("hapus_foto"):
-        aset.foto_url = None
-    
-    jenis_aset = request.form.get("jenis_aset", aset.jenis_aset)
-    aset.jenis_aset = jenis_aset if jenis_aset in JENIS_ASET_OPTIONS else aset.jenis_aset
-    aset.id_kategori = request.form.get("id_kategori") or None
-    aset.id_sub_kategori = request.form.get("id_sub_kategori") or None
-
-    # Upload foto baru jika ada
-    foto_file = request.files.get("foto")
-    foto_error = None
-    
-    if foto_file and foto_file.filename:
-        foto, foto_error = save_upload(foto_file, prefix="aset_")
-        if foto:
-            aset.foto = foto
-
-    db.session.commit()
-    
-    # Flash message
-    if foto_error:
-        flash(f"Aset berhasil diperbarui, tetapi foto gagal diupload: {foto_error}", "warning")
-    else:
-        flash("Aset berhasil diperbarui.", "success")
-    
-    return redirect(url_for("aset_list"))
-
-
-@app.route("/aset/<int:aset_id>/delete", methods=["POST"])
-@login_required
-@role_required(ROLE_ADMIN)
-def aset_delete(aset_id):
-    aset = Aset.query.get_or_404(aset_id)
-    db.session.delete(aset)
-    db.session.commit()
-    flash("Aset berhasil dihapus.", "success")
-    return redirect(url_for("aset_list"))
-
 
 @app.route("/aset/<int:aset_id>/histori")
 @login_required
 def aset_histori(aset_id):
-    """API untuk mengambil histori aset tertentu."""
     aset = Aset.query.get_or_404(aset_id)
     histori = HistoriAset.query.filter_by(id_aset=aset_id).order_by(HistoriAset.tanggal.desc()).all()
     data = []
@@ -647,12 +677,13 @@ def aset_import():
                     db.session.flush()
                 id_sub_kategori = sub.id
 
-        status_valid = status_aset if status_aset in ("Baik", "Rusak") else "Baik"
+        status_valid = status_aset if status_aset in ("Baik", "Rusak", "Dipindahkan") else "Baik"
         jenis_valid = jenis_aset if jenis_aset in JENIS_ASET_OPTIONS else "Operasional"
         aset = Aset.query.filter_by(kode_aset=kode_aset).first()
 
         if aset:
             aset.nama = nama
+            aset.merek = merek or aset.merek
             aset.gedung = gedung or aset.gedung
             aset.lantai = lantai or aset.lantai
             aset.ruangan = ruangan or aset.ruangan
@@ -667,6 +698,7 @@ def aset_import():
             db.session.add(Aset(
                 kode_aset=kode_aset,
                 nama=nama,
+                merek=merek or "",
                 gedung=gedung or "-",
                 lantai=lantai or None,
                 ruangan=ruangan or "-",
@@ -731,47 +763,151 @@ def api_sub_kategori(kategori_id):
 
 
 # ---------------------------------------------------------------------------
-# TIKET (LAPORAN)
+# HISTORY (TIKET READ-ONLY)
 # ---------------------------------------------------------------------------
-@app.route("/tiket")
+@app.route("/history")
 @login_required
-def tiket_list():
-    status = request.args.get("status", "")
-    jenis = request.args.get("jenis", "")
-    query = Tiket.query
-    if status:
-        query = query.filter_by(status_tiket=status)
-    if jenis:
-        query = query.filter_by(jenis_tiket=jenis)
-
-    page = request.args.get("page", 1, type=int)
-    pagination = query.order_by(Tiket.created_at.desc()).paginate(
-        page=page, per_page=20, error_out=False
-    )
-    daftar_tiket = pagination.items
+def history_list():
+    """Halaman history terpadu: tiket + aktivitas admin."""
     
-    # Ambil daftar gedung unik dari Aset untuk dropdown
+    # Ambil semua tiket
+    tiket_all = Tiket.query.all()
+    # Ambil semua aktivitas log
+    aktivitas_all = AktivitasLog.query.all()
+
+    # Buat list event
+    events = []
+    
+    # === TAMBAHKAN TIKET (hanya 1 entri per tiket) ===
+    for t in tiket_all:
+        creator_name = "System"
+        if t.created_by:
+            creator = User.query.get(t.created_by)
+            if creator:
+                creator_name = creator.name
+        elif t.log_status:
+            first_log = t.log_status[0]
+            if first_log.user_pengubah:
+                creator_name = first_log.user_pengubah.name
+
+        aset_list = ", ".join([ta.aset.nama for ta in t.aset_terkait[:3]])
+        if len(t.aset_terkait) > 3:
+            aset_list += f" dan {len(t.aset_terkait)-3} lainnya"
+
+        events.append({
+            "id": t.id,
+            "waktu": t.created_at,
+            "pelaku": creator_name,
+            "jenis": "Tiket",
+            "aksi": t.jenis_tiket,  # "Pemindahan" atau "Kerusakan"
+            "detail": f"{t.nama_pemohon} - {aset_list or 'Tidak ada aset'}",
+            "link": url_for("history_detail", tiket_id=t.id),
+            "warna": "bg-rose-100 text-rose-700 border-rose-200" if t.jenis_tiket == "Kerusakan" else "bg-blue-100 text-blue-700 border-blue-200"
+        })
+
+    # === TAMBAHKAN AKTIVITAS ADMIN ===
+    for a in aktivitas_all:
+        user = User.query.get(a.id_user)
+        pelaku = user.name if user else "Unknown"
+        
+        label_aksi = {
+            "CREATE": "Tambah Aset",
+            "UPDATE": "Edit Aset",
+            "DELETE": "Hapus Aset",
+            "MOVE": "Pemindahan Aset"
+        }.get(a.aksi, a.aksi)
+
+        events.append({
+            "id": a.id,
+            "waktu": a.created_at,
+            "pelaku": pelaku,
+            "jenis": "Aktivitas",
+            "aksi": label_aksi,
+            "detail": a.deskripsi or f"{label_aksi} ID {a.target_id}",
+            "link": url_for("aktivitas_detail", log_id=a.id),  # <-- route baru
+            "warna": "bg-indigo-100 text-indigo-700 border-indigo-200" if a.aksi == "CREATE" else "bg-amber-100 text-amber-700 border-amber-200" if a.aksi == "UPDATE" else "bg-rose-100 text-rose-700 border-rose-200" if a.aksi == "DELETE" else "bg-emerald-100 text-emerald-700 border-emerald-200",
+            "data_lama": a.data_lama,
+            "data_baru": a.data_baru
+        })
+
+    # Urutkan berdasarkan waktu terbaru
+    events.sort(key=lambda x: x["waktu"], reverse=True)
+
+    # Pagination
+    page = request.args.get("page", 1, type=int)
+    per_page = 10
+    total = len(events)
+    start = (page - 1) * per_page
+    end = start + per_page
+    events_page = events[start:end]
+    total_pages = (total + per_page - 1) // per_page
+
+    class PaginationDummy:
+        def __init__(self, items, page, per_page, total, total_pages):
+            self.items = items
+            self.page = page
+            self.per_page = per_page
+            self.total = total
+            self.pages = total_pages
+            self.has_prev = page > 1
+            self.has_next = page < total_pages
+            self.prev_num = page - 1 if page > 1 else None
+            self.next_num = page + 1 if page < total_pages else None
+
+    pagination = PaginationDummy(events_page, page, per_page, total, total_pages)
+    daftar_history = events_page
+
     gedung_all = [
         g[0] for g in db.session.query(Aset.gedung).distinct().order_by(Aset.gedung).all() if g[0]
     ]
-    
+
     return render_template(
-        "tiket/list.html",
-        daftar_tiket=daftar_tiket,
+        "history/list.html",
+        daftar_history=daftar_history,
         pagination=pagination,
         gedung_all=gedung_all,
     )
 
+@app.route("/aktivitas/<int:log_id>")
+@login_required
+def aktivitas_detail(log_id):
+    """Detail aktivitas admin (tambah/edit/hapus aset)."""
+    log = AktivitasLog.query.get_or_404(log_id)
+    
+    # Ambil nama aksi
+    label_aksi = {
+        "CREATE": "Tambah Aset",
+        "UPDATE": "Edit Aset", 
+        "DELETE": "Hapus Aset",
+        "MOVE": "Pemindahan Aset"
+    }.get(log.aksi, log.aksi)
+    
+    user = User.query.get(log.id_user)
+    pelaku = user.name if user else "Unknown"
+    
+    return render_template(
+        "history/aktivitas_detail.html",
+        log=log,
+        label_aksi=label_aksi,
+        pelaku=pelaku
+    )
+
+@app.route("/history/<int:tiket_id>")
+@login_required
+def history_detail(tiket_id):
+    """Detail history tiket (read-only)"""
+    tiket = Tiket.query.get_or_404(tiket_id)
+    return render_template("history/detail.html", tiket=tiket)
 
 @app.route("/tiket/create/pemindahan", methods=["POST"])
 @login_required
 @role_required(ROLE_ADMIN)
 def tiket_create_pemindahan():
-    """Buat tiket pemindahan."""
+    """Buat tiket pemindahan (langsung selesai)."""
     aset_ids = request.form.getlist("aset_ids[]")
     if not aset_ids:
         flash("Pilih minimal 1 aset.", "danger")
-        return redirect(url_for("tiket_list"))
+        return redirect(url_for("history_list"))
 
     gedung_asal = request.form.get("gedung_asal", "").strip()
     lantai_asal = request.form.get("lantai_asal", "").strip()
@@ -782,11 +918,7 @@ def tiket_create_pemindahan():
     nama_pemohon = request.form.get("nama_pemohon", "").strip()
     catatan = request.form.get("catatan", "").strip()
 
-    foto_file = request.files.get("foto")
-    foto = None
-    foto_error = None
-    if foto_file and foto_file.filename:
-        foto, foto_error = save_upload(foto_file, prefix="tiket_")
+    foto, foto_error = save_upload(request.files.get("foto"), prefix="tiket_")
 
     tiket = Tiket(
         jenis_tiket="Pemindahan",
@@ -799,7 +931,7 @@ def tiket_create_pemindahan():
         ruangan_tujuan=ruangan_tujuan,
         catatan=catatan,
         foto=foto,
-        status_tiket="Selesai",
+        created_by=current_user.id,
     )
     db.session.add(tiket)
     db.session.flush()
@@ -807,44 +939,74 @@ def tiket_create_pemindahan():
     for aid in aset_ids:
         aset = db.session.get(Aset, int(aid))
         if aset:
+            # Simpan data lama
+            data_lama = {
+                "gedung": aset.gedung,
+                "lantai": aset.lantai,
+                "ruangan": aset.ruangan
+            }
+
+            # Catat histori pindah
             histori = HistoriAset(
                 id_aset=aset.id,
                 jenis_event="pindah",
                 gedung=gedung_tujuan,
                 lantai=lantai_tujuan,
                 ruangan=ruangan_tujuan,
-                gedung_asal=aset.gedung,      
+                gedung_asal=aset.gedung,
                 lantai_asal=aset.lantai,
                 ruangan_asal=aset.ruangan,
                 id_tiket=tiket.id
             )
             db.session.add(histori)
-            
+
+            # Update lokasi aset
             aset.gedung = gedung_tujuan
             aset.lantai = lantai_tujuan or None
             aset.ruangan = ruangan_tujuan
             aset.status_aset = "Baik"
-            
+
+            # Catat log status (untuk tiket)
+            db.session.add(LogStatus(
+                id_tiket=tiket.id,
+                status_lama=None,
+                status_baru="Selesai",
+                id_user_pengubah=current_user.id
+            ))
+
+            # Catat aktivitas admin
+            catat_aktivitas(
+                aksi="MOVE",
+                target_model="Aset",
+                target_id=aset.id,
+                deskripsi=f"Memindahkan aset {aset.nama} dari {data_lama['gedung']} / {data_lama['ruangan']} ke {gedung_tujuan} / {ruangan_tujuan}",
+                data_lama=data_lama,
+                data_baru={
+                    "gedung": aset.gedung,
+                    "lantai": aset.lantai,
+                    "ruangan": aset.ruangan
+                }
+            )
+
             db.session.add(TiketAset(id_tiket=tiket.id, id_aset=aset.id))
 
-    catat_log(tiket, None, "Selesai")
     db.session.commit()
-    if foto_error:
-        flash(f"Tiket berhasil dibuat, tetapi foto gagal diupload: {foto_error}", "warning")
-    else:
-        flash(f"Tiket pemindahan berhasil dibuat. {len(aset_ids)} aset dipindahkan.", "success")
-        return redirect(url_for("tiket_list"))
 
+    if foto_error:
+        flash(f"Pemindahan berhasil, tetapi foto gagal diupload: {foto_error}", "warning")
+    else:
+        flash(f"Pemindahan berhasil. {len(aset_ids)} aset dipindahkan.", "success")
+    return redirect(url_for("history_list"))
 
 @app.route("/tiket/create/kerusakan", methods=["POST"])
 @login_required
 @role_required(ROLE_ADMIN)
 def tiket_create_kerusakan():
-    """Buat tiket kerusakan."""
+    """Buat tiket kerusakan (hanya kerusakan, langsung selesai)."""
     aset_ids = request.form.getlist("aset_ids[]")
     if not aset_ids:
         flash("Pilih minimal 1 aset.", "danger")
-        return redirect(url_for("tiket_list"))
+        return redirect(url_for("history_list"))
 
     gedung_asal = request.form.get("gedung_asal", "").strip()
     lantai_asal = request.form.get("lantai_asal", "").strip()
@@ -852,11 +1014,7 @@ def tiket_create_kerusakan():
     nama_pemohon = request.form.get("nama_pemohon", "").strip()
     catatan = request.form.get("catatan", "").strip()
 
-    foto_file = request.files.get("foto")
-    foto = None
-    foto_error = None
-    if foto_file and foto_file.filename:
-        foto, foto_error = save_upload(foto_file, prefix="tiket_")
+    foto = save_upload(request.files.get("foto"), prefix="tiket_")[0]
 
     tiket = Tiket(
         jenis_tiket="Kerusakan",
@@ -866,7 +1024,7 @@ def tiket_create_kerusakan():
         ruangan_asal=ruangan_asal,
         catatan=catatan,
         foto=foto,
-        status_tiket="Pending",  # Menunggu perbaikan
+        status_tiket="Selesai",  # Langsung selesai, tidak ada alur
     )
     db.session.add(tiket)
     db.session.flush()
@@ -876,7 +1034,6 @@ def tiket_create_kerusakan():
         if aset:
             # Update status aset menjadi Rusak
             aset.status_aset = "Rusak"
-            # Increment total kerusakan
             aset.total_kerusakan = (aset.total_kerusakan or 0) + 1
             
             # Catat histori rusak
@@ -890,191 +1047,12 @@ def tiket_create_kerusakan():
             )
             db.session.add(histori)
             
-            # Relasi tiket-aset
             db.session.add(TiketAset(id_tiket=tiket.id, id_aset=aset.id))
 
-    catat_log(tiket, None, "Pending")
+    catat_log(tiket, None, "Selesai")
     db.session.commit()
-    if foto_error:
-        flash(f"Tiket berhasil dibuat, tetapi foto gagal diupload: {foto_error}", "warning")
-    else:
-        flash(f"Tiket kerusakan berhasil dibuat. {len(aset_ids)} aset rusak.", "success")
-        return redirect(url_for("tiket_list"))
-
-
-@app.route("/tiket/<int:tiket_id>")
-@login_required
-def tiket_detail(tiket_id):
-    tiket = Tiket.query.get_or_404(tiket_id)
-    return render_template("tiket/detail.html", tiket=tiket)
-
-
-@app.route("/tiket/<int:tiket_id>/selesai", methods=["POST"])
-@login_required
-@role_required(ROLE_ADMIN)
-def tiket_selesai(tiket_id):
-    """Tandai tiket kerusakan selesai (aset sudah diperbaiki) dengan bukti foto & catatan."""
-    tiket = Tiket.query.get_or_404(tiket_id)
-    
-    if tiket.jenis_tiket != "Kerusakan":
-        flash("Hanya tiket kerusakan yang bisa ditandai selesai.", "danger")
-        return redirect(url_for("tiket_detail", tiket_id=tiket.id))
-    
-    if tiket.status_tiket != "Pending":
-        flash("Tiket sudah selesai.", "warning")
-        return redirect(url_for("tiket_detail", tiket_id=tiket.id))
-    
-    # Ambil foto perbaikan
-    foto_perbaikan_file = request.files.get("foto_perbaikan")
-    foto_perbaikan = None
-    foto_perbaikan_error = None
-    
-    if not foto_perbaikan_file or not foto_perbaikan_file.filename:
-        flash("Harap upload foto bukti perbaikan.", "danger")
-        return redirect(url_for("tiket_detail", tiket_id=tiket.id))
-    
-    # Validasi dan upload
-    foto_perbaikan, foto_perbaikan_error = save_upload(foto_perbaikan_file, prefix="perbaikan_")
-    
-    if foto_perbaikan_error:
-        flash(f"Gagal upload foto perbaikan: {foto_perbaikan_error}", "danger")
-        return redirect(url_for("tiket_detail", tiket_id=tiket.id))
-    
-    # Ambil catatan perbaikan
-    catatan_perbaikan = request.form.get("catatan_perbaikan", "").strip()
-    if not catatan_perbaikan:
-        flash("Harap isi catatan perbaikan.", "danger")
-        return redirect(url_for("tiket_detail", tiket_id=tiket.id))
-    
-    # Proses setiap aset
-    for ta in tiket.aset_terkait:
-        aset = ta.aset
-        if aset:
-            # Kembalikan status aset menjadi Baik
-            aset.status_aset = "Baik"
-            
-            # Catat histori perbaikan
-            histori = HistoriAset(
-                id_aset=aset.id,
-                jenis_event="perbaikan",
-                gedung=aset.gedung,
-                lantai=aset.lantai,
-                ruangan=aset.ruangan,
-                id_tiket=tiket.id,
-                catatan=catatan_perbaikan  # <-- tambahkan field catatan di HistoriAset jika ada
-            )
-            db.session.add(histori)
-    
-    # Update tiket
-    tiket.status_tiket = "Selesai"
-    tiket.foto_perbaikan = foto_perbaikan
-    tiket.catatan_perbaikan = catatan_perbaikan
-    
-    catat_log(tiket, "Pending", "Selesai")
-    db.session.commit()
-    
-    flash("Tiket kerusakan selesai. Aset sudah diperbaiki dengan bukti foto dan catatan.", "success")
-    return redirect(url_for("tiket_detail", tiket_id=tiket.id))
-
-
-# ---------------------------------------------------------------------------
-# SCHEDULE (KALENDER)
-# ---------------------------------------------------------------------------
-@app.route("/schedule")
-@login_required
-def schedule():
-    # Ambil bulan/tahun dari request
-    today = datetime.today()
-    month = request.args.get('month', type=int, default=today.month)
-    year = request.args.get('year', type=int, default=today.year)
-    
-    # Validasi
-    if month < 1 or month > 12:
-        month = today.month
-    if year < 2000 or year > 2100:
-        year = today.year
-
-    # Ambil semua tiket (atau filter sesuai kebutuhan)
-    semua_tiket = Tiket.query.order_by(Tiket.created_at).all()
-    grouped = group_tickets_by_date(semua_tiket)
-
-    # Buat kalender untuk bulan ini
-    cal = calendar.Calendar(firstweekday=6)  # Minggu sebagai hari pertama (sesuai contoh)
-    month_days = cal.monthdayscalendar(year, month)
-    
-    # Nama hari (pendek)
-    day_names = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
-    
-    # Data untuk navigasi
-    prev_month = month - 1 if month > 1 else 12
-    prev_year = year if month > 1 else year - 1
-    next_month = month + 1 if month < 12 else 1
-    next_year = year if month < 12 else year + 1
-
-    return render_template(
-        "schedule.html",
-        month_days=month_days,
-        day_names=day_names,
-        grouped=grouped,
-        month=month,
-        year=year,
-        prev_month=prev_month,
-        prev_year=prev_year,
-        next_month=next_month,
-        next_year=next_year,
-        bulan_nama=calendar.month_name[month],
-        datetime=datetime
-    )
-
-
-@app.route("/api/schedule-events")
-@login_required
-def api_schedule_events():
-    """API untuk FullCalendar - ambil semua tiket sebagai event."""
-    tiket_all = Tiket.query.order_by(Tiket.created_at).all()
-    events = []
-    for t in tiket_all:
-        color = "#3b82f6" if t.jenis_tiket == "Pemindahan" else "#ef4444"  # Biru untuk pindah, merah untuk rusak
-        events.append({
-            "id": t.id,
-            "title": f"#{t.id} - {t.jenis_tiket} - {t.nama_pemohon}",
-            "start": t.created_at.isoformat(),
-            "url": url_for("tiket_detail", tiket_id=t.id),
-            "color": color,
-            "extendedProps": {
-                "jenis": t.jenis_tiket,
-                "status": t.status_tiket,
-                "pemohon": t.nama_pemohon
-            }
-        })
-    return jsonify(events)
-
-@app.route("/api/tickets-by-date")
-@login_required
-def api_tickets_by_date():
-    date_str = request.args.get('date')
-    if not date_str:
-        return jsonify([])
-    try:
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    except ValueError:
-        return jsonify([])
-    
-    # Ambil tiket yang created_at sama dengan target_date (abaikan waktu)
-    tickets = Tiket.query.filter(
-        db.func.date(Tiket.created_at) == target_date
-    ).order_by(Tiket.created_at).all()
-    
-    data = []
-    for t in tickets:
-        data.append({
-            "id": t.id,
-            "jenis": t.jenis_tiket,
-            "pemohon": t.nama_pemohon,
-            "status": t.status_tiket,
-            "url": url_for('tiket_detail', tiket_id=t.id)
-        })
-    return jsonify(data)
+    flash(f"Laporan kerusakan berhasil dibuat. {len(aset_ids)} aset ditandai rusak.", "success")
+    return redirect(url_for("history_list"))
 
 
 # ---------------------------------------------------------------------------
@@ -1102,7 +1080,7 @@ def users_create():
     if len(password) < 8:
         flash("Password minimal 8 karakter.", "danger")
         return redirect(url_for("users_list"))
-    if role != "admin":  # Hanya admin yang boleh
+    if role != "admin":
         flash("Role tidak valid.", "danger")
         return redirect(url_for("users_list"))
 
@@ -1132,6 +1110,7 @@ def users_toggle(user_id):
         "success",
     )
     return redirect(url_for("users_list"))
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5001)

@@ -2,7 +2,7 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block header %}Dashboard{% endblock %}
-{% block subheader %}<p class="text-xs text-slate-400">Ringkasan aset dan tiket saat ini</p>{% endblock %}
+{% block subheader %}<p class="text-xs text-slate-400">Ringkasan aset dan history saat ini</p>{% endblock %}
 {% block content %}
 
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -19,9 +19,9 @@
 
   <div class="card p-5 flex items-start justify-between">
     <div>
-      <p class="text-xs font-medium text-slate-400 mb-1.5">Tiket Pending (Kerusakan)</p>
-      <p class="font-display text-2xl font-bold text-slate-800">{{ total_pending }}</p>
-      <p class="text-xs text-slate-400 mt-1">Menunggu perbaikan</p>
+      <p class="text-xs font-medium text-slate-400 mb-1.5">Total History</p>
+      <p class="font-display text-2xl font-bold text-slate-800">{{ total_history }}</p>
+      <p class="text-xs text-slate-400 mt-1">Semua laporan tercatat</p>
     </div>
     <span class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -30,12 +30,12 @@
 
   <div class="card p-5 flex items-start justify-between">
     <div>
-      <p class="text-xs font-medium text-slate-400 mb-1.5">Tiket Selesai</p>
-      <p class="font-display text-2xl font-bold text-slate-800">{{ total_selesai }}</p>
-      <p class="text-xs text-slate-400 mt-1">Pemindahan &amp; perbaikan selesai</p>
+      <p class="text-xs font-medium text-slate-400 mb-1.5">Aset Rusak</p>
+      <p class="font-display text-2xl font-bold text-slate-800">{{ total_rusak }}</p>
+      <p class="text-xs text-slate-400 mt-1">Menunggu perbaikan</p>
     </div>
-    <span class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+    <span class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
     </span>
   </div>
 </div>
@@ -54,8 +54,8 @@
 
   <div class="card p-5 lg:col-span-2">
     <div class="flex items-center justify-between mb-3">
-      <p class="text-sm font-semibold text-slate-700">Tiket Terbaru</p>
-      <a href="{{ url_for('tiket_list') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat semua &rarr;</a>
+      <p class="text-sm font-semibold text-slate-700">History Terbaru</p>
+      <a href="{{ url_for('history_list') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat semua &rarr;</a>
     </div>
     <div class="overflow-x-auto -mx-5">
       <table class="w-full">
@@ -68,20 +68,20 @@
           </tr>
         </thead>
         <tbody>
-          {% for t in tiket_terbaru %}
+          {% for h in history_terbaru %}
           <tr class="table-row hover:bg-slate-50">
-            <td class="td font-medium"><a class="text-indigo-600 hover:text-indigo-700" href="{{ url_for('tiket_detail', tiket_id=t.id) }}">#{{ t.id }}</a></td>
+            <td class="td font-medium"><a class="text-indigo-600 hover:text-indigo-700" href="{{ url_for('history_detail', tiket_id=h.id) }}">#{{ h.id }}</a></td>
             <td class="td">
-              <span class="pill {{ 'bg-blue-50 text-blue-700 border border-blue-100' if t.jenis_tiket == 'Pemindahan' else 'bg-rose-50 text-rose-700 border border-rose-100' }}">
-                <span class="pill-dot {{ 'bg-blue-500' if t.jenis_tiket == 'Pemindahan' else 'bg-rose-500' }}"></span>
-                {{ t.jenis_tiket }}
+              <span class="pill bg-rose-50 text-rose-700 border border-rose-100">
+                <span class="pill-dot bg-rose-500"></span>
+                {{ h.jenis_tiket }}
               </span>
             </td>
-            <td class="td">{{ t.nama_pemohon }}</td>
-            <td class="td">{{ m.pill(t.status_tiket, m.tiket_tone(t.status_tiket)) }}</td>
+            <td class="td">{{ h.nama_pemohon }}</td>
+            <td class="td">{{ m.pill(h.status_tiket, m.tiket_tone(h.status_tiket)) }}</td>
           </tr>
           {% else %}
-          <tr><td colspan="4" class="py-10 text-center text-sm text-slate-400">Belum ada tiket.</td></tr>
+          <tr><td colspan="4" class="py-10 text-center text-sm text-slate-400">Belum ada history.</td></tr>
           {% endfor %}
         </tbody>
       </table>

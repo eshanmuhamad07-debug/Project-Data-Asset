@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Detail Aktivitas{% endblock %}
+{% block header %}
+<a href="{{ url_for('history_list') }}" class="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-600 text-xs font-medium mb-0.5">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+  History
+</a>
+<div>Detail Aktivitas</div>
+{% endblock %}
+{% block content %}
+
+<div class="card p-5 sm:p-6 max-w-2xl mx-auto space-y-5">
+  <!-- Header -->
+  <div class="flex items-center gap-3">
+    <span class="w-12 h-12 rounded-xl flex items-center justify-center {{ 
+      'bg-emerald-100 text-emerald-700' if log.aksi == 'CREATE' else 
+      'bg-amber-100 text-amber-700' if log.aksi == 'UPDATE' else 
+      'bg-rose-100 text-rose-700' if log.aksi == 'DELETE' else 
+      'bg-blue-100 text-blue-700'
+    }}">
+      {% if log.aksi == 'CREATE' %}
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+      {% elif log.aksi == 'UPDATE' %}
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+      {% elif log.aksi == 'DELETE' %}
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+      {% else %}
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+      {% endif %}
+    </span>
+    <div>
+      <h2 class="font-display font-bold text-xl text-slate-800">{{ label_aksi }}</h2>
+      <p class="text-xs text-slate-400">{{ log.created_at.strftime('%d %B %Y, %H:%M') }} • oleh {{ pelaku }}</p>
+    </div>
+  </div>
+
+  <!-- Deskripsi -->
+  <div class="border-t border-slate-100 pt-4">
+    <p class="text-xs text-slate-400 mb-1">Deskripsi</p>
+    <p class="text-sm text-slate-700">{{ log.deskripsi or '—' }}</p>
+  </div>
+
+  <!-- Detail Data Aset -->
+  {% if log.target_model == 'Aset' %}
+  <div class="border-t border-slate-100 pt-4">
+    <p class="text-xs text-slate-400 mb-3">Detail Data Aset</p>
+    
+    {% if log.aksi == 'CREATE' %}
+      <!-- Tambah Aset -->
+      <div class="bg-emerald-50 rounded-xl p-4 space-y-2">
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <div>
+            <p class="text-xs text-slate-400">Kode Aset</p>
+            <p class="font-medium text-slate-700">{{ log.data_baru.kode_aset or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Nama Aset</p>
+            <p class="font-medium text-slate-700">{{ log.data_baru.nama or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Merek</p>
+            <p class="font-medium text-slate-700">{{ log.data_baru.merek or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Jenis Aset</p>
+            <p class="font-medium text-slate-700">{{ log.data_baru.jenis or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Gedung</p>
+            <p class="font-medium text-slate-700">{{ log.data_baru.gedung or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Ruangan</p>
+            <p class="font-medium text-slate-700">{{ log.data_baru.ruangan or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Status</p>
+            <p class="font-medium text-slate-700">{{ log.data_baru.status or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Spesifikasi</p>
+            <p class="font-medium text-slate-700">{{ log.data_baru.spesifikasi or '-' }}</p>
+          </div>
+        </div>
+      </div>
+
+    {% elif log.aksi == 'UPDATE' %}
+      <!-- Edit Aset - Tampilkan Perubahan -->
+      <div class="bg-amber-50 rounded-xl p-4 space-y-3">
+        <p class="text-xs font-medium text-amber-700">Perubahan yang dilakukan:</p>
+        <div class="space-y-2">
+          {% if log.data_lama.nama != log.data_baru.nama %}
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-slate-500 w-20">Nama</span>
+            <span class="text-rose-600 line-through">{{ log.data_lama.nama or '-' }}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            <span class="text-emerald-600">{{ log.data_baru.nama or '-' }}</span>
+          </div>
+          {% endif %}
+          
+          {% if log.data_lama.gedung != log.data_baru.gedung %}
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-slate-500 w-20">Gedung</span>
+            <span class="text-rose-600 line-through">{{ log.data_lama.gedung or '-' }}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            <span class="text-emerald-600">{{ log.data_baru.gedung or '-' }}</span>
+          </div>
+          {% endif %}
+          
+          {% if log.data_lama.ruangan != log.data_baru.ruangan %}
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-slate-500 w-20">Ruangan</span>
+            <span class="text-rose-600 line-through">{{ log.data_lama.ruangan or '-' }}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            <span class="text-emerald-600">{{ log.data_baru.ruangan or '-' }}</span>
+          </div>
+          {% endif %}
+          
+          {% if log.data_lama.status != log.data_baru.status %}
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-slate-500 w-20">Status</span>
+            <span class="text-rose-600 line-through">{{ log.data_lama.status or '-' }}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            <span class="text-emerald-600">{{ log.data_baru.status or '-' }}</span>
+          </div>
+          {% endif %}
+          
+          {% if log.data_lama.jenis != log.data_baru.jenis %}
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-slate-500 w-20">Jenis Aset</span>
+            <span class="text-rose-600 line-through">{{ log.data_lama.jenis or '-' }}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            <span class="text-emerald-600">{{ log.data_baru.jenis or '-' }}</span>
+          </div>
+          {% endif %}
+          
+          {% if log.data_lama.spesifikasi != log.data_baru.spesifikasi %}
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-slate-500 w-20">Spesifikasi</span>
+            <span class="text-rose-600 line-through">{{ log.data_lama.spesifikasi or '-' }}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            <span class="text-emerald-600">{{ log.data_baru.spesifikasi or '-' }}</span>
+          </div>
+          {% endif %}
+        </div>
+        
+        {% if log.data_lama == log.data_baru %}
+        <p class="text-xs text-slate-400">Tidak ada perubahan data yang terdeteksi.</p>
+        {% endif %}
+      </div>
+
+    {% elif log.aksi == 'DELETE' %}
+      <!-- Hapus Aset -->
+      <div class="bg-rose-50 rounded-xl p-4 space-y-2">
+        <p class="text-xs font-medium text-rose-700">Data aset yang dihapus:</p>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <div>
+            <p class="text-xs text-slate-400">Kode Aset</p>
+            <p class="font-medium text-slate-700">{{ log.data_lama.kode_aset or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Nama Aset</p>
+            <p class="font-medium text-slate-700">{{ log.data_lama.nama or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Merek</p>
+            <p class="font-medium text-slate-700">{{ log.data_lama.merek or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Jenis Aset</p>
+            <p class="font-medium text-slate-700">{{ log.data_lama.jenis or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Gedung</p>
+            <p class="font-medium text-slate-700">{{ log.data_lama.gedung or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Ruangan</p>
+            <p class="font-medium text-slate-700">{{ log.data_lama.ruangan or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Status</p>
+            <p class="font-medium text-slate-700">{{ log.data_lama.status or '-' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Spesifikasi</p>
+            <p class="font-medium text-slate-700">{{ log.data_lama.spesifikasi or '-' }}</p>
+          </div>
+        </div>
+      </div>
+
+    {% elif log.aksi == 'MOVE' %}
+      <!-- Pemindahan Aset -->
+      <div class="bg-blue-50 rounded-xl p-4 space-y-2">
+        <p class="text-xs font-medium text-blue-700">Detail pemindahan:</p>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <div>
+            <p class="text-xs text-slate-400">Lokasi Asal</p>
+            <p class="font-medium text-slate-700">
+              {{ log.data_lama.gedung or '-' }}
+              {% if log.data_lama.lantai %}/ Lantai {{ log.data_lama.lantai }}{% endif %}
+              {% if log.data_lama.ruangan %}/ {{ log.data_lama.ruangan }}{% endif %}
+            </p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Lokasi Tujuan</p>
+            <p class="font-medium text-slate-700">
+              {{ log.data_baru.gedung or '-' }}
+              {% if log.data_baru.lantai %}/ Lantai {{ log.data_baru.lantai }}{% endif %}
+              {% if log.data_baru.ruangan %}/ {{ log.data_baru.ruangan }}{% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Tombol Kembali -->
+  <div class="border-t border-slate-100 pt-4 flex justify-end">
+    <a href="{{ url_for('history_list') }}" class="btn btn-secondary">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+      Kembali ke History
+    </a>
+  </div>
+</div>
+
+{% endblock %}
