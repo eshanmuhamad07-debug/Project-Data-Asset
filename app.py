@@ -69,6 +69,40 @@ logging.basicConfig(level=logging.DEBUG)
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXT
 
+def convert_gdrive_to_thumbnail(url):
+    """
+    Konversi link Google Drive view/open menjadi link thumbnail.
+    Contoh:
+    https://drive.google.com/file/d/ID/view -> https://drive.google.com/thumbnail?id=ID&sz=w1000
+    """
+    if not url:
+        return url
+    
+    import re
+    
+    # Deteksi link Google Drive
+    if 'drive.google.com' in url:
+        # Pattern 1: /file/d/ID/view
+        match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
+        if match:
+            file_id = match.group(1)
+            return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
+        
+        # Pattern 2: open?id=ID
+        match = re.search(r'[?&]id=([a-zA-Z0-9_-]+)', url)
+        if match:
+            file_id = match.group(1)
+            return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
+        
+        # Pattern 3: uc?id=ID (sudah direct, ubah ke thumbnail)
+        match = re.search(r'[?&]id=([a-zA-Z0-9_-]+)', url)
+        if match:
+            file_id = match.group(1)
+            return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
+    
+    # Jika bukan Google Drive, return as-is
+    return url
+
 
 def is_valid_image(file_storage):
     """Solusi #5: pastikan file BENAR-BENAR gambar, bukan cuma nama
@@ -256,7 +290,7 @@ def aset_list():
 
     page = request.args.get("page", 1, type=int)
     pagination = query.order_by(Aset.id.desc()).paginate(
-        page=page, per_page=20, error_out=False
+        page=page, per_page=10, error_out=False
     )
     daftar_aset = pagination.items
     kategori_all = Kategori.query.all()
@@ -354,7 +388,8 @@ def aset_create():
         foto, foto_error = save_upload(foto_file, prefix="aset_")
     
     # Ambil foto_url jika diisi
-    foto_url = request.form.get("foto_url", "").strip() or None
+    foto_url_raw = request.form.get("foto_url", "").strip()
+    foto_url = convert_gdrive_to_thumbnail(foto_url_raw) if foto_url_raw else None
 
     aset = Aset(
         kode_aset=kode_aset,
@@ -404,7 +439,11 @@ def aset_detail(aset_id):
         })
     
     # Tentukan foto mana yang akan ditampilkan (prioritas: foto_url > foto)
-    foto_display = aset.foto_url or aset.foto
+    foto_display = None
+    if aset.foto_url:
+        foto_display = aset.foto_url  # Sudah thumbnail
+    elif aset.foto:
+        foto_display = aset.foto
     
     data = {
         "id": aset.id,
@@ -441,10 +480,10 @@ def aset_edit(aset_id):
     aset.spesifikasi = request.form.get("spesifikasi", "").strip() or None
     
     # Update foto_url jika diisi
-    foto_url = request.form.get("foto_url", "").strip()
-    if foto_url:
-        aset.foto_url = foto_url
-    elif foto_url == "" and request.form.get("hapus_foto"):
+    foto_url_raw = request.form.get("foto_url", "").strip()
+    if foto_url_raw:
+        aset.foto_url = convert_gdrive_to_thumbnail(foto_url_raw)
+    elif foto_url_raw == "" and request.form.get("hapus_foto"):
         aset.foto_url = None
     
     jenis_aset = request.form.get("jenis_aset", aset.jenis_aset)
@@ -1095,4 +1134,4 @@ def users_toggle(user_id):
     return redirect(url_for("users_list"))
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=5001)
