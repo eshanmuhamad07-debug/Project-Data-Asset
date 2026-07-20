@@ -74,7 +74,21 @@
     </div>
 
     {% if tiket.foto %}
-    <img src="{{ url_for('static', filename='uploads/' + tiket.foto) }}" class="rounded-xl max-h-56 w-full object-cover border border-slate-100">
+      {% if tiket.foto.startswith('http://') or tiket.foto.startswith('https://') or tiket.foto.startswith('//') %}
+        <div class="bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center" style="min-height: 150px; max-height: 450px;">
+          <img src="{{ tiket.foto }}" 
+              style="width: 100%; height: auto; max-height: 450px; object-fit: contain; display: block;"
+              class="border border-slate-200 rounded-lg"
+              onerror="this.parentElement.innerHTML='<div class=\\'text-slate-400 text-sm p-4\\'>Foto tidak ditemukan</div>'">
+        </div>
+      {% else %}
+        <div class="bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center" style="min-height: 150px; max-height: 450px;">
+          <img src="{{ url_for('static', filename='uploads/' + tiket.foto) }}" 
+              style="width: 100%; height: auto; max-height: 450px; object-fit: contain; display: block;"
+              class="border border-slate-200 rounded-lg"
+              onerror="this.parentElement.innerHTML='<div class=\\'text-slate-400 text-sm p-4\\'>Foto tidak ditemukan</div>'">
+        </div>
+      {% endif %}
     {% endif %}
 
     <div>
