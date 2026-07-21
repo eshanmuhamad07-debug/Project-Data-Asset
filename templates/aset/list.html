@@ -2,79 +2,65 @@
 {% extends "base.html" %}
 {% block title %}Data Aset{% endblock %}
 {% block header %}Data Aset{% endblock %}
-{% block subheader %}<p class="text-xs text-slate-400">{{ pagination.total if pagination else 0 }} aset terdaftar</p>{% endblock %}
+{% block subheader %}{% endblock %}
 {% block content %}
 
-{% if current_user.role == 'admin' %}
-  <div class="flex flex-wrap items-center justify-end gap-2">
-    <a href="{{ url_for('aset_export') }}" class="btn btn-secondary">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-      Export
-    </a>
-    <form method="POST" action="{{ url_for('aset_import') }}" enctype="multipart/form-data" class="flex items-center gap-1.5">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label class="btn btn-secondary cursor-pointer relative overflow-hidden">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5"/></svg>
-        <span id="importFileLabel">Import Excel</span>
-        <input type="file" name="file_import" accept=".xlsx" required onchange="document.getElementById('importFileLabel').textContent = this.files[0]?.name || 'Import Excel'"
-                class="absolute inset-0 opacity-0 cursor-pointer">
-      </label>
-      <button type="submit" class="btn btn-secondary">Unggah</button>
-    </form>
-    <button onclick="openModal('modalTambahAset')" class="btn btn-primary">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-      Tambah Aset
-    </button>
+<div class="rounded-2xl border-2 {{ 'border-indigo-200 bg-indigo-50' if filter_aktif else 'border-slate-200 bg-slate-50' }} px-6 py-5 mb-4 flex items-center gap-4">
+  <div class="w-14 h-14 rounded-2xl {{ 'bg-indigo-600' if filter_aktif else 'bg-slate-400' }} flex items-center justify-center shrink-0">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
   </div>
-{% endif %}
+  <div>
+    <p class="text-3xl sm:text-4xl font-extrabold {{ 'text-indigo-700' if filter_aktif else 'text-slate-700' }} leading-tight">
+      {{ pagination.total if pagination else 0 }} <span class="text-lg font-semibold">aset</span>
+    </p>
+    {% if filter_aktif %}
+    <p class="text-sm font-medium text-indigo-500 mt-0.5">Ditemukan sesuai filter yang dipilih (dari total {{ total_keseluruhan }} aset terdaftar)</p>
+    {% else %}
+    <p class="text-sm font-medium text-slate-400 mt-0.5">Total aset yang terdaftar di sistem</p>
+    {% endif %}
+  </div>
+</div>
 
 <div class="card">
   <div class="p-4 sm:p-5 border-b border-slate-100 space-y-3">
-    <div class="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
-      <form method="GET" id="filterForm" class="flex flex-col gap-2 w-full lg:w-auto">
-        <div class="flex flex-wrap gap-2 w-full">
+    <div class="flex flex-col lg:flex-row lg:flex-wrap gap-3 lg:items-center lg:justify-between">
+      <form method="GET" class="flex flex-col gap-2 w-full lg:w-auto">
+        <div class="flex flex-col sm:flex-row sm:flex-wrap gap-2 w-full lg:w-auto">
           <div class="relative">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
             <input type="text" name="q" value="{{ request.args.get('q', '') }}" placeholder="Cari nama atau kode aset..."
-                  class="field-input pl-9 w-full sm:w-48">
+                   class="field-input pl-9 w-full sm:w-64">
           </div>
-          <select name="status" class="field-input w-full sm:w-36">
+          <select name="status" class="field-input w-full sm:w-40">
             <option value="">Semua Status</option>
             <option value="Baik" {{ 'selected' if request.args.get('status')=='Baik' }}>Baik</option>
             <option value="Rusak" {{ 'selected' if request.args.get('status')=='Rusak' }}>Rusak</option>
             <option value="Dipindahkan" {{ 'selected' if request.args.get('status')=='Dipindahkan' }}>Dipindahkan</option>
           </select>
-          <select name="kategori" id="filterKategori" class="kategoriSelect field-input w-full sm:w-40" data-target="filterSubKategori">
+          <select name="kategori" id="filterKategori" onchange="onFilterKategoriChange(this)" class="kategoriSelect field-input w-full sm:w-44" data-target="filterSubKategori">
             <option value="">Semua Kategori</option>
             {% for k in kategori_all %}
             <option value="{{ k.id }}" {{ 'selected' if request.args.get('kategori')|string==k.id|string }}>{{ k.nama }}</option>
             {% endfor %}
           </select>
-          <select name="jenis" class="field-input w-full sm:w-36">
+          <select name="jenis" class="field-input w-full sm:w-40">
             <option value="">Semua Jenis</option>
             {% for j in jenis_aset_options %}
             <option value="{{ j }}" {{ 'selected' if request.args.get('jenis')==j }}>{{ j }}</option>
             {% endfor %}
           </select>
-          <button type="submit" class="btn btn-primary shrink-0">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-            Terapkan
-          </button>
+          <button type="submit" class="btn btn-secondary shrink-0">Terapkan</button>
           {% if request.args.get('q') or request.args.get('status') or request.args.get('kategori') or request.args.get('jenis') or request.args.get('sub_kategori') or request.args.get('gedung') or request.args.get('lantai') or request.args.get('ruangan') %}
-          <a href="{{ url_for('aset_list') }}" class="btn btn-secondary shrink-0 text-slate-400">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-            Reset
-          </a>
+          <a href="{{ url_for('aset_list') }}" class="btn btn-secondary shrink-0 text-slate-400">Reset</a>
           {% endif %}
         </div>
 
-        <!-- Filter Lanjutan -->
         <details class="group" {{ 'open' if request.args.get('sub_kategori') or request.args.get('gedung') or request.args.get('lantai') or request.args.get('ruangan') }}>
           <summary class="cursor-pointer select-none inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 w-fit">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform group-open:rotate-90"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
             Filter Lanjutan
           </summary>
-          <div class="flex flex-wrap gap-2 w-full mt-2">
+          <div class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto mt-2">
             <select name="sub_kategori" id="filterSubKategori" class="field-input w-full sm:w-44">
               {% if sub_kategori_terpilih %}
                 <option value="{{ sub_kategori_terpilih.id }}" selected>{{ sub_kategori_terpilih.nama }}</option>
@@ -82,13 +68,13 @@
                 <option value="">{{ 'Pilih Kategori dulu' if not request.args.get('kategori') else 'Semua Sub Kategori' }}</option>
               {% endif %}
             </select>
-            <select name="gedung" id="filterGedung" class="field-input w-full sm:w-40" onchange="onFilterGedungChange(this)">
+            <select name="gedung" id="filterGedung" onchange="onFilterGedungChange(this)" class="field-input w-full sm:w-40">
               <option value="">Semua Gedung</option>
               {% for g in gedung_all %}
               <option value="{{ g }}" {{ 'selected' if request.args.get('gedung')==g }}>{{ g }}</option>
               {% endfor %}
             </select>
-            <select name="lantai" id="filterLantai" class="field-input w-full sm:w-36" onchange="onFilterLantaiChange(this)">
+            <select name="lantai" id="filterLantai" onchange="onFilterLantaiChange(this)" class="field-input w-full sm:w-36">
               {% if request.args.get('lantai') %}
                 <option value="{{ request.args.get('lantai') }}" selected>Lantai {{ request.args.get('lantai') }}</option>
               {% else %}
@@ -105,10 +91,36 @@
           </div>
         </details>
       </form>
+
+      {% if current_user.role == 'admin' %}
+      <div class="flex flex-wrap items-stretch gap-2 w-full lg:w-auto">
+        <div class="flex items-stretch rounded-xl border border-slate-200 overflow-hidden divide-x divide-slate-200 shrink-0">
+          <a href="{{ url_for('aset_export') }}" class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 whitespace-nowrap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+            Export Excel
+          </a>
+          <form method="POST" action="{{ url_for('aset_import') }}" enctype="multipart/form-data" id="formImportAset" class="flex">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer relative overflow-hidden whitespace-nowrap">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5"/></svg>
+              Import Excel
+              <input type="file" name="file_import" accept=".xlsx" required
+                     onchange="document.getElementById('formImportAset').submit()"
+                     class="absolute inset-0 opacity-0 cursor-pointer">
+            </label>
+          </form>
+        </div>
+        <button onclick="openModal('modalTambahAset')" class="btn btn-primary shrink-0">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          Tambah Aset
+        </button>
+      </div>
+      {% endif %}
     </div>
     {% if current_user.role == 'admin' %}
-    <p class="text-xs text-slate-400">
-      Klik <b class="text-slate-500">Export</b> untuk unduh data, edit di Excel, lalu <b class="text-slate-500">Import</b> file yang sama untuk memperbarui data (dicocokkan berdasarkan Kode Aset) atau menambah aset baru.
+    <p class="text-xs text-slate-400 flex items-center gap-1">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
+      <span><b class="text-slate-500">Export</b> untuk unduh data ke Excel, edit di Excel, lalu pilih file yang sama di <b class="text-slate-500">Import</b> untuk memperbarui data (dicocokkan berdasarkan Kode Aset) atau menambah aset baru — langsung terunggah begitu file dipilih.</span>
     </p>
     {% endif %}
   </div>
@@ -119,7 +131,6 @@
         <tr class="border-b border-slate-100 bg-slate-50/60">
           <th class="th">Kode</th>
           <th class="th">Nama</th>
-          <th class="th">Merek</th> <!-- TAMBAHAN: MEREK -->
           <th class="th">Lokasi</th>
           <th class="th">Jenis</th>
           <th class="th">Kategori</th>
@@ -132,21 +143,13 @@
         <tr class="table-row hover:bg-slate-50">
           <td class="td font-mono text-[12px] text-slate-500 whitespace-nowrap">{{ a.kode_aset }}</td>
           <td class="td font-medium text-slate-800">{{ a.nama }}</td>
-          <td class="td text-slate-600">{{ a.merek or '-' }}</td> <!-- TAMBAHAN: MEREK -->
-          <td class="td text-slate-500">
-            <div class="font-medium text-slate-600">{{ a.gedung }}{% if a.lantai %} · Lantai {{ a.lantai }}{% endif %}</div>
-            <div class="text-xs text-slate-400">{{ a.ruangan }}</div>
-          </td>
+          <td class="td whitespace-nowrap text-slate-500">{{ a.gedung }} / {{ a.ruangan }}</td>
           <td class="td">{{ m.pill(a.jenis_aset, m.jenis_aset_tone(a.jenis_aset)) }}</td>
           <td class="td whitespace-nowrap text-slate-500">{{ a.sub_kategori.nama if a.sub_kategori else '—' }}</td>
           <td class="td">{{ m.pill(a.status_aset, m.aset_tone(a.status_aset)) }}</td>
           {% if current_user.role == 'admin' %}
           <td class="td whitespace-nowrap text-right">
-            <button onclick="openDetailAset({{ a.id }})" class="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-sky-50">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-              Detail
-            </button>
-            <button onclick='openEditAset({{ {"id": a.id, "nama": a.nama, "merek": a.merek, "spesifikasi": a.spesifikasi, "gedung": a.gedung, "lantai": a.lantai, "ruangan": a.ruangan, "status_aset": a.status_aset, "jenis_aset": a.jenis_aset, "id_kategori": a.id_kategori, "id_sub_kategori": a.id_sub_kategori, "foto_url": a.foto_url} | tojson }})'
+            <button onclick='openEditAset({{ {"id": a.id, "nama": a.nama, "gedung": a.gedung, "lantai": a.lantai, "ruangan": a.ruangan, "status_aset": a.status_aset, "jenis_aset": a.jenis_aset, "id_kategori": a.id_kategori, "id_sub_kategori": a.id_sub_kategori} | tojson }})'
                     class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-indigo-50">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
               Edit
@@ -163,7 +166,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="8" class="py-14 text-center"> <!-- Ubah colspan dari 7 ke 8 karena ada kolom Merek -->
+          <td colspan="7" class="py-14 text-center">
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" class="mx-auto text-slate-300 mb-2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
             <p class="text-sm text-slate-400">Tidak ada data aset yang cocok.</p>
           </td>
@@ -174,93 +177,14 @@
   </div>
 
   {% if pagination and pagination.pages > 1 %}
-  <div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-100 text-xs text-slate-500">
-    <div class="flex items-center gap-3">
-      <span class="text-slate-400">
-        Menampilkan <span class="font-semibold text-slate-600">{{ ((pagination.page - 1) * pagination.per_page) + 1 }}</span> 
-        - <span class="font-semibold text-slate-600">{{ [pagination.page * pagination.per_page, pagination.total] | min }}</span> 
-        dari <span class="font-semibold text-slate-700">{{ pagination.total }}</span> data
-      </span>
-    </div>
-    
-    <div class="flex items-center gap-1.5">
-      <!-- Tombol First -->
+  <div class="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-slate-100 text-xs text-slate-500">
+    <span>Halaman {{ pagination.page }} dari {{ pagination.pages }}</span>
+    <div class="flex gap-2">
       {% if pagination.has_prev %}
-        <a href="{{ url_for('aset_list', page=1, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), jenis=request.args.get('jenis',''), sub_kategori=request.args.get('sub_kategori',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan','')) }}" 
-          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all" title="Halaman Pertama">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5l-7.5-7.5 7.5-7.5m-6 15L5.25 12l7.5-7.5"/></svg>
-        </a>
-      {% else %}
-        <span class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 cursor-not-allowed">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5l-7.5-7.5 7.5-7.5m-6 15L5.25 12l7.5-7.5"/></svg>
-        </span>
+        <a href="{{ url_for('aset_list', page=pagination.prev_num, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), jenis=request.args.get('jenis',''), sub_kategori=request.args.get('sub_kategori',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan','')) }}" class="btn btn-secondary btn-sm">&lsaquo; Sebelumnya</a>
       {% endif %}
-
-      <!-- Tombol Previous -->
-      {% if pagination.has_prev %}
-        <a href="{{ url_for('aset_list', page=pagination.prev_num, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), jenis=request.args.get('jenis',''), sub_kategori=request.args.get('sub_kategori',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan','')) }}" 
-          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 hover:text-slate-800 transition-all" title="Halaman Sebelumnya">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
-        </a>
-      {% else %}
-        <span class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 cursor-not-allowed">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
-        </span>
-      {% endif %}
-
-      <!-- Nomor Halaman -->
-      <div class="flex items-center gap-0.5">
-        {% set start = [pagination.page - 2, 1] | max %}
-        {% set end = [pagination.page + 2, pagination.pages] | min %}
-        
-        {% if start > 1 %}
-          <a href="{{ url_for('aset_list', page=1, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), jenis=request.args.get('jenis',''), sub_kategori=request.args.get('sub_kategori',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan','')) }}" 
-            class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all">1</a>
-          {% if start > 2 %}
-            <span class="w-6 h-8 flex items-center justify-center text-slate-300">…</span>
-          {% endif %}
-        {% endif %}
-        
-        {% for p in range(start, end + 1) %}
-          {% if p == pagination.page %}
-            <span class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold text-white bg-indigo-600 shadow-sm">{{ p }}</span>
-          {% else %}
-            <a href="{{ url_for('aset_list', page=p, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), jenis=request.args.get('jenis',''), sub_kategori=request.args.get('sub_kategori',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan','')) }}" 
-              class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all">{{ p }}</a>
-          {% endif %}
-        {% endfor %}
-        
-        {% if end < pagination.pages %}
-          {% if end < pagination.pages - 1 %}
-            <span class="w-6 h-8 flex items-center justify-center text-slate-300">…</span>
-          {% endif %}
-          <a href="{{ url_for('aset_list', page=pagination.pages, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), jenis=request.args.get('jenis',''), sub_kategori=request.args.get('sub_kategori',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan','')) }}" 
-            class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all">{{ pagination.pages }}</a>
-        {% endif %}
-      </div>
-
-      <!-- Tombol Next -->
       {% if pagination.has_next %}
-        <a href="{{ url_for('aset_list', page=pagination.next_num, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), jenis=request.args.get('jenis',''), sub_kategori=request.args.get('sub_kategori',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan','')) }}" 
-          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600 hover:text-slate-800 transition-all" title="Halaman Berikutnya">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
-        </a>
-      {% else %}
-        <span class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 cursor-not-allowed">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
-        </span>
-      {% endif %}
-
-      <!-- Tombol Last -->
-      {% if pagination.has_next %}
-        <a href="{{ url_for('aset_list', page=pagination.pages, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), jenis=request.args.get('jenis',''), sub_kategori=request.args.get('sub_kategori',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan','')) }}" 
-          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all" title="Halaman Terakhir">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 4.5l7.5 7.5-7.5 7.5m6-15l7.5 7.5-7.5 7.5"/></svg>
-        </a>
-      {% else %}
-        <span class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 cursor-not-allowed">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 4.5l7.5 7.5-7.5 7.5m6-15l7.5 7.5-7.5 7.5"/></svg>
-        </span>
+        <a href="{{ url_for('aset_list', page=pagination.next_num, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), jenis=request.args.get('jenis',''), sub_kategori=request.args.get('sub_kategori',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan','')) }}" class="btn btn-secondary btn-sm">Berikutnya &rsaquo;</a>
       {% endif %}
     </div>
   </div>
@@ -278,58 +202,33 @@
     </div>
     <form method="POST" action="{{ url_for('aset_create') }}" enctype="multipart/form-data" class="p-5 space-y-3.5">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      
       <div>
         <label class="field-label">Kode Aset</label>
         <input name="kode_aset" required class="field-input">
       </div>
-      
       <div>
         <label class="field-label">Nama Aset</label>
         <input name="nama" required class="field-input">
       </div>
-
-      <!-- TAMBAHAN: MEREK -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="field-label">Gedung</label>
+          <input name="gedung" required class="field-input">
+        </div>
+        <div>
+          <label class="field-label">Lantai <span class="text-slate-400 font-normal">(opsional)</span></label>
+          <input name="lantai" placeholder="cth. 1, 2, 3" class="field-input">
+        </div>
+      </div>
       <div>
-        <label class="field-label">Merek</label>
-        <input name="merek" class="field-input" placeholder="Contoh: Sony, Samsung, LG">
-        <p class="text-[10px] text-slate-400 mt-0.5">Opsional, isi jika ada</p>
+        <label class="field-label">Ruangan</label>
+        <input name="ruangan" required class="field-input">
       </div>
-      
-      <div>
-        <label class="field-label">Spesifikasi</label>
-        <textarea name="spesifikasi" rows="3" class="field-input" placeholder="Merek, tipe, ukuran, dll."></textarea>
-      </div>
-      
-      <div class="grid grid-cols-3 gap-2">
-        <div>
-          <label class="field-label text-[10px]">Gedung</label>
-          <select name="gedung" id="addGedung" required class="field-input text-sm" onchange="loadLantai(this.value, 'addLantai', 'addRuangan', null)">
-            <option value="">Pilih</option>
-            {% for g in gedung_all %}
-            <option value="{{ g }}">{{ g }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label class="field-label text-[10px]">Lantai</label>
-          <select name="lantai" id="addLantai" class="field-input text-sm" onchange="loadRuanganByGedungLantai('addGedung', 'addLantai', 'addRuangan', null)">
-            <option value="">Pilih</option>
-          </select>
-        </div>
-        <div>
-          <label class="field-label text-[10px]">Ruangan</label>
-          <select name="ruangan" id="addRuangan" class="field-input text-sm">
-            <option value="">Pilih</option>
-          </select>
-        </div>
-      </div>
-      
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label">Kategori</label>
           <select name="id_kategori" class="kategoriSelect field-input" data-target="subKategoriAdd">
-            <option value="">Pilih</option>
+            <option value="">Pilih Kategori</option>
             {% for k in kategori_all %}<option value="{{ k.id }}">{{ k.nama }}</option>{% endfor %}
           </select>
         </div>
@@ -340,7 +239,6 @@
           </select>
         </div>
       </div>
-      
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label">Status</label>
@@ -357,19 +255,10 @@
           </select>
         </div>
       </div>
-      
       <div>
-        <label class="field-label">Upload Foto</label>
+        <label class="field-label">Foto Aset</label>
         <input type="file" name="foto" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
-        <p class="text-[10px] text-slate-400 mt-1">Atau gunakan link di bawah</p>
       </div>
-      
-      <div>
-        <label class="field-label">Link Foto (Google Drive / URL)</label>
-        <input name="foto_url" class="field-input" placeholder="https://drive.google.com/... atau URL gambar">
-        <p class="text-[10px] text-slate-400 mt-1">Masukkan link gambar jika tidak upload file</p>
-      </div>
-      
       <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Aset</button>
     </form>
   </div>
@@ -386,52 +275,29 @@
     </div>
     <form id="formEditAset" method="POST" enctype="multipart/form-data" class="p-5 space-y-3.5">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      
       <div>
         <label class="field-label">Nama Aset</label>
         <input name="nama" id="editNama" required class="field-input">
       </div>
-
-      <!-- TAMBAHAN: MEREK -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="field-label">Gedung</label>
+          <input name="gedung" id="editGedung" required class="field-input">
+        </div>
+        <div>
+          <label class="field-label">Lantai <span class="text-slate-400 font-normal">(opsional)</span></label>
+          <input name="lantai" id="editLantai" placeholder="cth. 1, 2, 3" class="field-input">
+        </div>
+      </div>
       <div>
-        <label class="field-label">Merek</label>
-        <input name="merek" id="editMerek" class="field-input" placeholder="Contoh: Sony, Samsung, LG">
+        <label class="field-label">Ruangan</label>
+        <input name="ruangan" id="editRuangan" required class="field-input">
       </div>
-      
-      <div>
-        <label class="field-label">Spesifikasi</label>
-        <textarea name="spesifikasi" id="editSpesifikasi" rows="3" class="field-input" placeholder="Merek, tipe, ukuran, dll."></textarea>
-      </div>
-      
-      <div class="grid grid-cols-3 gap-2">
-        <div>
-          <label class="field-label text-[10px]">Gedung</label>
-          <select name="gedung" id="editGedung" required class="field-input text-sm" onchange="loadLantai(this.value, 'editLantai', 'editRuangan', null)">
-            <option value="">Pilih</option>
-            {% for g in gedung_all %}
-            <option value="{{ g }}">{{ g }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label class="field-label text-[10px]">Lantai</label>
-          <select name="lantai" id="editLantai" class="field-input text-sm" onchange="loadRuanganByGedungLantai('editGedung', 'editLantai', 'editRuangan', null)">
-            <option value="">Pilih</option>
-          </select>
-        </div>
-        <div>
-          <label class="field-label text-[10px]">Ruangan</label>
-          <select name="ruangan" id="editRuangan" class="field-input text-sm">
-            <option value="">Pilih</option>
-          </select>
-        </div>
-      </div>
-      
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label">Kategori</label>
           <select name="id_kategori" id="editKategori" class="kategoriSelect field-input" data-target="subKategoriEdit">
-            <option value="">Pilih</option>
+            <option value="">Pilih Kategori</option>
             {% for k in kategori_all %}<option value="{{ k.id }}">{{ k.nama }}</option>{% endfor %}
           </select>
         </div>
@@ -442,7 +308,6 @@
           </select>
         </div>
       </div>
-      
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label">Status</label>
@@ -459,40 +324,12 @@
           </select>
         </div>
       </div>
-      
       <div>
-        <label class="field-label">Upload Foto (opsional)</label>
+        <label class="field-label">Ganti Foto (opsional)</label>
         <input type="file" name="foto" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
-        <p class="text-[10px] text-slate-400 mt-1">Atau gunakan link di bawah</p>
       </div>
-      
-      <div>
-        <label class="field-label">Link Foto (Google Drive / URL)</label>
-        <input name="foto_url" id="editFotoUrl" class="field-input" placeholder="https://drive.google.com/... atau URL gambar">
-        <p class="text-[10px] text-slate-400 mt-1">Isi untuk mengubah link foto</p>
-      </div>
-      
       <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Perubahan</button>
     </form>
-  </div>
-</div>
-
-<!-- Modal Detail Aset -->
-<div id="modalDetailAset" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
-  <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
-    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
-      <h2 class="font-display font-bold text-slate-800">Detail Aset</h2>
-      <button onclick="closeModal('modalDetailAset')" class="text-slate-400 hover:text-slate-600">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div id="detailAsetContent" class="p-5 space-y-3.5">
-      <!-- Akan diisi oleh JavaScript -->
-      <div class="text-center py-8">
-        <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent"></div>
-        <p class="text-xs text-slate-400 mt-2">Memuat data...</p>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -500,20 +337,24 @@
 
 {% block scripts %}
 <script>
-// Ganti Kategori di filter -> muat ulang pilihan Sub Kategori (reset), lalu submit form
+// Ganti Kategori di filter -> muat ulang pilihan Sub Kategori (reset).
+// Form TIDAK langsung disubmit, user harus klik tombol "Terapkan" dulu.
 function onFilterKategoriChange(selectEl) {
   loadSubKategori(selectEl, 'filterSubKategori');
 }
 
-// Ganti Gedung -> reset pilihan Lantai & Ruangan, lalu submit form
+// Ganti Gedung -> reset pilihan Lantai & Ruangan.
+// Form TIDAK langsung disubmit, user harus klik tombol "Terapkan" dulu.
 function onFilterGedungChange(selectEl) {
-  loadLantai(selectEl.value, 'filterLantai', 'filterRuangan', null);
+  loadLantai(selectEl, 'filterLantai');
+  loadRuangan(selectEl, 'filterLantai', 'filterRuangan');
 }
 
-// Ganti Lantai -> reset pilihan Ruangan, lalu submit form
+// Ganti Lantai -> reset pilihan Ruangan.
+// Form TIDAK langsung disubmit, user harus klik tombol "Terapkan" dulu.
 function onFilterLantaiChange(lantaiEl) {
   const gedungEl = document.getElementById('filterGedung');
-  loadRuanganByGedungLantai('filterGedung', 'filterLantai', 'filterRuangan', null);
+  loadRuangan(gedungEl, 'filterLantai', 'filterRuangan');
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -524,342 +365,23 @@ window.addEventListener('DOMContentLoaded', () => {
   {% if request.args.get('gedung') %}
   // Filter gedung aktif -> muat opsi lantai & ruangan terkait, pertahankan pilihan
   const gedungEl = document.getElementById('filterGedung');
-  loadLantai(gedungEl.value, 'filterLantai', 'filterRuangan', null);
-  loadRuanganByGedungLantai('filterGedung', 'filterLantai', 'filterRuangan', null);
+  loadLantai(gedungEl, 'filterLantai', '{{ request.args.get("lantai", "") }}');
+  loadRuangan(gedungEl, 'filterLantai', 'filterRuangan', '{{ request.args.get("ruangan", "") }}');
   {% endif %}
 });
 
 function openEditAset(data) {
   document.getElementById('formEditAset').action = `/aset/${data.id}/edit`;
   document.getElementById('editNama').value = data.nama;
-  document.getElementById('editMerek').value = data.merek || ''; // TAMBAHAN: MEREK
-  document.getElementById('editSpesifikasi').value = data.spesifikasi || '';
+  document.getElementById('editGedung').value = data.gedung;
+  document.getElementById('editLantai').value = data.lantai || '';
+  document.getElementById('editRuangan').value = data.ruangan;
   document.getElementById('editStatus').value = data.status_aset;
-  document.getElementById('editJenisAset').value = data.jenis_aset || 'Operasional';
-  document.getElementById('editFotoUrl').value = data.foto_url || '';
-  
+  document.getElementById('editJenisAset').value = data.jenis_aset;
   const selKategori = document.getElementById('editKategori');
   selKategori.value = data.id_kategori || '';
   loadSubKategori(selKategori, 'subKategoriEdit', data.id_sub_kategori);
-  
-  // Set gedung, lalu trigger load lantai & ruangan
-  const gedungEl = document.getElementById('editGedung');
-  gedungEl.value = data.gedung || '';
-  if (data.gedung) {
-    loadLantai(data.gedung, 'editLantai', 'editRuangan', null);
-    setTimeout(() => {
-      const lantaiEl = document.getElementById('editLantai');
-      if (data.lantai) {
-        lantaiEl.value = data.lantai;
-        loadRuanganByGedungLantai('editGedung', 'editLantai', 'editRuangan', null);
-        setTimeout(() => {
-          const ruanganEl = document.getElementById('editRuangan');
-          if (data.ruangan) ruanganEl.value = data.ruangan;
-        }, 300);
-      }
-    }, 300);
-  }
-  
   openModal('modalEditAset');
 }
-
-function openDetailAset(asetId) {
-  const modal = document.getElementById('modalDetailAset');
-  const content = document.getElementById('detailAsetContent');
-  
-  if (!modal || !content) {
-    console.error('Modal atau content tidak ditemukan!');
-    return;
-  }
-  
-  content.innerHTML = `
-    <div class="text-center py-8">
-      <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent"></div>
-      <p class="text-xs text-slate-400 mt-2">Memuat data...</p>
-    </div>
-  `;
-  
-  openModal('modalDetailAset');
-  
-  fetch(`/aset/${asetId}/detail`)
-    .then(res => {
-      if (!res.ok) {
-        throw new Error('Network response was not ok');
-      }
-      return res.json();
-    })
-    .then(data => {
-      console.log('Data aset:', data);
-      
-      // ===== BAGIAN FOTO DI DALAM openDetailAset =====
-      let fotoHtml = '';
-      if (data.foto) {
-        const fotoSrc = data.foto.startsWith('http://') || data.foto.startsWith('https://') || data.foto.startsWith('//') 
-          ? data.foto 
-          : `/static/uploads/${data.foto}`;
-        
-        fotoHtml = `<div class="bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center" style="min-height: 150px; max-height: 450px;">
-          <img src="${fotoSrc}" 
-              style="width: 100%; height: auto; max-height: 450px; object-fit: contain; display: block;"
-              class="border border-slate-200 rounded-lg"
-              onerror="this.parentElement.innerHTML='<div class=\\'text-slate-400 text-sm p-4\\'>Foto tidak ditemukan</div>'">
-        </div>`;
-      } else {
-        fotoHtml = `<div class="bg-slate-100 rounded-xl h-48 flex items-center justify-center text-slate-400 text-sm">Tidak ada foto</div>`;
-      }
-      
-      const statusColor = {
-        'Baik': 'text-emerald-600 bg-emerald-50',
-        'Rusak': 'text-rose-600 bg-rose-50',
-        'Dipindahkan': 'text-sky-600 bg-sky-50'
-      }[data.status_aset] || 'text-slate-600 bg-slate-50';
-      
-      const jenisColor = data.jenis_aset === 'Pusat' ? 'text-violet-600 bg-violet-50' : 'text-sky-600 bg-sky-50';
-      
-      let historiHtml = '';
-      if (data.histori && data.histori.length > 0) {
-        historiHtml = data.histori.map(h => {
-          let label = '';
-          let color = '';
-          let icon = '';
-          let detailLokasi = '';
-          
-          if (h.jenis === 'pindah') {
-            label = '🔄 Pemindahan';
-            color = 'text-blue-600';
-            icon = '🔄';
-            let asal = `${h.gedung_asal || '-'}`;
-            if (h.lantai_asal) asal += ` / Lantai ${h.lantai_asal}`;
-            if (h.ruangan_asal) asal += ` / ${h.ruangan_asal}`;
-            let tujuan = `${h.gedung || '-'}`;
-            if (h.lantai) tujuan += ` / Lantai ${h.lantai}`;
-            if (h.ruangan) tujuan += ` / ${h.ruangan}`;
-            detailLokasi = `📍 ${asal} → ${tujuan}`;
-          } else if (h.jenis === 'rusak') {
-            label = '⚠️ Kerusakan';
-            color = 'text-rose-600';
-            icon = '⚠️';
-            let lokasi = `${h.gedung || '-'}`;
-            if (h.lantai) lokasi += ` / Lantai ${h.lantai}`;
-            if (h.ruangan) lokasi += ` / ${h.ruangan}`;
-            detailLokasi = `📍 ${lokasi}`;
-          } else if (h.jenis === 'perbaikan') {
-            label = '✅ Perbaikan';
-            color = 'text-emerald-600';
-            icon = '✅';
-            let lokasi = `${h.gedung || '-'}`;
-            if (h.lantai) lokasi += ` / Lantai ${h.lantai}`;
-            if (h.ruangan) lokasi += ` / ${h.ruangan}`;
-            detailLokasi = `📍 ${lokasi}`;
-          }
-          
-          return `<div class="flex items-start gap-2 py-1.5 border-b border-slate-50 last:border-0">
-            <span class="text-sm">${icon}</span>
-            <div class="flex-1">
-              <p class="text-xs ${color} font-medium">${label}</p>
-              <p class="text-xs text-slate-600">${detailLokasi}</p>
-            </div>
-            <span class="text-[10px] text-slate-400 whitespace-nowrap">${h.tanggal}</span>
-          </div>`;
-        }).join('');
-      } else {
-        historiHtml = `<p class="text-xs text-slate-400 text-center py-2">Belum ada histori</p>`;
-      }
-      
-      content.innerHTML = `
-        <div class="space-y-3.5">
-          <div class="flex items-start gap-4">
-            <div class="flex-1">
-              <p class="text-xs text-slate-400">Kode Aset</p>
-              <p class="font-mono text-sm font-semibold text-slate-800">${data.kode_aset}</p>
-            </div>
-            <div class="flex-1">
-              <p class="text-xs text-slate-400">Nama Aset</p>
-              <p class="text-sm font-semibold text-slate-800">${data.nama}</p>
-            </div>
-          </div>
-          
-          <div>
-            <p class="text-xs text-slate-400">Merek</p> <!-- TAMBAHAN: MEREK -->
-            <p class="text-sm text-slate-700">${data.merek || '-'}</p>
-          </div>
-          
-          <div>
-            <p class="text-xs text-slate-400">Spesifikasi</p>
-            <p class="text-sm text-slate-700 whitespace-pre-wrap">${data.spesifikasi || '-'}</p>
-          </div>
-          
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <p class="text-xs text-slate-400">Jenis Aset</p>
-              <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${jenisColor}">${data.jenis_aset}</span>
-            </div>
-            <div>
-              <p class="text-xs text-slate-400">Kondisi</p>
-              <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${statusColor}">${data.status_aset}</span>
-            </div>
-          </div>
-          
-          <div>
-            <p class="text-xs text-slate-400">Lokasi Saat Ini</p>
-            <p class="text-sm text-slate-700">
-              ${data.gedung} 
-              ${data.lantai ? `/ Lantai ${data.lantai}` : ''} 
-              ${data.ruangan ? `/ ${data.ruangan}` : ''}
-            </p>
-          </div>
-          
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <p class="text-xs text-slate-400">Kategori</p>
-              <p class="text-sm text-slate-700">${data.kategori}</p>
-            </div>
-            <div>
-              <p class="text-xs text-slate-400">Sub Kategori</p>
-              <p class="text-sm text-slate-700">${data.sub_kategori}</p>
-            </div>
-          </div>
-          
-          <div>
-            <p class="text-xs text-slate-400">Total Kerusakan</p>
-            <p class="text-sm text-slate-700">${data.total_kerusakan} kali</p>
-          </div>
-          
-          <div>
-            <p class="text-xs text-slate-400 mb-1.5">Foto</p>
-            ${fotoHtml}
-          </div>
-          
-          <div>
-            <p class="text-xs text-slate-400 mb-2">📋 Histori Pemindahan &amp; Perbaikan</p>
-            <div class="bg-slate-50 rounded-xl p-3 max-h-48 overflow-y-auto">
-              ${historiHtml}
-            </div>
-          </div>
-        </div>
-      `;
-    })
-    .catch(err => {
-      console.error('Error:', err);
-      content.innerHTML = `
-        <div class="text-center py-8 text-rose-600">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto mb-2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
-          <p class="text-sm">Gagal memuat detail aset</p>
-          <p class="text-xs text-slate-400 mt-1">${err.message}</p>
-        </div>
-      `;
-    });
-}
-
-// =============================================================
-// FUNGSI UNTUK CASCADING DROPDOWN FILTER LANJUTAN
-// =============================================================
-
-// Memuat daftar lantai berdasarkan gedung
-function loadLantai(gedung, lantaiTargetId, ruanganTargetId, asetTargetId) {
-  const lantaiEl = document.getElementById(lantaiTargetId);
-  if (!lantaiEl) return;
-  
-  if (!gedung) {
-    lantaiEl.innerHTML = '<option value="">Pilih Gedung</option>';
-    // Reset ruangan juga
-    if (ruanganTargetId) {
-      const ruanganEl = document.getElementById(ruanganTargetId);
-      if (ruanganEl) ruanganEl.innerHTML = '<option value="">Pilih Gedung dulu</option>';
-    }
-    return;
-  }
-  
-  fetch(`/api/lantai?gedung=${encodeURIComponent(gedung)}`)
-    .then(res => res.json())
-    .then(data => {
-      lantaiEl.innerHTML = '<option value="">Semua Lantai</option>';
-      data.forEach(lt => {
-        const opt = document.createElement('option');
-        opt.value = lt;
-        opt.textContent = `Lantai ${lt}`;
-        lantaiEl.appendChild(opt);
-      });
-      // Reset ruangan
-      if (ruanganTargetId) {
-        const ruanganEl = document.getElementById(ruanganTargetId);
-        if (ruanganEl) ruanganEl.innerHTML = '<option value="">Pilih Lantai dulu</option>';
-      }
-      if (asetTargetId) {
-        const asetEl = document.getElementById(asetTargetId);
-        if (asetEl) asetEl.innerHTML = '<p class="text-xs text-slate-400">Pilih lokasi terlebih dahulu</p>';
-      }
-    })
-    .catch(() => {
-      lantaiEl.innerHTML = '<option value="">Gagal memuat</option>';
-    });
-}
-
-// Memuat daftar ruangan berdasarkan gedung dan lantai
-function loadRuanganByGedungLantai(gedungId, lantaiId, ruanganTargetId, asetTargetId) {
-  const gedungEl = document.getElementById(gedungId);
-  const lantaiEl = document.getElementById(lantaiId);
-  const ruanganEl = document.getElementById(ruanganTargetId);
-  if (!ruanganEl || !gedungEl) return;
-  
-  const gedung = gedungEl.value;
-  const lantai = lantaiEl ? lantaiEl.value : '';
-  
-  if (!gedung) {
-    ruanganEl.innerHTML = '<option value="">Pilih Gedung</option>';
-    return;
-  }
-  
-  let url = `/api/ruangan?gedung=${encodeURIComponent(gedung)}`;
-  if (lantai) url += `&lantai=${encodeURIComponent(lantai)}`;
-  
-  fetch(url)
-    .then(res => res.json())
-    .then(data => {
-      ruanganEl.innerHTML = '<option value="">Semua Ruangan</option>';
-      data.forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = r;
-        opt.textContent = r;
-        ruanganEl.appendChild(opt);
-      });
-      if (asetTargetId) {
-        const asetEl = document.getElementById(asetTargetId);
-        if (asetEl) asetEl.innerHTML = '<p class="text-xs text-slate-400">Pilih ruangan terlebih dahulu</p>';
-      }
-    })
-    .catch(() => {
-      ruanganEl.innerHTML = '<option value="">Gagal memuat</option>';
-    });
-}
-
-// Memuat sub kategori berdasarkan kategori (untuk filter kategori)
-function loadSubKategori(selectKategoriEl, targetSelectId, selectedSubId) {
-  const targetSelect = document.getElementById(targetSelectId);
-  const kategoriId = selectKategoriEl.value;
-  targetSelect.innerHTML = '<option value="">Memuat...</option>';
-
-  if (!kategoriId) {
-    targetSelect.innerHTML = '<option value="">Pilih Kategori dulu</option>';
-    return;
-  }
-
-  fetch(`/api/sub-kategori/${kategoriId}`)
-    .then(res => res.json())
-    .then(data => {
-      targetSelect.innerHTML = '<option value="">Semua Sub Kategori</option>';
-      data.forEach(sub => {
-        const opt = document.createElement('option');
-        opt.value = sub.id;
-        opt.textContent = sub.nama;
-        if (selectedSubId && String(selectedSubId) === String(sub.id)) opt.selected = true;
-        targetSelect.appendChild(opt);
-      });
-    })
-    .catch(() => {
-      targetSelect.innerHTML = '<option value="">Gagal memuat</option>';
-    });
-}
-
 </script>
 {% endblock %}
