@@ -847,16 +847,30 @@ def aset_export():
 
     for aset in Aset.query.order_by(Aset.id).all():
         ws.append([
+            aset.area or "",
             aset.kode_aset,
             aset.nama,
+            aset.fungsi or "",
+            aset.kategori_ref.nama if aset.kategori_ref else "",
             aset.merek or "",
-            aset.gedung,
-            aset.lantai or "",
-            aset.ruangan,
+            aset.serial_number or "",
+            aset.spesifikasi or "",
+            aset.tipe_aset,  # <-- GANTI JENIS_ASET MENJADI TIPE_ASET
+            aset.volume or "",
+            aset.satuan or "",
             aset.status_aset,
-            aset.jenis_aset,
-            aset.kategori.nama if aset.kategori else "",
-            aset.sub_kategori.nama if aset.sub_kategori else "",
+            aset.gedung,
+            aset.ruangan,
+            aset.lantai or "",
+            aset.foto_url or "",
+            "",  # nama_project (tidak dipakai)
+            "",  # harga_perolehan (tidak dipakai)
+            "",  # tanggal_bast (tidak dipakai)
+            "",  # evidence_bast (tidak dipakai)
+            "",  # mitra (tidak dipakai)
+            aset.link_qr or "",
+            aset.tanggal_datang.strftime("%Y-%m-%d") if aset.tanggal_datang else "",
+            aset.keterangan or "",
         ])
 
     for i in range(1, len(EXPORT_HEADERS) + 1):
@@ -947,7 +961,7 @@ def aset_import():
 
         # Status valid
         status_valid = status_aset if status_aset in ("Baik", "Rusak", "Dipindahkan") else "Baik"
-        tipe_valid = tipe_aset if tipe_aset in ("CAPEX", "OPEX") else "OPEX"
+        tipe_valid = tipe_aset if tipe_aset in ("CAPEX", "OPEX") else None
 
         # Cek apakah aset sudah ada
         aset = Aset.query.filter_by(kode_aset=kode_aset).first()

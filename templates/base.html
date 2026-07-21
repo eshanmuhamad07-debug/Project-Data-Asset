@@ -78,72 +78,79 @@
 <div class="min-h-screen flex">
 
   <!-- Overlay mobile -->
-  <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/50 z-30 hidden lg:hidden"></div>
+<div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/50 z-30 hidden lg:hidden"></div>
 
-  <!-- Sidebar -->
-  <aside id="sidebar" class="fixed z-40 lg:static inset-y-0 left-0 w-64 bg-white border-r border-slate-200 flex flex-col
+<!-- Sidebar - FIXED dan FULL HEIGHT -->
+<aside id="sidebar" class="fixed z-40 inset-y-0 left-0 w-64 bg-white border-r border-slate-200 flex flex-col h-screen
               transform -translate-x-full lg:translate-x-0 transition-transform duration-200 ease-in-out">
 
-    <div class="h-16 px-5 flex items-center justify-between border-b border-slate-100">
-      <a href="{{ url_for('dashboard') }}" class="flex items-center gap-2.5">
-        <span class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-sm">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg>
-        </span>
-        <span class="font-display font-bold text-[15px] tracking-tight text-slate-800">AsetKu</span>
-      </a>
-      <button id="closeSidebarBtn" class="lg:hidden text-slate-400 hover:text-slate-600">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-      </button>
-    </div>
+  <!-- Logo - Shrink 0 agar tidak menyusut -->
+  <div class="h-16 px-5 flex items-center justify-between border-b border-slate-100 shrink-0">
+    <a href="{{ url_for('dashboard') }}" class="flex items-center gap-2.5">
+      <span class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-sm">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg>
+      </span>
+      <span class="font-display font-bold text-[15px] tracking-tight text-slate-800">AsetKu</span>
+    </a>
+    <button id="closeSidebarBtn" class="lg:hidden text-slate-400 hover:text-slate-600">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  </div>
 
-    <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-      <p class="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Menu</p>
+  <!-- Menu - Scrollable jika terlalu panjang -->
+  <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
+    <p class="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Menu</p>
 
-      <a href="{{ url_for('dashboard') }}" class="nav-link {{ 'active' if request.endpoint=='dashboard' }}">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
-        Dashboard
-      </a>
-      <a href="{{ url_for('aset_list') }}" class="nav-link {{ 'active' if request.endpoint=='aset_list' }}">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
-        Data Aset
-      </a>
-      {% if current_user.role == 'admin' %}
-      <a href="{{ url_for('history_list') }}" class="nav-link {{ 'active' if request.endpoint in ['history_list','history_detail'] }}">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        History
-      </a>
-      {% endif %}
-      {% if current_user.role == 'admin' %}
-      <p class="px-3 pt-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Administrasi</p>
-      <a href="{{ url_for('kategori_list') }}" class="nav-link {{ 'active' if request.endpoint=='kategori_list' }}">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/></svg>
-        Kategori Aset
-      </a>
-      <a href="{{ url_for('users_list') }}" class="nav-link {{ 'active' if request.endpoint=='users_list' }}">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
-        Kelola User
-      </a>
-      {% endif %}
-    </nav>
+    <a href="{{ url_for('dashboard') }}" class="nav-link {{ 'active' if request.endpoint=='dashboard' }}">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
+      Dashboard
+    </a>
+    <a href="{{ url_for('aset_list') }}" class="nav-link {{ 'active' if request.endpoint=='aset_list' }}">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+      Data Aset
+    </a>
+    
+    <!-- History HANYA UNTUK ADMIN -->
+    {% if current_user.role == 'admin' %}
+    <a href="{{ url_for('history_list') }}" class="nav-link {{ 'active' if request.endpoint in ['history_list','history_detail'] }}">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      History
+    </a>
+    {% endif %}
 
-    <div class="px-3 py-3 border-t border-slate-100">
-      <div class="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-slate-50">
-        <span class="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-display font-bold text-xs shrink-0">
-          {{ current_user.name[:2].upper() }}
-        </span>
-        <div class="min-w-0 flex-1">
-          <p class="text-[13px] font-semibold text-slate-800 truncate">{{ current_user.name }}</p>
-          <p class="text-[11px] text-slate-400 capitalize">{{ current_user.role }}</p>
-        </div>
-        <a href="{{ url_for('logout') }}" title="Keluar" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 shrink-0">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"/></svg>
-        </a>
+    <!-- ADMINISTRASI HANYA UNTUK ADMIN -->
+    {% if current_user.role == 'admin' %}
+    <p class="px-3 pt-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Administrasi</p>
+    <a href="{{ url_for('kategori_list') }}" class="nav-link {{ 'active' if request.endpoint=='kategori_list' }}">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/></svg>
+      Kategori Aset
+    </a>
+    <a href="{{ url_for('users_list') }}" class="nav-link {{ 'active' if request.endpoint=='users_list' }}">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
+      Kelola User
+    </a>
+    {% endif %}
+  </nav>
+
+  <!-- Footer User Info & Logout - Shrink 0 agar tetap di bawah -->
+  <div class="px-3 py-3 border-t border-slate-100 shrink-0">
+    <div class="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-slate-50">
+      <span class="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-display font-bold text-xs shrink-0">
+        {{ current_user.name[:2].upper() }}
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="text-[13px] font-semibold text-slate-800 truncate">{{ current_user.name }}</p>
+        <p class="text-[11px] text-slate-400 capitalize">{{ current_user.role }}</p>
       </div>
+      <a href="{{ url_for('logout') }}" title="Keluar" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 shrink-0">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"/></svg>
+      </a>
     </div>
-  </aside>
+  </div>
+</aside>
 
   <!-- Main -->
-  <div class="flex-1 flex flex-col min-w-0">
+  <div class="flex-1 flex flex-col min-w-0 lg:ml-64">
     <header class="h-16 bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 gap-3">
       <div class="flex items-center gap-3 min-w-0">
         <button id="openSidebarBtn" class="lg:hidden text-slate-500 hover:text-slate-700 p-1.5 -ml-1.5">
