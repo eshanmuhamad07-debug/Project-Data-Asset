@@ -761,7 +761,6 @@ def api_sub_kategori(kategori_id):
     subs = SubKategori.query.filter_by(id_kategori=kategori_id).all()
     return jsonify([{"id": s.id, "nama": s.nama} for s in subs])
 
-
 # ---------------------------------------------------------------------------
 # HISTORY (TIKET READ-ONLY)
 # ---------------------------------------------------------------------------
