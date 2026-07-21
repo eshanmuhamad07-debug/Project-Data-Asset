@@ -2,19 +2,28 @@
 {% extends "base.html" %}
 {% block title %}Data Aset{% endblock %}
 {% block header %}Data Aset{% endblock %}
-{% block subheader %}{% endblock %}
+{% block subheader %}
+<p class="text-xs text-slate-400">Manajemen data aset — {{ pagination.total if pagination else 0 }} aset terdaftar</p>
+{% endblock %}
 {% block content %}
 
-<div class="rounded-2xl border-2 {{ 'border-indigo-200 bg-indigo-50' if filter_aktif else 'border-slate-200 bg-slate-50' }} px-6 py-5 mb-4 flex items-center gap-4">
-  <div class="w-14 h-14 rounded-2xl {{ 'bg-indigo-600' if filter_aktif else 'bg-slate-400' }} flex items-center justify-center shrink-0">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+<div
+  class="rounded-2xl border-2 {{ 'border-indigo-200 bg-indigo-50' if filter_aktif else 'border-slate-200 bg-slate-50' }} px-6 py-5 mb-4 flex items-center gap-4">
+  <div
+    class="w-14 h-14 rounded-2xl {{ 'bg-indigo-600' if filter_aktif else 'bg-slate-400' }} flex items-center justify-center shrink-0">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+    </svg>
   </div>
   <div>
-    <p class="text-3xl sm:text-4xl font-extrabold {{ 'text-indigo-700' if filter_aktif else 'text-slate-700' }} leading-tight">
+    <p
+      class="text-3xl sm:text-4xl font-extrabold {{ 'text-indigo-700' if filter_aktif else 'text-slate-700' }} leading-tight">
       {{ pagination.total if pagination else 0 }} <span class="text-lg font-semibold">aset</span>
     </p>
     {% if filter_aktif %}
-    <p class="text-sm font-medium text-indigo-500 mt-0.5">Ditemukan sesuai filter yang dipilih (dari total {{ total_keseluruhan }} aset terdaftar)</p>
+    <p class="text-sm font-medium text-indigo-500 mt-0.5">Ditemukan sesuai filter yang dipilih (dari total {{
+      total_keseluruhan }} aset terdaftar)</p>
     {% else %}
     <p class="text-sm font-medium text-slate-400 mt-0.5">Total aset yang terdaftar di sistem</p>
     {% endif %}
@@ -27,20 +36,26 @@
       <form method="GET" class="flex flex-col gap-2 w-full lg:w-auto">
         <div class="flex flex-wrap gap-2 w-full">
           <div class="relative">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-            <input type="text" name="q" value="{{ request.args.get('q', '') }}" placeholder="Cari nama atau kode aset..."
-                  class="field-input pl-9 w-full sm:w-48">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+              class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input type="text" name="q" value="{{ request.args.get('q', '') }}"
+              placeholder="Cari nama atau kode aset..." class="field-input pl-9 w-full sm:w-48">
           </div>
           <select name="status" class="field-input w-full sm:w-36">
             <option value="">Semua Status</option>
             <option value="Baik" {{ 'selected' if request.args.get('status')=='Baik' }}>Baik</option>
             <option value="Rusak" {{ 'selected' if request.args.get('status')=='Rusak' }}>Rusak</option>
-            <option value="Dipindahkan" {{ 'selected' if request.args.get('status')=='Dipindahkan' }}>Dipindahkan</option>
+            <option value="Dipindahkan" {{ 'selected' if request.args.get('status')=='Dipindahkan' }}>Dipindahkan
+            </option>
           </select>
           <select name="kategori" id="filterKategori" class="field-input w-full sm:w-40">
             <option value="">Semua Kategori</option>
             {% for k in kategori_all %}
-            <option value="{{ k.id }}" {{ 'selected' if request.args.get('kategori')|string==k.id|string }}>{{ k.nama }}</option>
+            <option value="{{ k.id }}" {{ 'selected' if request.args.get('kategori')|string==k.id|string }}>{{ k.nama }}
+            </option>
             {% endfor %}
           </select>
           <select name="tipe" class="field-input w-full sm:w-36">
@@ -49,36 +64,45 @@
             <option value="OPEX" {{ 'selected' if request.args.get('tipe')=='OPEX' }}>OPEX</option>
           </select>
           <button type="submit" class="btn btn-primary shrink-0">Terapkan</button>
-          {% if request.args.get('q') or request.args.get('status') or request.args.get('kategori') or request.args.get('tipe') or request.args.get('gedung') or request.args.get('lantai') or request.args.get('ruangan') %}
+          {% if request.args.get('q') or request.args.get('status') or request.args.get('kategori') or
+          request.args.get('tipe') or request.args.get('gedung') or request.args.get('lantai') or
+          request.args.get('ruangan') %}
           <a href="{{ url_for('aset_list') }}" class="btn btn-secondary shrink-0 text-slate-400">Reset</a>
           {% endif %}
         </div>
 
         <!-- Filter Lanjutan (tanpa SubKategori) -->
-        <details class="group" {{ 'open' if request.args.get('gedung') or request.args.get('lantai') or request.args.get('ruangan') }}>
-          <summary class="cursor-pointer select-none inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 w-fit">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform group-open:rotate-90"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+        <details class="group" {{ 'open' if request.args.get('gedung') or request.args.get('lantai') or
+          request.args.get('ruangan') }}>
+          <summary
+            class="cursor-pointer select-none inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 w-fit">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              class="transition-transform group-open:rotate-90">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
             Filter Lanjutan (Lokasi)
           </summary>
           <div class="flex flex-wrap gap-2 w-full mt-2">
-            <select name="gedung" id="filterGedung" onchange="onFilterGedungChange(this)" class="field-input w-full sm:w-40">
+            <select name="gedung" id="filterGedung" onchange="onFilterGedungChange(this)"
+              class="field-input w-full sm:w-40">
               <option value="">Semua Gedung</option>
               {% for g in gedung_all %}
               <option value="{{ g }}" {{ 'selected' if request.args.get('gedung')==g }}>{{ g }}</option>
               {% endfor %}
             </select>
-            <select name="lantai" id="filterLantai" onchange="onFilterLantaiChange(this)" class="field-input w-full sm:w-36">
+            <select name="lantai" id="filterLantai" onchange="onFilterLantaiChange(this)"
+              class="field-input w-full sm:w-36">
               {% if request.args.get('lantai') %}
-                <option value="{{ request.args.get('lantai') }}" selected>{{ request.args.get('lantai') }}</option>
+              <option value="{{ request.args.get('lantai') }}" selected>{{ request.args.get('lantai') }}</option>
               {% else %}
-                <option value="">{{ 'Pilih Gedung dulu' if not request.args.get('gedung') else 'Semua Lantai' }}</option>
+              <option value="">{{ 'Pilih Gedung dulu' if not request.args.get('gedung') else 'Semua Lantai' }}</option>
               {% endif %}
             </select>
             <select name="ruangan" id="filterRuangan" class="field-input w-full sm:w-44">
               {% if request.args.get('ruangan') %}
-                <option value="{{ request.args.get('ruangan') }}" selected>{{ request.args.get('ruangan') }}</option>
+              <option value="{{ request.args.get('ruangan') }}" selected>{{ request.args.get('ruangan') }}</option>
               {% else %}
-                <option value="">{{ 'Pilih Gedung dulu' if not request.args.get('gedung') else 'Semua Ruangan' }}</option>
+              <option value="">{{ 'Pilih Gedung dulu' if not request.args.get('gedung') else 'Semua Ruangan' }}</option>
               {% endif %}
             </select>
           </div>
@@ -88,32 +112,59 @@
       {% if current_user.role == 'admin' %}
       <div class="flex flex-wrap items-stretch gap-2 w-full lg:w-auto">
         <div class="flex items-stretch rounded-xl border border-slate-200 overflow-hidden divide-x divide-slate-200 shrink-0">
-          <a href="{{ url_for('aset_export') }}" class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 whitespace-nowrap">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+          <a href="{{ url_for('aset_export') }}"
+            class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 whitespace-nowrap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
             Export Excel
           </a>
-          <form method="POST" action="{{ url_for('aset_import') }}" enctype="multipart/form-data" id="formImportAset" class="flex">
+          <form method="POST" action="{{ url_for('aset_import') }}" enctype="multipart/form-data" id="formImportAset"
+            class="flex">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <label class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer relative overflow-hidden whitespace-nowrap">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5"/></svg>
+            <label
+              class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer relative overflow-hidden whitespace-nowrap">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5" />
+              </svg>
               Import Excel
               <input type="file" name="file_import" accept=".xlsx" required
-                     onchange="document.getElementById('formImportAset').submit()"
-                     class="absolute inset-0 opacity-0 cursor-pointer">
+                onchange="document.getElementById('formImportAset').submit()"
+                class="absolute inset-0 opacity-0 cursor-pointer">
             </label>
           </form>
         </div>
         <button onclick="openModal('modalTambahAset')" class="btn btn-primary shrink-0">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
           Tambah Aset
+        </button>
+        <button id="toggleSelectModeBtn" class="btn btn-secondary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Pilih Aset
+        </button>
+        
+        <!-- HAPUS TERPILIH (hidden by default) -->
+        <button id="deleteSelectedBtn" class="btn btn-danger hidden">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+          Hapus Terpilih (<span id="selectedCount">0</span>)
         </button>
       </div>
       {% endif %}
     </div>
     {% if current_user.role == 'admin' %}
     <p class="text-xs text-slate-400 flex items-center gap-1">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
-      <span><b class="text-slate-500">Export</b> untuk unduh data ke Excel, edit di Excel, lalu pilih file yang sama di <b class="text-slate-500">Import</b> untuk memperbarui data (dicocokkan berdasarkan Kode Aset) atau menambah aset baru — langsung terunggah begitu file dipilih.</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+        class="shrink-0">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+      </svg>
+      <span><b class="text-slate-500">Export</b> untuk unduh data ke Excel, edit di Excel, lalu pilih file yang sama di
+        <b class="text-slate-500">Import</b> untuk memperbarui data (dicocokkan berdasarkan Kode Aset) atau menambah
+        aset baru — langsung terunggah begitu file dipilih.</span>
     </p>
     {% endif %}
   </div>
@@ -122,11 +173,14 @@
     <table class="w-full">
       <thead>
         <tr class="border-b border-slate-100 bg-slate-50/60">
+          <th class="th w-8">
+            <input type="checkbox" id="selectAll" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 hidden">
+          </th>
           <th class="th">Kode</th>
           <th class="th">Nama</th>
           <th class="th">Lokasi</th>
-          <th class="th">Tipe</th>        <!-- CAPEX/OPEX -->
-          <th class="th">Kategori</th>    <!-- Hanya Kategori, tanpa Sub -->
+          <th class="th">Tipe</th>
+          <th class="th">Kategori</th>
           <th class="th">Status</th>
           {% if current_user.role == 'admin' %}<th class="th text-right">Aksi</th>{% endif %}
         </tr>
@@ -134,6 +188,9 @@
       <tbody>
         {% for a in daftar_aset %}
         <tr class="table-row hover:bg-slate-50">
+          <td class="td w-8">
+            <input type="checkbox" name="selected_ids" value="{{ a.id }}" class="row-checkbox rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 hidden">
+          </td>
           <td class="td font-mono text-[12px] text-slate-500 whitespace-nowrap">{{ a.kode_aset }}</td>
           <td class="td font-medium text-slate-800">{{ a.nama }}</td>
           <td class="td whitespace-nowrap text-slate-500">{{ a.gedung }} / {{ a.ruangan }}</td>
@@ -142,29 +199,55 @@
           <td class="td">{{ m.pill(a.status_aset, m.aset_tone(a.status_aset)) }}</td>
           {% if current_user.role == 'admin' %}
           <td class="td whitespace-nowrap text-right">
-            <button onclick='openDetailAset({{ a.id }})' class="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-sky-50">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <!-- TOMBOL DETAIL UNTUK SEMUA USER (termasuk role 'user') -->
+            <button onclick="openDetailAset({{ a.id }})"
+              class="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-sky-50">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
               Detail
             </button>
-            <button onclick='openEditAset({{ {"id": a.id, "kode_aset": a.kode_aset, "nama": a.nama, "area": a.area, "fungsi": a.fungsi, "merek": a.merek, "serial_number": a.serial_number, "spesifikasi": a.spesifikasi, "tipe_aset": a.tipe_aset, "volume": a.volume, "satuan": a.satuan, "status_aset": a.status_aset, "gedung": a.gedung, "lantai": a.lantai, "ruangan": a.ruangan, "tanggal_datang": a.tanggal_datang.strftime('%Y-%m-%d') if a.tanggal_datang else "", "keterangan": a.keterangan, "foto_url": a.foto_url, "id_kategori": a.id_kategori, "jenis_barang": a.kategori_ref.nama if a.kategori_ref else ""} | tojson }})'
-                    class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-indigo-50">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+
+            <!-- TOMBOL EDIT & HAPUS HANYA UNTUK ADMIN -->
+            {% if current_user.role == 'admin' %}
+            <button
+              onclick='openEditAset({{ {"id": a.id, "kode_aset": a.kode_aset, "nama": a.nama, "area": a.area, "fungsi": a.fungsi, "merek": a.merek, "serial_number": a.serial_number, "spesifikasi": a.spesifikasi, "tipe_aset": a.tipe_aset, "volume": a.volume, "satuan": a.satuan, "status_aset": a.status_aset, "gedung": a.gedung, "lantai": a.lantai, "ruangan": a.ruangan, "tanggal_datang": a.tanggal_datang.strftime('
+              %Y-%m-%d') if a.tanggal_datang else "" , "keterangan" : a.keterangan, "foto_url" :
+              a.foto_url, "id_kategori" : a.id_kategori, "jenis_barang" : a.kategori_ref.nama if a.kategori_ref else ""
+              } | tojson }})'
+              class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-indigo-50">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+              </svg>
               Edit
             </button>
-            <form method="POST" action="{{ url_for('aset_delete', aset_id=a.id) }}" class="inline" onsubmit="return confirm('Hapus aset {{ a.nama }}?')">
+            <form method="POST" action="{{ url_for('aset_delete', aset_id=a.id) }}" class="inline"
+              onsubmit="return confirm('Hapus aset {{ a.nama }}?')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" class="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-rose-50">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+              <button type="submit"
+                class="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-rose-50">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                </svg>
                 Hapus
               </button>
             </form>
+            {% endif %}
           </td>
           {% endif %}
         </tr>
         {% else %}
         <tr>
           <td colspan="7" class="py-14 text-center">
-            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" class="mx-auto text-slate-300 mb-2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"
+              class="mx-auto text-slate-300 mb-2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+            </svg>
             <p class="text-sm text-slate-400">Tidak ada data aset yang cocok.</p>
           </td>
         </tr>
@@ -174,18 +257,118 @@
   </div>
 
   {% if pagination and pagination.pages > 1 %}
-  <div class="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-slate-100 text-xs text-slate-500">
-    <span>Halaman {{ pagination.page }} dari {{ pagination.pages }}</span>
-    <div class="flex gap-2">
+  <div class="flex flex-col md:flex-row items-center justify-between gap-4 px-4 sm:px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
+    
+    <!-- Info Data -->
+    <div class="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
+      <span class="font-medium text-slate-700">{{ ((pagination.page - 1) * pagination.per_page) + 1 }}</span>
+      <span>-</span>
+      <span class="font-medium text-slate-700">{{ [pagination.page * pagination.per_page, pagination.total] | min }}</span>
+      <span>dari</span>
+      <span class="font-semibold text-slate-800">{{ pagination.total }}</span>
+      <span class="text-slate-400">data</span>
+      
+      <span class="hidden sm:inline mx-2 text-slate-300">|</span>
+      
+      <div class="flex items-center gap-2">
+        <span class="text-slate-400">Tampil</span>
+        <select id="perPageSelect" class="field-input py-1 px-2 w-16 text-xs font-medium border-slate-200 bg-white hover:border-indigo-300 focus:ring-2 focus:ring-indigo-200 transition-all">
+          <option value="10" {{ 'selected' if pagination.per_page == 10 }}>10</option>
+          <option value="25" {{ 'selected' if pagination.per_page == 25 }}>25</option>
+          <option value="50" {{ 'selected' if pagination.per_page == 50 }}>50</option>
+          <option value="100" {{ 'selected' if pagination.per_page == 100 }}>100</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Navigasi -->
+    <div class="flex items-center gap-1.5 flex-wrap justify-center">
+      <!-- Tombol First -->
       {% if pagination.has_prev %}
-        <a href="{{ url_for('aset_list', page=pagination.prev_num, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), jenis=request.args.get('jenis',''), sub_kategori=request.args.get('sub_kategori',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan','')) }}" class="btn btn-secondary btn-sm">&lsaquo; Sebelumnya</a>
+        <a href="{{ url_for('aset_list', page=1, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}" 
+          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all duration-200" title="Halaman Pertama">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5l-7.5-7.5 7.5-7.5m-6 15L5.25 12l7.5-7.5"/></svg>
+        </a>
+      {% else %}
+        <span class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 cursor-not-allowed">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5l-7.5-7.5 7.5-7.5m-6 15L5.25 12l7.5-7.5"/></svg>
+        </span>
       {% endif %}
+
+      <!-- Tombol Previous -->
+      {% if pagination.has_prev %}
+        <a href="{{ url_for('aset_list', page=pagination.prev_num, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}" 
+          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-600 hover:text-indigo-600 transition-all duration-200" title="Halaman Sebelumnya">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+        </a>
+      {% else %}
+        <span class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 cursor-not-allowed">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+        </span>
+      {% endif %}
+
+      <!-- Nomor Halaman (dengan ellipsis) -->
+      <div class="flex items-center gap-0.5">
+        {% set start = [pagination.page - 2, 1] | max %}
+        {% set end = [pagination.page + 2, pagination.pages] | min %}
+        
+        {% if start > 1 %}
+          <a href="{{ url_for('aset_list', page=1, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}" 
+            class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-white hover:shadow-sm hover:text-indigo-600 transition-all duration-200">1</a>
+          {% if start > 2 %}
+            <span class="w-6 h-8 flex items-center justify-center text-slate-300 text-xs">…</span>
+          {% endif %}
+        {% endif %}
+        
+        {% for p in range(start, end + 1) %}
+          {% if p == pagination.page %}
+            <span class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold text-white bg-indigo-600 shadow-md shadow-indigo-200">{{ p }}</span>
+          {% else %}
+            <a href="{{ url_for('aset_list', page=p, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}" 
+              class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-white hover:shadow-sm hover:text-indigo-600 transition-all duration-200">{{ p }}</a>
+          {% endif %}
+        {% endfor %}
+        
+        {% if end < pagination.pages %}
+          {% if end < pagination.pages - 1 %}
+            <span class="w-6 h-8 flex items-center justify-center text-slate-300 text-xs">…</span>
+          {% endif %}
+          <a href="{{ url_for('aset_list', page=pagination.pages, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}" 
+            class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-white hover:shadow-sm hover:text-indigo-600 transition-all duration-200">{{ pagination.pages }}</a>
+        {% endif %}
+      </div>
+
+      <!-- Tombol Next -->
       {% if pagination.has_next %}
-        <a href="{{ url_for('aset_list', page=pagination.next_num, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), jenis=request.args.get('jenis',''), sub_kategori=request.args.get('sub_kategori',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan','')) }}" class="btn btn-secondary btn-sm">Berikutnya &rsaquo;</a>
+        <a href="{{ url_for('aset_list', page=pagination.next_num, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}" 
+          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-600 hover:text-indigo-600 transition-all duration-200" title="Halaman Berikutnya">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+        </a>
+      {% else %}
+        <span class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 cursor-not-allowed">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+        </span>
+      {% endif %}
+
+      <!-- Tombol Last -->
+      {% if pagination.has_next %}
+        <a href="{{ url_for('aset_list', page=pagination.pages, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}" 
+          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all duration-200" title="Halaman Terakhir">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 4.5l7.5 7.5-7.5 7.5m6-15l7.5 7.5-7.5 7.5"/></svg>
+        </a>
+      {% else %}
+        <span class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 cursor-not-allowed">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 4.5l7.5 7.5-7.5 7.5m6-15l7.5 7.5-7.5 7.5"/></svg>
+        </span>
       {% endif %}
     </div>
   </div>
   {% endif %}
+  <!-- Form untuk bulk delete -->
+  <form id="deleteMultipleForm" method="POST" action="{{ url_for('aset_delete_multiple') }}" class="hidden">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div id="selectedIdsContainer"></div>
+  </form>
 </div>
 
 <!-- Modal Tambah Aset -->
@@ -194,12 +377,14 @@
     <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
       <h2 class="font-display font-bold text-slate-800">Tambah Aset</h2>
       <button onclick="closeModal('modalTambahAset')" class="text-slate-400 hover:text-slate-600">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
       </button>
     </div>
     <form method="POST" action="{{ url_for('aset_create') }}" enctype="multipart/form-data" class="p-5 space-y-3.5">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      
+
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label">Kode Aset <span class="text-rose-500">*</span></label>
@@ -210,17 +395,17 @@
           <input name="nama" required class="field-input">
         </div>
       </div>
-      
+
       <div>
         <label class="field-label">Area</label>
         <input name="area" class="field-input">
       </div>
-      
+
       <div>
         <label class="field-label">Fungsi Barang</label>
         <input name="fungsi" class="field-input">
       </div>
-      
+
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label">Merek</label>
@@ -231,12 +416,12 @@
           <input name="serial_number" class="field-input">
         </div>
       </div>
-      
+
       <div>
         <label class="field-label">Spesifikasi</label>
         <textarea name="spesifikasi" rows="2" class="field-input"></textarea>
       </div>
-      
+
       <div class="grid grid-cols-3 gap-2">
         <div>
           <label class="field-label text-[10px]">Volume</label>
@@ -254,12 +439,13 @@
           </select>
         </div>
       </div>
-      
+
       <div>
         <label class="field-label">Jenis Barang (Kategori)</label>
-        <input name="jenis_barang" class="field-input" placeholder="Nama kategori (akan dibuat otomatis jika belum ada)">
+        <input name="jenis_barang" class="field-input"
+          placeholder="Nama kategori (akan dibuat otomatis jika belum ada)">
       </div>
-      
+
       <div class="grid grid-cols-3 gap-2">
         <div>
           <label class="field-label text-[10px]">Gedung <span class="text-rose-500">*</span></label>
@@ -274,7 +460,7 @@
           <input name="ruangan" required class="field-input">
         </div>
       </div>
-      
+
       <div>
         <label class="field-label">Status</label>
         <select name="status_aset" class="field-input">
@@ -283,33 +469,34 @@
           <option value="Dipindahkan">Dipindahkan</option>
         </select>
       </div>
-      
+
       <div>
         <label class="field-label">Tanggal Datang</label>
         <input name="tanggal_datang" type="date" class="field-input">
       </div>
-      
+
       <div>
         <label class="field-label">Keterangan</label>
         <textarea name="keterangan" rows="2" class="field-input"></textarea>
       </div>
-      
+
       <div>
         <label class="field-label">Upload Foto</label>
-        <input type="file" name="foto" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
+        <input type="file" name="foto" accept="image/*"
+          class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
         <p class="text-[10px] text-slate-400 mt-1">Atau gunakan link di bawah</p>
       </div>
-      
+
       <div>
         <label class="field-label">Link Foto (Google Drive / URL)</label>
         <input name="foto_url" class="field-input" placeholder="https://drive.google.com/... atau URL gambar">
       </div>
-      
+
       <div>
         <label class="field-label">Link QR (Opsional)</label>
         <input name="link_qr" class="field-input" placeholder="Link QR code">
       </div>
-      
+
       <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Aset</button>
     </form>
   </div>
@@ -321,12 +508,14 @@
     <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
       <h2 class="font-display font-bold text-slate-800">Edit Aset</h2>
       <button onclick="closeModal('modalEditAset')" class="text-slate-400 hover:text-slate-600">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
       </button>
     </div>
     <form id="formEditAset" method="POST" enctype="multipart/form-data" class="p-5 space-y-3.5">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      
+
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label">Kode Aset</label>
@@ -337,17 +526,17 @@
           <input name="nama" id="editNama" required class="field-input">
         </div>
       </div>
-      
+
       <div>
         <label class="field-label">Area</label>
         <input name="area" id="editArea" class="field-input">
       </div>
-      
+
       <div>
         <label class="field-label">Fungsi Barang</label>
         <input name="fungsi" id="editFungsi" class="field-input">
       </div>
-      
+
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="field-label">Merek</label>
@@ -358,12 +547,12 @@
           <input name="serial_number" id="editSerialNumber" class="field-input">
         </div>
       </div>
-      
+
       <div>
         <label class="field-label">Spesifikasi</label>
         <textarea name="spesifikasi" id="editSpesifikasi" rows="2" class="field-input"></textarea>
       </div>
-      
+
       <div class="grid grid-cols-3 gap-2">
         <div>
           <label class="field-label text-[10px]">Volume</label>
@@ -381,12 +570,12 @@
           </select>
         </div>
       </div>
-      
+
       <div>
         <label class="field-label">Jenis Barang (Kategori)</label>
         <input name="jenis_barang" id="editJenisBarang" class="field-input" placeholder="Nama kategori">
       </div>
-      
+
       <div class="grid grid-cols-3 gap-2">
         <div>
           <label class="field-label text-[10px]">Gedung <span class="text-rose-500">*</span></label>
@@ -401,7 +590,7 @@
           <input name="ruangan" id="editRuangan" required class="field-input">
         </div>
       </div>
-      
+
       <div>
         <label class="field-label">Status</label>
         <select name="status_aset" id="editStatus" class="field-input">
@@ -410,32 +599,34 @@
           <option value="Dipindahkan">Dipindahkan</option>
         </select>
       </div>
-      
+
       <div>
         <label class="field-label">Tanggal Datang</label>
         <input name="tanggal_datang" id="editTanggalDatang" type="date" class="field-input">
       </div>
-      
+
       <div>
         <label class="field-label">Keterangan</label>
         <textarea name="keterangan" id="editKeterangan" rows="2" class="field-input"></textarea>
       </div>
-      
+
       <div>
         <label class="field-label">Upload Foto (opsional)</label>
-        <input type="file" name="foto" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
+        <input type="file" name="foto" accept="image/*"
+          class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
       </div>
-      
+
       <div>
         <label class="field-label">Link Foto (Google Drive / URL)</label>
-        <input name="foto_url" id="editFotoUrl" class="field-input" placeholder="https://drive.google.com/... atau URL gambar">
+        <input name="foto_url" id="editFotoUrl" class="field-input"
+          placeholder="https://drive.google.com/... atau URL gambar">
       </div>
-      
+
       <div>
         <label class="field-label">Link QR (Opsional)</label>
         <input name="link_qr" id="editLinkQr" class="field-input" placeholder="Link QR code">
       </div>
-      
+
       <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Perubahan</button>
     </form>
   </div>
@@ -447,13 +638,16 @@
     <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
       <h2 class="font-display font-bold text-slate-800">Detail Aset</h2>
       <button onclick="closeModal('modalDetailAset')" class="text-slate-400 hover:text-slate-600">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
       </button>
     </div>
     <div id="detailAsetContent" class="p-5 space-y-3.5">
       <!-- Akan diisi oleh JavaScript -->
       <div class="text-center py-8">
-        <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent"></div>
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent">
+        </div>
         <p class="text-xs text-slate-400 mt-2">Memuat data...</p>
       </div>
     </div>
@@ -464,126 +658,247 @@
 
 {% block scripts %}
 <script>
-// Ganti Kategori di filter -> muat ulang pilihan Sub Kategori (reset).
-// Form TIDAK langsung disubmit, user harus klik tombol "Terapkan" dulu.
-function onFilterKategoriChange(selectEl) {
-  loadSubKategori(selectEl, 'filterSubKategori');
-}
+  // Ganti Kategori di filter -> muat ulang pilihan Sub Kategori (reset).
+  // Form TIDAK langsung disubmit, user harus klik tombol "Terapkan" dulu.
+  function onFilterKategoriChange(selectEl) {
+    loadSubKategori(selectEl, 'filterSubKategori');
+  }
 
-// Ganti Gedung -> reset pilihan Lantai & Ruangan.
-// Form TIDAK langsung disubmit, user harus klik tombol "Terapkan" dulu.
-function onFilterGedungChange(selectEl) {
-  loadLantai(selectEl, 'filterLantai');
-  loadRuangan(selectEl, 'filterLantai', 'filterRuangan');
-}
+  // Ganti Gedung -> reset pilihan Lantai & Ruangan.
+  // Form TIDAK langsung disubmit, user harus klik tombol "Terapkan" dulu.
+  function onFilterGedungChange(selectEl) {
+    loadLantai(selectEl, 'filterLantai');
+    loadRuangan(selectEl, 'filterLantai', 'filterRuangan');
+  }
 
-// Ganti Lantai -> reset pilihan Ruangan.
-// Form TIDAK langsung disubmit, user harus klik tombol "Terapkan" dulu.
-function onFilterLantaiChange(lantaiEl) {
-  const gedungEl = document.getElementById('filterGedung');
-  loadRuangan(gedungEl, 'filterLantai', 'filterRuangan');
-}
+  // Ganti Lantai -> reset pilihan Ruangan.
+  // Form TIDAK langsung disubmit, user harus klik tombol "Terapkan" dulu.
+  function onFilterLantaiChange(lantaiEl) {
+    const gedungEl = document.getElementById('filterGedung');
+    loadRuangan(gedungEl, 'filterLantai', 'filterRuangan');
+  }
 
-window.addEventListener('DOMContentLoaded', () => {
-  {% if request.args.get('kategori') %}
-  // Filter kategori aktif -> muat opsi sub-kategori terkait & pertahankan pilihan
-  loadSubKategori(document.getElementById('filterKategori'), 'filterSubKategori', '{{ request.args.get("sub_kategori", "") }}');
-  {% endif %}
-  {% if request.args.get('gedung') %}
-  // Filter gedung aktif -> muat opsi lantai & ruangan terkait, pertahankan pilihan
-  const gedungEl = document.getElementById('filterGedung');
-  loadLantai(gedungEl, 'filterLantai', '{{ request.args.get("lantai", "") }}');
-  loadRuangan(gedungEl, 'filterLantai', 'filterRuangan', '{{ request.args.get("ruangan", "") }}');
-  {% endif %}
+  window.addEventListener('DOMContentLoaded', () => {
+    {% if request.args.get('kategori') %}
+    // Filter kategori aktif -> muat opsi sub-kategori terkait & pertahankan pilihan
+    loadSubKategori(document.getElementById('filterKategori'), 'filterSubKategori', '{{ request.args.get("sub_kategori", "") }}');
+    {% endif %}
+    {% if request.args.get('gedung') %}
+    // Filter gedung aktif -> muat opsi lantai & ruangan terkait, pertahankan pilihan
+    const gedungEl = document.getElementById('filterGedung');
+    loadLantai(gedungEl, 'filterLantai', '{{ request.args.get("lantai", "") }}');
+    loadRuangan(gedungEl, 'filterLantai', 'filterRuangan', '{{ request.args.get("ruangan", "") }}');
+    {% endif %}
+  });
+
+// =============================================================
+// PAGINATION INTERAKTIF - Dropdown Per Page & Go to Page
+// =============================================================
+document.addEventListener('DOMContentLoaded', function() {
+  // Per Page dropdown
+  const perPageSelect = document.getElementById('perPageSelect');
+  if (perPageSelect) {
+    perPageSelect.addEventListener('change', function() {
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set('per_page', this.value);
+      currentUrl.searchParams.set('page', 1); // reset ke halaman 1
+      window.location.href = currentUrl.toString();
+    });
+  }
 });
 
 // =============================================================
-// FUNGSI DETAIL ASET (dengan semua field baru, kecuali link_qr)
+// BULK DELETE - Pilih dan Hapus Banyak Aset (Mode Select)
 // =============================================================
-function openDetailAset(asetId) {
-  const modal = document.getElementById('modalDetailAset');
-  const content = document.getElementById('detailAsetContent');
-  
-  if (!modal || !content) {
-    console.error('Modal atau content tidak ditemukan!');
-    return;
+document.addEventListener('DOMContentLoaded', function() {
+  const toggleBtn = document.getElementById('toggleSelectModeBtn');
+  const deleteBtn = document.getElementById('deleteSelectedBtn');
+  const selectAll = document.getElementById('selectAll');
+  const checkboxes = document.querySelectorAll('.row-checkbox');
+  const selectedCount = document.getElementById('selectedCount');
+  const deleteForm = document.getElementById('deleteMultipleForm');
+  const selectedIdsContainer = document.getElementById('selectedIdsContainer');
+  let selectMode = false;
+
+  function updateSelectedCount() {
+    const checked = document.querySelectorAll('.row-checkbox:checked').length;
+    selectedCount.textContent = checked;
+    if (checked > 0) {
+      deleteBtn.classList.remove('hidden');
+    } else {
+      deleteBtn.classList.add('hidden');
+    }
+    // Update select all state
+    if (selectAll) {
+      const total = checkboxes.length;
+      const checkedTotal = document.querySelectorAll('.row-checkbox:checked').length;
+      selectAll.checked = total > 0 && checkedTotal === total;
+    }
   }
-  
-  content.innerHTML = `
+
+  function toggleSelectMode() {
+    selectMode = !selectMode;
+    
+    // Toggle visibility checkbox di header
+    selectAll.classList.toggle('hidden');
+    
+    // Toggle visibility checkbox di setiap baris
+    checkboxes.forEach(cb => {
+      cb.classList.toggle('hidden');
+    });
+    
+    // Ubah teks tombol
+    toggleBtn.innerHTML = selectMode 
+      ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg> Batal`
+      : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Pilih Aset`;
+    
+    // Ganti style tombol
+    if (selectMode) {
+      toggleBtn.classList.remove('btn-secondary');
+      toggleBtn.classList.add('btn-primary');
+    } else {
+      toggleBtn.classList.remove('btn-primary');
+      toggleBtn.classList.add('btn-secondary');
+      // Uncheck semua checkbox
+      checkboxes.forEach(cb => cb.checked = false);
+      selectAll.checked = false;
+      deleteBtn.classList.add('hidden');
+    }
+    
+    updateSelectedCount();
+  }
+
+  // Event listener tombol toggle
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', toggleSelectMode);
+  }
+
+  // Event listener untuk setiap checkbox
+  checkboxes.forEach(cb => {
+    cb.addEventListener('change', updateSelectedCount);
+  });
+
+  // Select All
+  if (selectAll) {
+    selectAll.addEventListener('change', function() {
+      checkboxes.forEach(cb => {
+        cb.checked = this.checked;
+      });
+      updateSelectedCount();
+    });
+  }
+
+  // Tombol Hapus Terpilih
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      const checked = document.querySelectorAll('.row-checkbox:checked');
+      if (checked.length === 0) {
+        alert('Pilih minimal satu aset untuk dihapus.');
+        return;
+      }
+      if (confirm(`Anda yakin ingin menghapus ${checked.length} aset yang dipilih?`)) {
+        selectedIdsContainer.innerHTML = '';
+        checked.forEach(cb => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'ids[]';
+          input.value = cb.value;
+          selectedIdsContainer.appendChild(input);
+        });
+        deleteForm.submit();
+      }
+    });
+  }
+});
+
+  // =============================================================
+  // FUNGSI DETAIL ASET (dengan semua field baru, kecuali link_qr)
+  // =============================================================
+  function openDetailAset(asetId) {
+    const modal = document.getElementById('modalDetailAset');
+    const content = document.getElementById('detailAsetContent');
+
+    if (!modal || !content) {
+      console.error('Modal atau content tidak ditemukan!');
+      return;
+    }
+
+    content.innerHTML = `
     <div class="text-center py-8">
       <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent"></div>
       <p class="text-xs text-slate-400 mt-2">Memuat data...</p>
     </div>
   `;
-  
-  openModal('modalDetailAset');
-  
-  fetch(`/aset/${asetId}/detail`)
-    .then(res => {
-      if (!res.ok) {
-        throw new Error('Network response was not ok');
-      }
-      return res.json();
-    })
-    .then(data => {
-      // Foto
-      let fotoHtml = '';
-      if (data.foto) {
-        if (data.foto.startsWith('http://') || data.foto.startsWith('https://') || data.foto.startsWith('//')) {
-          fotoHtml = `<img src="${data.foto}" class="rounded-xl max-h-60 w-full object-contain border border-slate-200 bg-slate-50" 
-                            onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23f1f5f9%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2394a3b8%22 font-family=%22sans-serif%22 font-size=%2214%22%3EFoto tidak ditemukan%3C/text%3E%3C/svg%3E'">`;
-        } else {
-          fotoHtml = `<img src="/static/uploads/${data.foto}" class="rounded-xl max-h-60 w-full object-contain border border-slate-200 bg-slate-50" 
-                            onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23f1f5f9%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2394a3b8%22 font-family=%22sans-serif%22 font-size=%2214%22%3EFoto tidak ditemukan%3C/text%3E%3C/svg%3E'; console.error('Foto tidak ditemukan:', '/static/uploads/${data.foto}');">`;
+
+    openModal('modalDetailAset');
+
+    fetch(`/aset/${asetId}/detail`)
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Network response was not ok');
         }
-      } else {
-        fotoHtml = `<div class="bg-slate-100 rounded-xl h-40 flex items-center justify-center text-slate-400 text-sm">Tidak ada foto</div>`;
-      }
-
-      // Warna status
-      const statusColor = {
-        'Baik': 'text-emerald-600 bg-emerald-50',
-        'Rusak': 'text-rose-600 bg-rose-50',
-        'Dipindahkan': 'text-sky-600 bg-sky-50'
-      }[data.status_aset] || 'text-slate-600 bg-slate-50';
-      
-      // Warna tipe (CAPEX/OPEX)
-      const tipeColor = data.tipe_aset === 'CAPEX' ? 'text-violet-600 bg-violet-50' : 'text-sky-600 bg-sky-50';
-
-      // Histori
-      let historiHtml = '';
-      if (data.histori && data.histori.length > 0) {
-        historiHtml = data.histori.map(h => {
-          let label = '', color = '', icon = '', detailLokasi = '';
-          if (h.jenis === 'pindah') {
-            label = '🔄 Pemindahan';
-            color = 'text-blue-600';
-            icon = '🔄';
-            let asal = `${h.gedung_asal || '-'}`;
-            if (h.lantai_asal) asal += ` / Lantai ${h.lantai_asal}`;
-            if (h.ruangan_asal) asal += ` / ${h.ruangan_asal}`;
-            let tujuan = `${h.gedung || '-'}`;
-            if (h.lantai) tujuan += ` / Lantai ${h.lantai}`;
-            if (h.ruangan) tujuan += ` / ${h.ruangan}`;
-            detailLokasi = `📍 ${asal} → ${tujuan}`;
-          } else if (h.jenis === 'rusak') {
-            label = '⚠️ Kerusakan';
-            color = 'text-rose-600';
-            icon = '⚠️';
-            let lokasi = `${h.gedung || '-'}`;
-            if (h.lantai) lokasi += ` / Lantai ${h.lantai}`;
-            if (h.ruangan) lokasi += ` / ${h.ruangan}`;
-            detailLokasi = `📍 ${lokasi}`;
-          } else if (h.jenis === 'perbaikan') {
-            label = '✅ Perbaikan';
-            color = 'text-emerald-600';
-            icon = '✅';
-            let lokasi = `${h.gedung || '-'}`;
-            if (h.lantai) lokasi += ` / Lantai ${h.lantai}`;
-            if (h.ruangan) lokasi += ` / ${h.ruangan}`;
-            detailLokasi = `📍 ${lokasi}`;
+        return res.json();
+      })
+      .then(data => {
+        // Foto
+        let fotoHtml = '';
+        if (data.foto) {
+          if (data.foto.startsWith('http://') || data.foto.startsWith('https://') || data.foto.startsWith('//')) {
+            fotoHtml = `<img src="${data.foto}" class="rounded-xl max-h-60 w-full object-contain border border-slate-200 bg-slate-50" 
+                            onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23f1f5f9%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2394a3b8%22 font-family=%22sans-serif%22 font-size=%2214%22%3EFoto tidak ditemukan%3C/text%3E%3C/svg%3E'">`;
+          } else {
+            fotoHtml = `<img src="/static/uploads/${data.foto}" class="rounded-xl max-h-60 w-full object-contain border border-slate-200 bg-slate-50" 
+                            onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23f1f5f9%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2394a3b8%22 font-family=%22sans-serif%22 font-size=%2214%22%3EFoto tidak ditemukan%3C/text%3E%3C/svg%3E'; console.error('Foto tidak ditemukan:', '/static/uploads/${data.foto}');">`;
           }
-          return `<div class="flex items-start gap-2 py-1.5 border-b border-slate-50 last:border-0">
+        } else {
+          fotoHtml = `<div class="bg-slate-100 rounded-xl h-40 flex items-center justify-center text-slate-400 text-sm">Tidak ada foto</div>`;
+        }
+
+        // Warna status
+        const statusColor = {
+          'Baik': 'text-emerald-600 bg-emerald-50',
+          'Rusak': 'text-rose-600 bg-rose-50',
+          'Dipindahkan': 'text-sky-600 bg-sky-50'
+        }[data.status_aset] || 'text-slate-600 bg-slate-50';
+
+        // Warna tipe (CAPEX/OPEX)
+        const tipeColor = data.tipe_aset === 'CAPEX' ? 'text-violet-600 bg-violet-50' : 'text-sky-600 bg-sky-50';
+
+        // Histori
+        let historiHtml = '';
+        if (data.histori && data.histori.length > 0) {
+          historiHtml = data.histori.map(h => {
+            let label = '', color = '', icon = '', detailLokasi = '';
+            if (h.jenis === 'pindah') {
+              label = '🔄 Pemindahan';
+              color = 'text-blue-600';
+              icon = '🔄';
+              let asal = `${h.gedung_asal || '-'}`;
+              if (h.lantai_asal) asal += ` / Lantai ${h.lantai_asal}`;
+              if (h.ruangan_asal) asal += ` / ${h.ruangan_asal}`;
+              let tujuan = `${h.gedung || '-'}`;
+              if (h.lantai) tujuan += ` / Lantai ${h.lantai}`;
+              if (h.ruangan) tujuan += ` / ${h.ruangan}`;
+              detailLokasi = `📍 ${asal} → ${tujuan}`;
+            } else if (h.jenis === 'rusak') {
+              label = '⚠️ Kerusakan';
+              color = 'text-rose-600';
+              icon = '⚠️';
+              let lokasi = `${h.gedung || '-'}`;
+              if (h.lantai) lokasi += ` / Lantai ${h.lantai}`;
+              if (h.ruangan) lokasi += ` / ${h.ruangan}`;
+              detailLokasi = `📍 ${lokasi}`;
+            } else if (h.jenis === 'perbaikan') {
+              label = '✅ Perbaikan';
+              color = 'text-emerald-600';
+              icon = '✅';
+              let lokasi = `${h.gedung || '-'}`;
+              if (h.lantai) lokasi += ` / Lantai ${h.lantai}`;
+              if (h.ruangan) lokasi += ` / ${h.ruangan}`;
+              detailLokasi = `📍 ${lokasi}`;
+            }
+            return `<div class="flex items-start gap-2 py-1.5 border-b border-slate-50 last:border-0">
             <span class="text-sm">${icon}</span>
             <div class="flex-1">
               <p class="text-xs ${color} font-medium">${label}</p>
@@ -591,13 +906,13 @@ function openDetailAset(asetId) {
             </div>
             <span class="text-[10px] text-slate-400 whitespace-nowrap">${h.tanggal}</span>
           </div>`;
-        }).join('');
-      } else {
-        historiHtml = `<p class="text-xs text-slate-400 text-center py-2">Belum ada histori</p>`;
-      }
+          }).join('');
+        } else {
+          historiHtml = `<p class="text-xs text-slate-400 text-center py-2">Belum ada histori</p>`;
+        }
 
-      // Tampilkan semua data (kecuali link_qr)
-      content.innerHTML = `
+        // Tampilkan semua data (kecuali link_qr)
+        content.innerHTML = `
         <div class="space-y-3.5">
           <!-- Header: Kode & Nama -->
           <div class="flex items-start gap-4">
@@ -710,41 +1025,41 @@ function openDetailAset(asetId) {
           </div>
         </div>
       `;
-    })
-    .catch(err => {
-      console.error('Error:', err);
-      content.innerHTML = `
+      })
+      .catch(err => {
+        console.error('Error:', err);
+        content.innerHTML = `
         <div class="text-center py-8 text-rose-600">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto mb-2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
           <p class="text-sm">Gagal memuat detail aset</p>
           <p class="text-xs text-slate-400 mt-1">${err.message}</p>
         </div>
       `;
-    });
-}
+      });
+  }
 
-function openEditAset(data) {
-  document.getElementById('formEditAset').action = `/aset/${data.id}/edit`;
-  document.getElementById('editKodeAset').value = data.kode_aset || '';
-  document.getElementById('editNama').value = data.nama || '';
-  document.getElementById('editArea').value = data.area || '';
-  document.getElementById('editFungsi').value = data.fungsi || '';
-  document.getElementById('editMerek').value = data.merek || '';
-  document.getElementById('editSerialNumber').value = data.serial_number || '';
-  document.getElementById('editSpesifikasi').value = data.spesifikasi || '';
-  document.getElementById('editTipeAset').value = data.tipe_aset || 'OPEX';
-  document.getElementById('editVolume').value = data.volume || '';
-  document.getElementById('editSatuan').value = data.satuan || '';
-  document.getElementById('editStatus').value = data.status_aset || 'Baik';
-  document.getElementById('editGedung').value = data.gedung || '';
-  document.getElementById('editLantai').value = data.lantai || '';
-  document.getElementById('editRuangan').value = data.ruangan || '';
-  document.getElementById('editJenisBarang').value = data.jenis_barang || '';
-  document.getElementById('editTanggalDatang').value = data.tanggal_datang || '';
-  document.getElementById('editKeterangan').value = data.keterangan || '';
-  document.getElementById('editFotoUrl').value = data.foto_url || '';
-  document.getElementById('editLinkQr').value = data.link_qr || '';
-  openModal('modalEditAset');
-}
+  function openEditAset(data) {
+    document.getElementById('formEditAset').action = `/aset/${data.id}/edit`;
+    document.getElementById('editKodeAset').value = data.kode_aset || '';
+    document.getElementById('editNama').value = data.nama || '';
+    document.getElementById('editArea').value = data.area || '';
+    document.getElementById('editFungsi').value = data.fungsi || '';
+    document.getElementById('editMerek').value = data.merek || '';
+    document.getElementById('editSerialNumber').value = data.serial_number || '';
+    document.getElementById('editSpesifikasi').value = data.spesifikasi || '';
+    document.getElementById('editTipeAset').value = data.tipe_aset || 'OPEX';
+    document.getElementById('editVolume').value = data.volume || '';
+    document.getElementById('editSatuan').value = data.satuan || '';
+    document.getElementById('editStatus').value = data.status_aset || 'Baik';
+    document.getElementById('editGedung').value = data.gedung || '';
+    document.getElementById('editLantai').value = data.lantai || '';
+    document.getElementById('editRuangan').value = data.ruangan || '';
+    document.getElementById('editJenisBarang').value = data.jenis_barang || '';
+    document.getElementById('editTanggalDatang').value = data.tanggal_datang || '';
+    document.getElementById('editKeterangan').value = data.keterangan || '';
+    document.getElementById('editFotoUrl').value = data.foto_url || '';
+    document.getElementById('editLinkQr').value = data.link_qr || '';
+    openModal('modalEditAset');
+  }
 </script>
 {% endblock %}

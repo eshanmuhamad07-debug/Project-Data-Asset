@@ -2,9 +2,20 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block header %}Dashboard{% endblock %}
-{% block subheader %}<p class="text-xs text-slate-400">Ringkasan aset dan history saat ini</p>{% endblock %}
+{% block subheader %}
+<p class="text-xs text-slate-400">
+  {% if current_user.role == 'admin' %}
+    Ringkasan aset dan history aktivitas
+  {% else %}
+    Ringkasan data aset perusahaan
+  {% endif %}
+</p>
+{% endblock %}
 {% block content %}
 
+<!-- ============================================================ -->
+<!-- KARTU STATISTIK (Sama untuk Admin & User) -->
+<!-- ============================================================ -->
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
   <div class="card p-5 flex items-start justify-between">
     <div>
@@ -19,12 +30,12 @@
 
   <div class="card p-5 flex items-start justify-between">
     <div>
-      <p class="text-xs font-medium text-slate-400 mb-1.5">Total History</p>
-      <p class="font-display text-2xl font-bold text-slate-800">{{ total_history }}</p>
-      <p class="text-xs text-slate-400 mt-1">Semua laporan tercatat</p>
+      <p class="text-xs font-medium text-slate-400 mb-1.5">Total Kategori</p>
+      <p class="font-display text-2xl font-bold text-slate-800">{{ total_kategori }}</p>
+      <p class="text-xs text-slate-400 mt-1">Jenis barang terdaftar</p>
     </div>
-    <span class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <span class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/></svg>
     </span>
   </div>
 
@@ -40,6 +51,9 @@
   </div>
 </div>
 
+<!-- ============================================================ -->
+<!-- GRAFIK ASET PER KATEGORI (Sama untuk Admin & User) -->
+<!-- ============================================================ -->
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
   <div class="card p-5 lg:col-span-1">
     <p class="text-sm font-semibold text-slate-700 mb-4">Aset per Kategori</p>
@@ -52,40 +66,96 @@
     {% endif %}
   </div>
 
+  <!-- ============================================================ -->
+  <!-- KONTEN SISI KANAN: History untuk Admin / Ringkasan untuk User -->
+  <!-- ============================================================ -->
   <div class="card p-5 lg:col-span-2">
-    <div class="flex items-center justify-between mb-3">
-      <p class="text-sm font-semibold text-slate-700">History Terbaru</p>
-      <a href="{{ url_for('history_list') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat semua &rarr;</a>
-    </div>
-    <div class="overflow-x-auto -mx-5">
-      <table class="w-full">
-        <thead>
-          <tr class="border-b border-slate-100">
-            <th class="th">#</th>
-            <th class="th">Jenis</th>
-            <th class="th">Pemohon</th>
-            <th class="th">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for h in history_terbaru %}
-          <tr class="table-row hover:bg-slate-50">
-            <td class="td font-medium"><a class="text-indigo-600 hover:text-indigo-700" href="{{ url_for('history_detail', tiket_id=h.id) }}">#{{ h.id }}</a></td>
-            <td class="td">
-              <span class="pill bg-rose-50 text-rose-700 border border-rose-100">
-                <span class="pill-dot bg-rose-500"></span>
-                {{ h.jenis_tiket }}
-              </span>
-            </td>
-            <td class="td">{{ h.nama_pemohon }}</td>
-            <td class="td">{{ m.pill(h.status_tiket, m.tiket_tone(h.status_tiket)) }}</td>
-          </tr>
-          {% else %}
-          <tr><td colspan="4" class="py-10 text-center text-sm text-slate-400">Belum ada history.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    {% if current_user.role == 'admin' %}
+      <!-- ADMIN: Tampilkan History Terbaru -->
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-sm font-semibold text-slate-700">📋 History Aktivitas Terbaru</p>
+        <a href="{{ url_for('history_list') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat semua &rarr;</a>
+      </div>
+      <div class="overflow-x-auto -mx-5">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-slate-100">
+              <th class="th">#</th>
+              <th class="th">Jenis</th>
+              <th class="th">Pelaku</th>
+              <th class="th">Detail</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in history_terbaru %}
+            <tr class="table-row hover:bg-slate-50">
+              <td class="td font-medium"><a class="text-indigo-600 hover:text-indigo-700" href="{{ url_for('history_detail', tiket_id=h.id) if h.jenis_tiket else '#' }}">#{{ h.id }}</a></td>
+              <td class="td">
+                <span class="pill {{ 'bg-rose-100 text-rose-700 border-rose-200' if h.jenis_tiket == 'Kerusakan' else 'bg-blue-100 text-blue-700 border-blue-200' }}">
+                  <span class="pill-dot {{ 'bg-rose-500' if h.jenis_tiket == 'Kerusakan' else 'bg-blue-500' }}"></span>
+                  {{ h.jenis_tiket if h.jenis_tiket else 'Aktivitas' }}
+                </span>
+              </td>
+              <td class="td text-slate-600">{{ h.nama_pemohon or '-' }}</td>
+              <td class="td text-slate-500 text-sm max-w-xs truncate">{{ h.catatan or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="py-10 text-center text-sm text-slate-400">Belum ada history aktivitas.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <!-- USER: Tampilkan Ringkasan Aset -->
+      <div class="space-y-4">
+        <div class="flex items-center gap-3 mb-3">
+          <span class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+          </span>
+          <div>
+            <p class="text-sm font-semibold text-slate-700">Ringkasan Aset</p>
+            <p class="text-xs text-slate-400">Informasi terkini data aset perusahaan</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div class="bg-slate-50 rounded-xl p-3 text-center">
+            <p class="text-xs text-slate-400">CAPEX</p>
+            <p class="text-lg font-bold text-violet-600">{{ total_capex or 0 }}</p>
+          </div>
+          <div class="bg-slate-50 rounded-xl p-3 text-center">
+            <p class="text-xs text-slate-400">OPEX</p>
+            <p class="text-lg font-bold text-sky-600">{{ total_opex or 0 }}</p>
+          </div>
+          <div class="bg-slate-50 rounded-xl p-3 text-center">
+            <p class="text-xs text-slate-400">Total Aset</p>
+            <p class="text-lg font-bold text-indigo-600">{{ total_aset }}</p>
+          </div>
+        </div>
+
+        <div class="bg-slate-50 rounded-xl p-3 flex items-center justify-between">
+          <div>
+            <p class="text-xs text-slate-400">Aset dengan Status Rusak</p>
+            <p class="text-sm font-semibold text-rose-600">{{ total_rusak }} aset</p>
+          </div>
+          <a href="{{ url_for('aset_list') }}?status=Rusak" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Lihat &rarr;</a>
+        </div>
+
+        <div class="bg-slate-50 rounded-xl p-3 flex items-center justify-between">
+          <div>
+            <p class="text-xs text-slate-400">Kategori Terbanyak</p>
+            <p class="text-sm font-semibold text-slate-700">
+              {% if kategori_terbanyak %}
+                {{ kategori_terbanyak.nama }} ({{ kategori_terbanyak.jumlah }} aset)
+              {% else %}
+                -
+              {% endif %}
+            </p>
+          </div>
+          <a href="{{ url_for('aset_list') }}" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Lihat semua &rarr;</a>
+        </div>
+      </div>
+    {% endif %}
   </div>
 </div>
 

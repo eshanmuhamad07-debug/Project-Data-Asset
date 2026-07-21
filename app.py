@@ -202,9 +202,29 @@ def logout():
 @login_required
 def dashboard():
     total_aset = Aset.query.count()
-    total_history = Tiket.query.count()  # semua tiket = history
     total_rusak = Aset.query.filter_by(status_aset="Rusak").count()
-
+    total_kategori = Kategori.query.count()
+    
+    # Untuk user: statistik CAPEX/OPEX
+    total_capex = Aset.query.filter_by(tipe_aset="CAPEX").count()
+    total_opex = Aset.query.filter_by(tipe_aset="OPEX").count()
+    
+    # Kategori terbanyak
+    kategori_terbanyak = None
+    if total_aset > 0:
+        kategori_terbanyak = db.session.query(
+            Kategori.nama, db.func.count(Aset.id).label('jumlah')
+        ).outerjoin(Aset, Aset.id_kategori == Kategori.id)\
+         .group_by(Kategori.id)\
+         .order_by(db.desc('jumlah'))\
+         .first()
+        if kategori_terbanyak:
+            kategori_terbanyak = {
+                "nama": kategori_terbanyak[0],
+                "jumlah": kategori_terbanyak[1]
+            }
+    
+    # Grafik kategori
     kategori_chart = (
         db.session.query(Kategori.nama, db.func.count(Aset.id))
         .outerjoin(Aset, Aset.id_kategori == Kategori.id)
@@ -213,19 +233,103 @@ def dashboard():
     )
     chart_labels = [k[0] for k in kategori_chart]
     chart_values = [k[1] for k in kategori_chart]
-
-    history_terbaru = Tiket.query.order_by(Tiket.created_at.desc()).limit(5).all()
-
+    
+    # History terbaru (hanya untuk admin)
+    history_terbaru = []
+    if current_user.role == ROLE_ADMIN:
+        # Ambil semua event (tiket + aktivitas log) untuk admin
+        events = []
+        for t in Tiket.query.order_by(Tiket.created_at.desc()).limit(10).all():
+            events.append({
+                "id": t.id,
+                "jenis_tiket": t.jenis_tiket,
+                "nama_pemohon": t.nama_pemohon,
+                "catatan": t.catatan[:50] if t.catatan else "-",
+                "created_at": t.created_at,
+                "is_tiket": True
+            })
+        
+        # Gabungkan dengan aktivitas log (urutkan berdasarkan waktu)
+        from models import AktivitasLog
+        for a in AktivitasLog.query.order_by(AktivitasLog.created_at.desc()).limit(5).all():
+            user = User.query.get(a.id_user)
+            events.append({
+                "id": a.id,
+                "jenis_tiket": "Aktivitas",
+                "nama_pemohon": user.name if user else "System",
+                "catatan": a.deskripsi[:50] if a.deskripsi else "-",
+                "created_at": a.created_at,
+                "is_tiket": False
+            })
+        
+        # Urutkan berdasarkan waktu terbaru dan ambil 5 teratas
+        events.sort(key=lambda x: x["created_at"], reverse=True)
+        history_terbaru = events[:5]
+    
     return render_template(
         "dashboard.html",
         total_aset=total_aset,
-        total_history=total_history,
         total_rusak=total_rusak,
+        total_kategori=total_kategori,
+        total_capex=total_capex,
+        total_opex=total_opex,
+        kategori_terbanyak=kategori_terbanyak,
         chart_labels=chart_labels,
         chart_values=chart_values,
         history_terbaru=history_terbaru,
     )
 
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard"))
+    
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+        
+        # Validasi
+        if not name or not email or not password:
+            flash("Semua field wajib diisi.", "danger")
+            return render_template("register.html")
+        
+        # Validasi email harus @gmail.com
+        if not email.endswith("@gmail.com"):
+            flash("Hanya email dengan domain @gmail.com yang diperbolehkan.", "danger")
+            return render_template("register.html")
+        
+        # Validasi email sudah terdaftar
+        if User.query.filter_by(email=email).first():
+            flash("Email sudah terdaftar. Silakan login.", "danger")
+            return render_template("register.html")
+        
+        # Validasi password minimal 8 karakter
+        if len(password) < 8:
+            flash("Password minimal 8 karakter.", "danger")
+            return render_template("register.html")
+        
+        # Validasi konfirmasi password
+        if password != confirm_password:
+            flash("Password dan konfirmasi password tidak cocok.", "danger")
+            return render_template("register.html")
+        
+        # Buat user baru dengan role 'user'
+        user = User(
+            name=name,
+            email=email,
+            password=generate_password_hash(password),
+            role="user",  # default role user
+            is_active=True
+        )
+        db.session.add(user)
+        db.session.commit()
+        
+        flash("Akun berhasil dibuat! Silakan login.", "success")
+        return redirect(url_for("login"))
+    
+    return render_template("register.html")
 
 # ---------------------------------------------------------------------------
 # ASET (CRUD)
@@ -242,6 +346,11 @@ def aset_list():
     gedung = request.args.get("gedung", "")
     lantai = request.args.get("lantai", "")
     ruangan = request.args.get("ruangan", "")
+    tipe = request.args.get("tipe", "")
+
+    per_page = request.args.get("per_page", 10, type=int)
+    if per_page not in [10, 25, 50, 100]:
+        per_page = 10
 
     query = Aset.query
     if q:
@@ -263,7 +372,7 @@ def aset_list():
 
     page = request.args.get("page", 1, type=int)
     pagination = query.order_by(Aset.id.desc()).paginate(
-        page=page, per_page=10, error_out=False
+        page=page, per_page=per_page, error_out=False
     )
     daftar_aset = pagination.items
     kategori_all = Kategori.query.all()
@@ -664,6 +773,55 @@ def aset_histori(aset_id):
         })
     return jsonify(data)
 
+@app.route("/aset/delete-multiple", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def aset_delete_multiple():
+    ids = request.form.getlist("ids[]")
+    if not ids:
+        flash("Tidak ada aset yang dipilih.", "danger")
+        return redirect(url_for("aset_list"))
+    
+    try:
+        ids = [int(id) for id in ids]
+    except ValueError:
+        flash("ID tidak valid.", "danger")
+        return redirect(url_for("aset_list"))
+    
+    aset_list = Aset.query.filter(Aset.id.in_(ids)).all()
+    if not aset_list:
+        flash("Tidak ada aset yang ditemukan.", "danger")
+        return redirect(url_for("aset_list"))
+    
+    for aset in aset_list:
+        catat_aktivitas(
+            aksi="DELETE",
+            target_model="Aset",
+            target_id=aset.id,
+            deskripsi=f"Menghapus aset via bulk: {aset.nama} ({aset.kode_aset})",
+            data_lama={
+                "kode_aset": aset.kode_aset,
+                "nama": aset.nama,
+                "area": aset.area,
+                "fungsi": aset.fungsi,
+                "merek": aset.merek,
+                "serial_number": aset.serial_number,
+                "spesifikasi": aset.spesifikasi,
+                "tipe_aset": aset.tipe_aset,
+                "volume": aset.volume,
+                "satuan": aset.satuan,
+                "status": aset.status_aset,
+                "gedung": aset.gedung,
+                "ruangan": aset.ruangan,
+                "lantai": aset.lantai,
+                "keterangan": aset.keterangan,
+            }
+        )
+        db.session.delete(aset)
+    
+    db.session.commit()
+    flash(f"Berhasil menghapus {len(aset_list)} aset.", "success")
+    return redirect(url_for("aset_list"))
 
 # ---------------------------------------------------------------------------
 # EXPORT / IMPORT ASET (Excel)
@@ -875,6 +1033,7 @@ def kategori_create():
 # ---------------------------------------------------------------------------
 @app.route("/history")
 @login_required
+@role_required(ROLE_ADMIN)
 def history_list():
     """Halaman history terpadu: tiket + aktivitas admin."""
     
@@ -978,6 +1137,7 @@ def history_list():
 
 @app.route("/aktivitas/<int:log_id>")
 @login_required
+@role_required(ROLE_ADMIN)
 def aktivitas_detail(log_id):
     """Detail aktivitas admin (tambah/edit/hapus aset)."""
     log = AktivitasLog.query.get_or_404(log_id)
@@ -1002,6 +1162,7 @@ def aktivitas_detail(log_id):
 
 @app.route("/history/<int:tiket_id>")
 @login_required
+@role_required(ROLE_ADMIN)
 def history_detail(tiket_id):
     """Detail history tiket (read-only)"""
     tiket = Tiket.query.get_or_404(tiket_id)
@@ -1188,7 +1349,9 @@ def users_create():
     if len(password) < 8:
         flash("Password minimal 8 karakter.", "danger")
         return redirect(url_for("users_list"))
-    if role != "admin":
+    
+    # Validasi role hanya admin atau user
+    if role not in ["admin", "user"]:
         flash("Role tidak valid.", "danger")
         return redirect(url_for("users_list"))
 
@@ -1196,7 +1359,7 @@ def users_create():
         name=request.form.get("name"),
         email=email,
         password=generate_password_hash(password),
-        role="admin",
+        role=role,
     ))
     db.session.commit()
     flash("User berhasil ditambahkan.", "success")

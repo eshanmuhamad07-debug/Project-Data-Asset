@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Daftar Akun{% endblock %}
+{% block content_guest %}
+<div class="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+  <div class="bg-white rounded-2xl shadow-lg w-full max-w-md p-8">
+    <div class="text-center mb-6">
+      <div class="flex items-center justify-center gap-2.5 mb-2">
+        <span class="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg>
+        </span>
+        <span class="font-display font-bold text-xl tracking-tight text-slate-800">AsetKu</span>
+      </div>
+      <h1 class="font-display font-bold text-2xl text-slate-800">Daftar Akun</h1>
+      <p class="text-sm text-slate-500">Buat akun untuk melihat data aset</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-4 space-y-2">
+        {% for category, msg in messages %}
+          <div class="flex items-start gap-2.5 rounded-xl px-4 py-3 text-sm bg-rose-50 text-rose-700 border border-rose-100">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 mt-0.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+            <span>{{ msg }}</span>
+          </div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div>
+        <label class="field-label">Nama Lengkap</label>
+        <input type="text" name="name" required placeholder="Masukkan nama lengkap" class="field-input">
+      </div>
+      <div>
+        <label class="field-label">Email (@gmail.com)</label>
+        <input type="email" name="email" required placeholder="nama@gmail.com" class="field-input">
+        <p class="text-[10px] text-slate-400 mt-1">* Hanya email @gmail.com yang diperbolehkan</p>
+      </div>
+      <div>
+        <label class="field-label">Password</label>
+        <input type="password" name="password" required placeholder="Minimal 8 karakter" class="field-input">
+      </div>
+      <div>
+        <label class="field-label">Konfirmasi Password</label>
+        <input type="password" name="confirm_password" required placeholder="Ulangi password" class="field-input">
+      </div>
+      <button type="submit" class="btn btn-primary w-full py-2.5">Daftar</button>
+    </form>
+
+    <p class="text-xs text-slate-400 mt-4 text-center">
+      Sudah punya akun? <a href="{{ url_for('login') }}" class="text-indigo-600 hover:text-indigo-700 font-medium">Login di sini</a>
+    </p>
+  </div>
+</div>
+{% endblock %}
