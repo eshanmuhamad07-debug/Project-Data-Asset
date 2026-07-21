@@ -265,16 +265,19 @@ def aset_list():
     if jenis:
         query = query.filter_by(jenis_aset=jenis)
 
+    filter_aktif = bool(q or status or kategori_id or sub_id or gedung or lantai or ruangan or jenis)
+
     page = request.args.get("page", 1, type=int)
     pagination = query.order_by(Aset.id.desc()).paginate(
-        page=page, per_page=10, error_out=False
-    )
+        page=page, per_page=20, error_out=False
+    )  # Solusi #10: pagination server-side agar tetap cepat untuk data besar
     daftar_aset = pagination.items
     kategori_all = Kategori.query.all()
     sub_kategori_terpilih = SubKategori.query.get(sub_id) if sub_id else None
     gedung_all = [
         g[0] for g in db.session.query(Aset.gedung).distinct().order_by(Aset.gedung).all() if g[0]
     ]
+    total_keseluruhan = Aset.query.count()
     return render_template(
         "aset/list.html",
         daftar_aset=daftar_aset,
@@ -283,6 +286,8 @@ def aset_list():
         sub_kategori_terpilih=sub_kategori_terpilih,
         gedung_all=gedung_all,
         jenis_aset_options=JENIS_ASET_OPTIONS,
+        filter_aktif=filter_aktif,
+        total_keseluruhan=total_keseluruhan,
     )
 
 

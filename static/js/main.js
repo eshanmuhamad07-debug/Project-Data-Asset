@@ -182,8 +182,13 @@ setInterval(async () => {
 // FUNGSI UNTUK DROPDOWN DINAMIS (untuk form tiket)
 // =============================================================
 
-// Fungsi load lantai berdasarkan gedung
-window.loadLantai = function(gedung, lantaiTargetId, ruanganTargetId, asetTargetId) {
+// Fungsi load lantai berdasarkan gedung (khusus form TIKET, bukan filter Data Aset).
+// PENTING: nama fungsi ini SENGAJA dibuat beda (loadLantaiTiket) dari loadLantai()
+// di atas -- sebelumnya sama-sama bernama loadLantai dan keduanya menempel ke
+// `window`, jadi fungsi ini menimpa fungsi loadLantai() versi filter Data Aset
+// (karena dieksekusi belakangan). Akibatnya filter Lantai di Data Aset selalu
+// gagal/kosong walau Gedung sudah dipilih.
+window.loadLantaiTiket = function(gedung, lantaiTargetId, ruanganTargetId, asetTargetId) {
   const lantaiEl = document.getElementById(lantaiTargetId);
   if (!lantaiEl) return;
   
