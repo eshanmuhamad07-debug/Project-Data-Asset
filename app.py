@@ -808,7 +808,7 @@ def aset_import():
             aset.gedung = gedung or "-"
             aset.ruangan = ruangan or "-"
             aset.lantai = lantai or None
-            aset.foto_url = foto_url or None
+            aset.foto_url = convert_gdrive_to_thumbnail(foto_url) if foto_url else None
             aset.link_qr = link_qr or None
             aset.tanggal_datang = tanggal_datang
             aset.keterangan = keterangan or None
@@ -830,7 +830,7 @@ def aset_import():
                 gedung=gedung or "-",
                 ruangan=ruangan or "-",
                 lantai=lantai or None,
-                foto_url=foto_url or None,
+                foto_url=convert_gdrive_to_thumbnail(foto_url) if foto_url else None,
                 link_qr=link_qr or None,
                 tanggal_datang=tanggal_datang,
                 keterangan=keterangan or None,

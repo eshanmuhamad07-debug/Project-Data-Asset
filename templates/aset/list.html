@@ -69,7 +69,7 @@
             </select>
             <select name="lantai" id="filterLantai" onchange="onFilterLantaiChange(this)" class="field-input w-full sm:w-36">
               {% if request.args.get('lantai') %}
-                <option value="{{ request.args.get('lantai') }}" selected>Lantai {{ request.args.get('lantai') }}</option>
+                <option value="{{ request.args.get('lantai') }}" selected>{{ request.args.get('lantai') }}</option>
               {% else %}
                 <option value="">{{ 'Pilih Gedung dulu' if not request.args.get('gedung') else 'Semua Lantai' }}</option>
               {% endif %}

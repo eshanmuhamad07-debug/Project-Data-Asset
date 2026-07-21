@@ -1,62 +1,34 @@
 {% extends "base.html" %}
 {% block title %}Kategori Aset{% endblock %}
 {% block header %}Kategori Aset{% endblock %}
-{% block subheader %}<p class="text-xs text-slate-400">Struktur kategori 2 level untuk klasifikasi aset</p>{% endblock %}
+{% block subheader %}<p class="text-xs text-slate-400">Klasifikasi aset berdasarkan jenis barang</p>{% endblock %}
 {% block content %}
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-  <div class="card p-5 space-y-3.5">
-    <div class="flex items-center justify-between">
-      <p class="font-semibold text-sm text-slate-700">Kategori Utama</p>
-      <button onclick="openModal('modalKategori')" class="btn btn-secondary btn-sm">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-        Tambah
-      </button>
-    </div>
-    <div class="divide-y divide-slate-100">
-      {% for k in kategori_all %}
-      <div class="py-2.5 flex items-center justify-between">
-        <span class="flex items-center gap-2.5 text-sm text-slate-700">
-          <span class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/></svg>
-          </span>
-          {{ k.nama }}
+<div class="card p-5 space-y-3.5">
+  <div class="flex items-center justify-between">
+    <p class="font-semibold text-sm text-slate-700">Daftar Kategori</p>
+    <button onclick="openModal('modalKategori')" class="btn btn-secondary btn-sm">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+      Tambah Kategori
+    </button>
+  </div>
+  <div class="divide-y divide-slate-100">
+    {% for k in kategori_all %}
+    <div class="py-2.5 flex items-center justify-between">
+      <span class="flex items-center gap-2.5 text-sm text-slate-700">
+        <span class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/></svg>
         </span>
-        <span class="text-xs text-slate-400">{{ k.sub_kategori|length }} sub-kategori</span>
-      </div>
-      {% else %}
-      <div class="py-10 text-center">
-        <p class="text-xs text-slate-400">Belum ada kategori.</p>
-      </div>
-      {% endfor %}
+        {{ k.nama }}
+      </span>
+      <span class="text-xs text-slate-400">{{ k.aset_list|length }} aset</span>
     </div>
+    {% else %}
+    <div class="py-10 text-center">
+      <p class="text-xs text-slate-400">Belum ada kategori.</p>
+    </div>
+    {% endfor %}
   </div>
-
-  <div class="card p-5 space-y-3.5">
-    <div class="flex items-center justify-between">
-      <p class="font-semibold text-sm text-slate-700">Sub Kategori</p>
-      <button onclick="openModal('modalSubKategori')" class="btn btn-secondary btn-sm">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-        Tambah
-      </button>
-    </div>
-    <div class="divide-y divide-slate-100">
-      {% for k in kategori_all %}
-        {% for s in k.sub_kategori %}
-        <div class="py-2.5 flex items-center justify-between">
-          <span class="text-sm text-slate-700">{{ s.nama }}</span>
-          <span class="text-xs text-slate-400 bg-slate-50 border border-slate-100 rounded-full px-2 py-0.5">{{ k.nama }}</span>
-        </div>
-        {% endfor %}
-      {% else %}
-      <div class="py-10 text-center">
-        <p class="text-xs text-slate-400">Belum ada sub-kategori.</p>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-
 </div>
 
 <!-- Modal Tambah Kategori -->
@@ -73,33 +45,6 @@
       <div>
         <label class="field-label">Nama Kategori</label>
         <input name="nama" required placeholder="mis. Elektronik" class="field-input">
-      </div>
-      <button type="submit" class="btn btn-primary w-full py-2.5">Simpan</button>
-    </form>
-  </div>
-</div>
-
-<!-- Modal Tambah Sub Kategori -->
-<div id="modalSubKategori" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
-  <div class="bg-white rounded-2xl w-full max-w-sm shadow-xl">
-    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-      <h2 class="font-display font-bold text-slate-800">Tambah Sub Kategori</h2>
-      <button onclick="closeModal('modalSubKategori')" class="text-slate-400 hover:text-slate-600">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <form method="POST" action="{{ url_for('sub_kategori_create') }}" class="p-5 space-y-3.5">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div>
-        <label class="field-label">Kategori Utama</label>
-        <select name="id_kategori" required class="field-input">
-          <option value="">Pilih Kategori Utama</option>
-          {% for k in kategori_all %}<option value="{{ k.id }}">{{ k.nama }}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="field-label">Nama Sub Kategori</label>
-        <input name="nama" required placeholder="mis. Laptop" class="field-input">
       </div>
       <button type="submit" class="btn btn-primary w-full py-2.5">Simpan</button>
     </form>
