@@ -269,7 +269,7 @@ def aset_list():
 
     page = request.args.get("page", 1, type=int)
     pagination = query.order_by(Aset.id.desc()).paginate(
-        page=page, per_page=20, error_out=False
+        page=page, per_page=10, error_out=False
     )  # Solusi #10: pagination server-side agar tetap cepat untuk data besar
     daftar_aset = pagination.items
     kategori_all = Kategori.query.all()
