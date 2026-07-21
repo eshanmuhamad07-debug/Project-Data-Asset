@@ -5,59 +5,87 @@ from datetime import datetime
 from flask_login import UserMixin
 from extensions import db
 import pytz
-import json
 
+# ============================================================
+# TIMEZONE WIB (UTC+7)
+# ============================================================
 WIB = pytz.timezone('Asia/Jakarta')
 
 def get_wib_now():
     return datetime.now(WIB)
 
 
+# ============================================================
+# USER
+# ============================================================
 class User(db.Model, UserMixin):
     __tablename__ = "user"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), nullable=False)
+    role = db.Column(db.String(20), nullable=False)  # hanya 'admin'
     is_active = db.Column(db.Boolean, default=True, nullable=False)
 
 
+# ============================================================
+# KATEGORI (tanpa SubKategori)
+# ============================================================
 class Kategori(db.Model):
     __tablename__ = "kategori"
     id = db.Column(db.Integer, primary_key=True)
-    nama = db.Column(db.String(100), nullable=False)
-    sub_kategori = db.relationship("SubKategori", backref="kategori", cascade="all, delete-orphan")
+    nama = db.Column(db.String(100), nullable=False, unique=True)
+    # Relasi ke Aset
+    aset_list = db.relationship("Aset", backref="kategori_ref", lazy=True)
 
 
-class SubKategori(db.Model):
-    __tablename__ = "sub_kategori"
-    id = db.Column(db.Integer, primary_key=True)
-    id_kategori = db.Column(db.Integer, db.ForeignKey("kategori.id"), nullable=False)
-    nama = db.Column(db.String(100), nullable=False)
-
-
+# ============================================================
+# ASET (DENGAN FIELD BARU DARI EXCEL)
+# ============================================================
 class Aset(db.Model):
     __tablename__ = "aset"
+
     id = db.Column(db.Integer, primary_key=True)
+    
+    # --- Field lama ---
     kode_aset = db.Column(db.String(50), unique=True, nullable=False)
     nama = db.Column(db.String(150), nullable=False)
     merek = db.Column(db.String(100), nullable=True)
-    foto = db.Column(db.String(255), nullable=True)
-    foto_url = db.Column(db.String(500), nullable=True)
+    foto = db.Column(db.String(255), nullable=True)          # upload file
+    foto_url = db.Column(db.String(500), nullable=True)      # link gambar
+    
     gedung = db.Column(db.String(100), nullable=False)
     lantai = db.Column(db.String(50), nullable=True)
     ruangan = db.Column(db.String(100), nullable=False)
-    status_aset = db.Column(db.String(20), default="Baik")
-    jenis_aset = db.Column(db.String(20), nullable=False, default="Operasional")
+    
+    status_aset = db.Column(db.String(20), default="Baik")   # Baik / Rusak
     total_kerusakan = db.Column(db.Integer, default=0, nullable=False)
-    spesifikasi = db.Column(db.Text, nullable=True)
+    
+    # --- Field BARU dari Excel ---
+    area = db.Column(db.String(100), nullable=True)           # Area
+    fungsi = db.Column(db.String(255), nullable=True)         # Fungsi Barang
+    serial_number = db.Column(db.String(100), nullable=True)  # Serial Number
+    volume = db.Column(db.String(50), nullable=True)          # Volume
+    satuan = db.Column(db.String(50), nullable=True)          # Satuan
+    tipe_aset = db.Column(db.String(20), nullable=False, default="OPEX")  # CAPEX / OPEX
+    link_qr = db.Column(db.String(500), nullable=True)        # Link QR (HIDDEN)
+    tanggal_datang = db.Column(db.Date, nullable=True)        # Tanggal Barang Datang
+    keterangan = db.Column(db.Text, nullable=True)            # Keterangan
+    
+    # --- Relasi Kategori (HAPUS SubKategori) ---
     id_kategori = db.Column(db.Integer, db.ForeignKey("kategori.id"), nullable=True)
-    id_sub_kategori = db.Column(db.Integer, db.ForeignKey("sub_kategori.id"), nullable=True)
-    kategori = db.relationship("Kategori", foreign_keys=[id_kategori])
-    sub_kategori = db.relationship("SubKategori", foreign_keys=[id_sub_kategori])
+    # kategori_ref sudah didefinisikan di Kategori
+
+    # --- Field lainnya (spesifikasi) ---
+    spesifikasi = db.Column(db.Text, nullable=True)
+
+    # --- Relasi ke histori ---
+    histori = db.relationship("HistoriAset", backref="aset_ref", cascade="all, delete-orphan")
 
 
+# ============================================================
+# TIKET (History)
+# ============================================================
 class Tiket(db.Model):
     __tablename__ = "tiket"
     id = db.Column(db.Integer, primary_key=True)
@@ -71,7 +99,7 @@ class Tiket(db.Model):
     ruangan_tujuan = db.Column(db.String(100), nullable=True)
     catatan = db.Column(db.Text, nullable=True)
     foto = db.Column(db.String(255), nullable=True)
-    created_at = db.Column(db.DateTime, default=get_wib_now)  # <-- PAKAI WIB
+    created_at = db.Column(db.DateTime, default=get_wib_now)
     created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     user_creator = db.relationship("User", foreign_keys=[created_by])
     aset_terkait = db.relationship("TiketAset", backref="tiket", cascade="all, delete-orphan")

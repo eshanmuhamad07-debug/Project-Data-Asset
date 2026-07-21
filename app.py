@@ -21,7 +21,7 @@ import re
 
 from extensions import db, login_manager, csrf, limiter
 from models import (
-    User, Kategori, SubKategori, Aset, Tiket, TiketAset,
+    User, Kategori, Aset, Tiket, TiketAset,
     LogStatus, HistoriAset, AktivitasLog 
 )
 from roles import ROLE_ADMIN
@@ -239,11 +239,9 @@ def aset_list():
     q = request.args.get("q", "").strip()
     status = request.args.get("status", "")
     kategori_id = request.args.get("kategori", "")
-    sub_id = request.args.get("sub_kategori", "")
     gedung = request.args.get("gedung", "")
     lantai = request.args.get("lantai", "")
     ruangan = request.args.get("ruangan", "")
-    jenis = request.args.get("jenis", "")
 
     query = Aset.query
     if q:
@@ -254,26 +252,21 @@ def aset_list():
         query = query.filter_by(status_aset=status)
     if kategori_id:
         query = query.filter_by(id_kategori=kategori_id)
-    if sub_id:
-        query = query.filter_by(id_sub_kategori=sub_id)
     if gedung:
         query = query.filter_by(gedung=gedung)
     if lantai:
         query = query.filter_by(lantai=lantai)
     if ruangan:
         query = query.filter_by(ruangan=ruangan)
-    if jenis:
-        query = query.filter_by(jenis_aset=jenis)
 
-    filter_aktif = bool(q or status or kategori_id or sub_id or gedung or lantai or ruangan or jenis)
+    filter_aktif = bool(q or status or kategori_id or gedung or lantai or ruangan)
 
     page = request.args.get("page", 1, type=int)
     pagination = query.order_by(Aset.id.desc()).paginate(
         page=page, per_page=10, error_out=False
-    )  # Solusi #10: pagination server-side agar tetap cepat untuk data besar
+    )
     daftar_aset = pagination.items
     kategori_all = Kategori.query.all()
-    sub_kategori_terpilih = SubKategori.query.get(sub_id) if sub_id else None
     gedung_all = [
         g[0] for g in db.session.query(Aset.gedung).distinct().order_by(Aset.gedung).all() if g[0]
     ]
@@ -283,9 +276,7 @@ def aset_list():
         daftar_aset=daftar_aset,
         kategori_all=kategori_all,
         pagination=pagination,
-        sub_kategori_terpilih=sub_kategori_terpilih,
         gedung_all=gedung_all,
-        jenis_aset_options=JENIS_ASET_OPTIONS,
         filter_aktif=filter_aktif,
         total_keseluruhan=total_keseluruhan,
     )
@@ -353,10 +344,42 @@ def aset_create():
         flash("Kode aset sudah digunakan.", "danger")
         return redirect(url_for("aset_list"))
 
-    jenis_aset = request.form.get("jenis_aset", "Operasional")
-    if jenis_aset not in JENIS_ASET_OPTIONS:
-        jenis_aset = "Operasional"
+    # Ambil semua field
+    area = request.form.get("area", "").strip() or None
+    nama = request.form.get("nama", "").strip()
+    fungsi = request.form.get("fungsi", "").strip() or None
+    jenis_barang = request.form.get("jenis_barang", "").strip()  # nama kategori
+    merek = request.form.get("merek", "").strip() or None
+    serial_number = request.form.get("serial_number", "").strip() or None
+    spesifikasi = request.form.get("spesifikasi", "").strip() or None
+    tipe_aset = request.form.get("tipe_aset", "OPEX").strip()
+    volume = request.form.get("volume", "").strip() or None
+    satuan = request.form.get("satuan", "").strip() or None
+    status_aset = request.form.get("status_aset", "Baik")
+    gedung = request.form.get("gedung", "").strip()
+    ruangan = request.form.get("ruangan", "").strip()
+    lantai = request.form.get("lantai", "").strip() or None
+    link_qr = request.form.get("link_qr", "").strip() or None
+    tanggal_datang_str = request.form.get("tanggal_datang", "").strip()
+    tanggal_datang = None
+    if tanggal_datang_str:
+        try:
+            tanggal_datang = datetime.strptime(tanggal_datang_str, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    keterangan = request.form.get("keterangan", "").strip() or None
 
+    # Cari/buat kategori
+    id_kategori = None
+    if jenis_barang:
+        kategori = Kategori.query.filter(db.func.lower(Kategori.nama) == jenis_barang.lower()).first()
+        if not kategori:
+            kategori = Kategori(nama=jenis_barang)
+            db.session.add(kategori)
+            db.session.flush()
+        id_kategori = kategori.id
+
+    # Upload foto
     foto_file = request.files.get("foto")
     foto = None
     foto_error = None
@@ -368,18 +391,25 @@ def aset_create():
 
     aset = Aset(
         kode_aset=kode_aset,
-        nama=request.form.get("nama"),
-        merek=request.form.get("merek", "").strip() or None,
+        nama=nama,
+        area=area,
+        fungsi=fungsi,
+        merek=merek,
+        serial_number=serial_number,
+        spesifikasi=spesifikasi,
+        tipe_aset=tipe_aset,
+        volume=volume,
+        satuan=satuan,
+        status_aset=status_aset,
+        gedung=gedung,
+        ruangan=ruangan,
+        lantai=lantai,
         foto=foto,
         foto_url=foto_url,
-        gedung=request.form.get("gedung"),
-        lantai=request.form.get("lantai") or None,
-        ruangan=request.form.get("ruangan"),
-        status_aset=request.form.get("status_aset", "Baik"),
-        jenis_aset=jenis_aset,
-        spesifikasi=request.form.get("spesifikasi", "").strip() or None,
-        id_kategori=request.form.get("id_kategori") or None,
-        id_sub_kategori=request.form.get("id_sub_kategori") or None,
+        link_qr=link_qr,
+        tanggal_datang=tanggal_datang,
+        keterangan=keterangan,
+        id_kategori=id_kategori,
     )
     db.session.add(aset)
     catat_aktivitas(
@@ -390,13 +420,18 @@ def aset_create():
         data_baru={
             "kode_aset": aset.kode_aset,
             "nama": aset.nama,
+            "area": aset.area,
+            "fungsi": aset.fungsi,
             "merek": aset.merek,
-            "jenis": aset.jenis_aset,
-            "gedung": aset.gedung,
-            "lantai": aset.lantai,
-            "ruangan": aset.ruangan,
+            "serial_number": aset.serial_number,
+            "spesifikasi": aset.spesifikasi,
+            "tipe_aset": aset.tipe_aset,
+            "volume": aset.volume,
+            "satuan": aset.satuan,
             "status": aset.status_aset,
-            "spesifikasi": aset.spesifikasi
+            "gedung": aset.gedung,
+            "ruangan": aset.ruangan,
+            "lantai": aset.lantai,
         }
     )
     db.session.commit()
@@ -417,34 +452,68 @@ def aset_edit(aset_id):
     # Simpan data lama
     data_lama = {
         "nama": aset.nama,
+        "area": aset.area,
+        "fungsi": aset.fungsi,
         "merek": aset.merek,
-        "jenis": aset.jenis_aset,
-        "gedung": aset.gedung,
-        "lantai": aset.lantai,
-        "ruangan": aset.ruangan,
+        "serial_number": aset.serial_number,
+        "spesifikasi": aset.spesifikasi,
+        "tipe_aset": aset.tipe_aset,
+        "volume": aset.volume,
+        "satuan": aset.satuan,
         "status": aset.status_aset,
-        "spesifikasi": aset.spesifikasi
+        "gedung": aset.gedung,
+        "ruangan": aset.ruangan,
+        "lantai": aset.lantai,
+        "keterangan": aset.keterangan,
     }
 
-    # ... (ubah data) 
-    aset.nama = request.form.get("nama")
+    # Ambil data baru
+    aset.nama = request.form.get("nama", "").strip()
+    aset.area = request.form.get("area", "").strip() or None
+    aset.fungsi = request.form.get("fungsi", "").strip() or None
     aset.merek = request.form.get("merek", "").strip() or None
-    aset.gedung = request.form.get("gedung")
-    aset.lantai = request.form.get("lantai") or None
-    aset.ruangan = request.form.get("ruangan")
-    aset.status_aset = request.form.get("status_aset", aset.status_aset)
+    aset.serial_number = request.form.get("serial_number", "").strip() or None
     aset.spesifikasi = request.form.get("spesifikasi", "").strip() or None
-    
+    aset.tipe_aset = request.form.get("tipe_aset", "OPEX").strip()
+    aset.volume = request.form.get("volume", "").strip() or None
+    aset.satuan = request.form.get("satuan", "").strip() or None
+    aset.status_aset = request.form.get("status_aset", aset.status_aset)
+    aset.gedung = request.form.get("gedung", "").strip()
+    aset.ruangan = request.form.get("ruangan", "").strip()
+    aset.lantai = request.form.get("lantai", "").strip() or None
+    aset.keterangan = request.form.get("keterangan", "").strip() or None
+
+    # Link QR (tetap disimpan, tidak ditampilkan di UI)
+    aset.link_qr = request.form.get("link_qr", "").strip() or None
+
+    # Tanggal datang
+    tanggal_datang_str = request.form.get("tanggal_datang", "").strip()
+    if tanggal_datang_str:
+        try:
+            aset.tanggal_datang = datetime.strptime(tanggal_datang_str, "%Y-%m-%d").date()
+        except ValueError:
+            aset.tanggal_datang = None
+    else:
+        aset.tanggal_datang = None
+
+    # Kategori (jenis_barang)
+    jenis_barang = request.form.get("jenis_barang", "").strip()
+    id_kategori = None
+    if jenis_barang:
+        kategori = Kategori.query.filter(db.func.lower(Kategori.nama) == jenis_barang.lower()).first()
+        if not kategori:
+            kategori = Kategori(nama=jenis_barang)
+            db.session.add(kategori)
+            db.session.flush()
+        id_kategori = kategori.id
+    aset.id_kategori = id_kategori
+
+    # Foto
     foto_url_raw = request.form.get("foto_url", "").strip()
     if foto_url_raw:
         aset.foto_url = convert_gdrive_to_thumbnail(foto_url_raw)
     elif foto_url_raw == "" and request.form.get("hapus_foto"):
         aset.foto_url = None
-    
-    jenis_aset = request.form.get("jenis_aset", aset.jenis_aset)
-    aset.jenis_aset = jenis_aset if jenis_aset in JENIS_ASET_OPTIONS else aset.jenis_aset
-    aset.id_kategori = request.form.get("id_kategori") or None
-    aset.id_sub_kategori = request.form.get("id_sub_kategori") or None
 
     foto_file = request.files.get("foto")
     foto_error = None
@@ -453,20 +522,32 @@ def aset_edit(aset_id):
         if foto:
             aset.foto = foto
 
-    # Setelah perubahan, catat
-    catat_aktivitas(
-        aksi="UPDATE",
-        target_model="Aset",
-        target_id=aset.id,
-        deskripsi=f"Mengupdate aset: {aset.nama} ({aset.kode_aset})",
-        data_lama=data_lama,
-        data_baru={
-            "nama": aset.nama,
-            "gedung": aset.gedung,
-            "ruangan": aset.ruangan,
-            "status": aset.status_aset
-        }
-    )
+    # Log aktivitas
+    data_baru = {
+        "nama": aset.nama,
+        "area": aset.area,
+        "fungsi": aset.fungsi,
+        "merek": aset.merek,
+        "serial_number": aset.serial_number,
+        "spesifikasi": aset.spesifikasi,
+        "tipe_aset": aset.tipe_aset,
+        "volume": aset.volume,
+        "satuan": aset.satuan,
+        "status": aset.status_aset,
+        "gedung": aset.gedung,
+        "ruangan": aset.ruangan,
+        "lantai": aset.lantai,
+        "keterangan": aset.keterangan,
+    }
+    if data_lama != data_baru:
+        catat_aktivitas(
+            aksi="UPDATE",
+            target_model="Aset",
+            target_id=aset.id,
+            deskripsi=f"Mengupdate aset: {aset.nama} ({aset.kode_aset})",
+            data_lama=data_lama,
+            data_baru=data_baru
+        )
 
     db.session.commit()
     
@@ -483,20 +564,24 @@ def aset_edit(aset_id):
 def aset_delete(aset_id):
     aset = Aset.query.get_or_404(aset_id)
     
-    # Simpan data sebelum dihapus
     data_lama = {
         "kode_aset": aset.kode_aset,
         "nama": aset.nama,
+        "area": aset.area,
+        "fungsi": aset.fungsi,
         "merek": aset.merek,
-        "jenis": aset.jenis_aset,
-        "gedung": aset.gedung,
-        "lantai": aset.lantai,
-        "ruangan": aset.ruangan,
+        "serial_number": aset.serial_number,
+        "spesifikasi": aset.spesifikasi,
+        "tipe_aset": aset.tipe_aset,
+        "volume": aset.volume,
+        "satuan": aset.satuan,
         "status": aset.status_aset,
-        "spesifikasi": aset.spesifikasi
+        "gedung": aset.gedung,
+        "ruangan": aset.ruangan,
+        "lantai": aset.lantai,
+        "keterangan": aset.keterangan,
     }
     
-    # Catat aktivitas DELETE
     catat_aktivitas(
         aksi="DELETE",
         target_model="Aset",
@@ -540,23 +625,27 @@ def aset_detail(aset_id):
         "id": aset.id,
         "kode_aset": aset.kode_aset,
         "nama": aset.nama,
+        "area": aset.area or "",
+        "fungsi": aset.fungsi or "",
         "merek": aset.merek or "",
-        "jenis_aset": aset.jenis_aset,
+        "serial_number": aset.serial_number or "",
+        "spesifikasi": aset.spesifikasi or "",
+        "tipe_aset": aset.tipe_aset,
+        "volume": aset.volume or "",
+        "satuan": aset.satuan or "",
         "status_aset": aset.status_aset,
         "gedung": aset.gedung,
         "lantai": aset.lantai or "",
         "ruangan": aset.ruangan,
-        "kategori": aset.kategori.nama if aset.kategori else "-",
-        "sub_kategori": aset.sub_kategori.nama if aset.sub_kategori else "-",
+        "kategori": aset.kategori_ref.nama if aset.kategori_ref else "-",
         "foto": foto_display,
-        "foto_file": aset.foto,
-        "foto_url": aset.foto_url,
         "total_kerusakan": aset.total_kerusakan or 0,
-        "spesifikasi": aset.spesifikasi or "-",
+        "tanggal_datang": aset.tanggal_datang.strftime("%d-%m-%Y") if aset.tanggal_datang else "",
+        "keterangan": aset.keterangan or "",
         "histori": histori_data
+        # link_qr TIDAK dikirim (di-hide)
     }
     return jsonify(data)
-
 
 @app.route("/aset/<int:aset_id>/histori")
 @login_required
@@ -579,7 +668,14 @@ def aset_histori(aset_id):
 # ---------------------------------------------------------------------------
 # EXPORT / IMPORT ASET (Excel)
 # ---------------------------------------------------------------------------
-EXPORT_HEADERS = ["kode_aset", "nama", "merek", "gedung", "lantai", "ruangan", "status_aset", "jenis_aset", "kategori", "sub_kategori"]
+EXPORT_HEADERS = [
+    "area", "kode_aset", "nama", "fungsi", "jenis_barang", 
+    "merek", "serial_number", "spesifikasi", "tipe_aset", 
+    "volume", "satuan", "status_aset", "gedung", "ruangan", 
+    "lantai", "foto_url", "nama_project", "harga_perolehan", 
+    "tanggal_bast", "evidence_bast", "mitra", "link_qr", 
+    "tanggal_datang", "keterangan"
+]
 
 
 @app.route("/aset/export")
@@ -629,7 +725,7 @@ def aset_import():
         flash("Pilih file Excel (.xlsx) terlebih dahulu.", "danger")
         return redirect(url_for("aset_list"))
     if not file.filename.lower().endswith((".xlsx", ".xlsm")):
-        flash("Format file harus .xlsx (gunakan hasil export dari aplikasi ini).", "danger")
+        flash("Format file harus .xlsx.", "danger")
         return redirect(url_for("aset_list"))
 
     try:
@@ -643,74 +739,102 @@ def aset_import():
     ditambahkan, diperbarui, dilewati = 0, 0, 0
     error_baris = []
 
+    # Header yang diharapkan (24 kolom)
+    # area, kode_aset, nama, fungsi, jenis_barang, merek, serial_number, spesifikasi,
+    # tipe_aset, volume, satuan, status_aset, gedung, ruangan, lantai, foto_url,
+    # nama_project, harga_perolehan, tanggal_bast, evidence_bast, mitra, link_qr,
+    # tanggal_datang, keterangan
+
     for i, row in enumerate(rows, start=2):
         if not row or not any(row):
             continue
 
-        kolom = (list(row) + [None] * len(EXPORT_HEADERS))[: len(EXPORT_HEADERS)]
-        kode_aset, nama, merek, gedung, lantai, ruangan, status_aset, jenis_aset, nama_kategori, nama_sub = kolom
+        # Ambil 24 kolom, sisanya diabaikan
+        cols = [str(c).strip() if c is not None else "" for c in row]
+        cols += [""] * (24 - len(cols))
+        cols = cols[:24]
 
-        kode_aset = str(kode_aset).strip() if kode_aset else ""
-        nama = str(nama).strip() if nama else ""
+        (area, kode_aset, nama, fungsi, jenis_barang, merek, serial_number,
+         spesifikasi, tipe_aset, volume, satuan, status_aset, gedung, ruangan,
+         lantai, foto_url, nama_project, harga_perolehan, tanggal_bast,
+         evidence_bast, mitra, link_qr, tanggal_datang_str, keterangan) = cols
+
+        kode_aset = kode_aset.strip()
+        nama = nama.strip()
         if not kode_aset or not nama:
             dilewati += 1
             error_baris.append(f"Baris {i}: kode_aset atau nama kosong")
             continue
 
+        # Cari/buat Kategori dari "jenis_barang"
         id_kategori = None
-        id_sub_kategori = None
-        if nama_kategori:
-            nama_kategori = str(nama_kategori).strip()
-            kategori = Kategori.query.filter(
-                db.func.lower(Kategori.nama) == nama_kategori.lower()
-            ).first()
+        if jenis_barang:
+            kategori = Kategori.query.filter(db.func.lower(Kategori.nama) == jenis_barang.lower()).first()
             if not kategori:
-                kategori = Kategori(nama=nama_kategori)
+                kategori = Kategori(nama=jenis_barang)
                 db.session.add(kategori)
                 db.session.flush()
             id_kategori = kategori.id
 
-            if nama_sub:
-                nama_sub = str(nama_sub).strip()
-                sub = SubKategori.query.filter(
-                    db.func.lower(SubKategori.nama) == nama_sub.lower(),
-                    SubKategori.id_kategori == kategori.id,
-                ).first()
-                if not sub:
-                    sub = SubKategori(id_kategori=kategori.id, nama=nama_sub)
-                    db.session.add(sub)
-                    db.session.flush()
-                id_sub_kategori = sub.id
+        # Parse tanggal datang
+        tanggal_datang = None
+        if tanggal_datang_str:
+            try:
+                tanggal_datang = datetime.strptime(tanggal_datang_str, "%Y-%m-%d").date()
+            except ValueError:
+                try:
+                    tanggal_datang = datetime.strptime(tanggal_datang_str, "%d/%m/%Y").date()
+                except ValueError:
+                    pass
 
+        # Status valid
         status_valid = status_aset if status_aset in ("Baik", "Rusak", "Dipindahkan") else "Baik"
-        jenis_valid = jenis_aset if jenis_aset in JENIS_ASET_OPTIONS else "Operasional"
+        tipe_valid = tipe_aset if tipe_aset in ("CAPEX", "OPEX") else "OPEX"
+
+        # Cek apakah aset sudah ada
         aset = Aset.query.filter_by(kode_aset=kode_aset).first()
 
         if aset:
+            aset.area = area or None
             aset.nama = nama
-            aset.merek = merek or aset.merek
-            aset.gedung = gedung or aset.gedung
-            aset.lantai = lantai or aset.lantai
-            aset.ruangan = ruangan or aset.ruangan
+            aset.fungsi = fungsi or None
+            aset.merek = merek or None
+            aset.serial_number = serial_number or None
+            aset.spesifikasi = spesifikasi or None
+            aset.tipe_aset = tipe_valid
+            aset.volume = volume or None
+            aset.satuan = satuan or None
             aset.status_aset = status_valid
-            aset.jenis_aset = jenis_valid
-            if id_kategori:
-                aset.id_kategori = id_kategori
-            if id_sub_kategori:
-                aset.id_sub_kategori = id_sub_kategori
+            aset.gedung = gedung or "-"
+            aset.ruangan = ruangan or "-"
+            aset.lantai = lantai or None
+            aset.foto_url = foto_url or None
+            aset.link_qr = link_qr or None
+            aset.tanggal_datang = tanggal_datang
+            aset.keterangan = keterangan or None
+            aset.id_kategori = id_kategori
             diperbarui += 1
         else:
             db.session.add(Aset(
                 kode_aset=kode_aset,
                 nama=nama,
-                merek=merek or "",
-                gedung=gedung or "-",
-                lantai=lantai or None,
-                ruangan=ruangan or "-",
+                area=area or None,
+                fungsi=fungsi or None,
+                merek=merek or None,
+                serial_number=serial_number or None,
+                spesifikasi=spesifikasi or None,
+                tipe_aset=tipe_valid,
+                volume=volume or None,
+                satuan=satuan or None,
                 status_aset=status_valid,
-                jenis_aset=jenis_valid,
+                gedung=gedung or "-",
+                ruangan=ruangan or "-",
+                lantai=lantai or None,
+                foto_url=foto_url or None,
+                link_qr=link_qr or None,
+                tanggal_datang=tanggal_datang,
+                keterangan=keterangan or None,
                 id_kategori=id_kategori,
-                id_sub_kategori=id_sub_kategori,
             ))
             ditambahkan += 1
 
@@ -745,26 +869,6 @@ def kategori_create():
     db.session.commit()
     flash("Kategori ditambahkan.", "success")
     return redirect(url_for("kategori_list"))
-
-
-@app.route("/sub-kategori/create", methods=["POST"])
-@login_required
-@role_required(ROLE_ADMIN)
-def sub_kategori_create():
-    db.session.add(SubKategori(
-        id_kategori=request.form.get("id_kategori"),
-        nama=request.form.get("nama"),
-    ))
-    db.session.commit()
-    flash("Sub-kategori ditambahkan.", "success")
-    return redirect(url_for("kategori_list"))
-
-
-@app.route("/api/sub-kategori/<int:kategori_id>")
-@login_required
-def api_sub_kategori(kategori_id):
-    subs = SubKategori.query.filter_by(id_kategori=kategori_id).all()
-    return jsonify([{"id": s.id, "nama": s.nama} for s in subs])
 
 # ---------------------------------------------------------------------------
 # HISTORY (TIKET READ-ONLY)
