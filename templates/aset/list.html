@@ -122,19 +122,16 @@
             </svg>
             Export Excel
           </a>
-          <form method="POST" action="{{ url_for('aset_import') }}" enctype="multipart/form-data" id="formImportAset"
-            class="flex">
+          <form method="POST" action="{{ url_for('aset_import') }}" enctype="multipart/form-data" id="formImportAset" class="flex" onsubmit="showImportLoading()">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <label
-              class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer relative overflow-hidden whitespace-nowrap">
+            <label class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer relative overflow-hidden whitespace-nowrap">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5" />
               </svg>
               Import Excel
               <input type="file" name="file_import" accept=".xlsx" required
-                onchange="document.getElementById('formImportAset').submit()"
-                class="absolute inset-0 opacity-0 cursor-pointer">
+                    onchange="document.getElementById('formImportAset').submit()"
+                    class="absolute inset-0 opacity-0 cursor-pointer">
             </label>
           </form>
         </div>
@@ -730,6 +727,23 @@
   </div>
 </div>
 
+<!-- Loading Overlay untuk Import Excel -->
+<div id="importLoadingOverlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-white/70 backdrop-blur-sm transition-opacity duration-300">
+  <div class="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/90 shadow-lg border border-slate-100/50">
+    <div class="relative">
+      <div class="w-10 h-10 border-4 border-indigo-100 rounded-full"></div>
+      <div class="absolute top-0 left-0 w-10 h-10 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+    </div>
+    <div class="text-center">
+      <p class="text-sm font-semibold text-slate-700">Mengimpor Data...</p>
+      <p id="importProgressText" class="text-xs text-slate-400 mt-0.5">Mohon tunggu, proses ini bisa memakan waktu beberapa saat</p>
+    </div>
+    <div class="w-48 h-1 bg-slate-100 rounded-full overflow-hidden mt-1">
+      <div id="importProgressBar" class="h-full bg-indigo-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -1238,5 +1252,6 @@
     document.getElementById('editLinkQr').value = data.link_qr || '';
     openModal('modalEditAset');
   }
+  
 </script>
 {% endblock %}

@@ -295,3 +295,157 @@ window.loadAsetByLokasi = function(gedungId, lantaiId, ruanganId, asetTargetId) 
       });
     });
 };
+
+// =============================================================
+// LOADING SCREEN UNTUK IMPORT EXCEL (Tidak mencolok)
+// =============================================================
+let importProgressInterval = null;
+
+function showImportLoading() {
+  const overlay = document.getElementById('importLoadingOverlay');
+  const progressBar = document.getElementById('importProgressBar');
+  const progressText = document.getElementById('importProgressText');
+  
+  if (!overlay) return;
+  
+  // Reset progress
+  if (progressBar) progressBar.style.width = '0%';
+  if (progressText) progressText.textContent = 'Mohon tunggu, proses ini bisa memakan waktu beberapa saat';
+  
+  // Tampilkan overlay
+  overlay.classList.remove('hidden');
+  overlay.style.opacity = '0';
+  
+  // Animasi fade in
+  setTimeout(() => {
+    overlay.style.opacity = '1';
+  }, 50);
+  
+  // Simulasi progress (visual saja)
+  let progress = 0;
+  if (importProgressInterval) clearInterval(importProgressInterval);
+  
+  importProgressInterval = setInterval(() => {
+    if (progress < 90) {
+      progress += Math.random() * 6 + 1;
+      if (progress > 90) progress = 90;
+      if (progressBar) progressBar.style.width = progress + '%';
+    }
+    
+    // Update teks
+    if (progressText) {
+      const messages = [
+        'Memproses data...',
+        'Menganalisis file Excel...',
+        'Menyimpan data ke database...',
+        'Hampir selesai...'
+      ];
+      const idx = Math.min(Math.floor(progress / 25), messages.length - 1);
+      progressText.textContent = messages[idx] || 'Memproses data...';
+    }
+  }, 300);
+  
+  // Simpan waktu mulai untuk fallback
+  window._importStartTime = Date.now();
+}
+
+function hideImportLoading() {
+  const overlay = document.getElementById('importLoadingOverlay');
+  if (!overlay) return;
+  
+  // Animasi fade out
+  overlay.style.opacity = '0';
+  
+  setTimeout(() => {
+    overlay.classList.add('hidden');
+    // Reset progress
+    const progressBar = document.getElementById('importProgressBar');
+    if (progressBar) progressBar.style.width = '0%';
+    
+    // Clear interval
+    if (importProgressInterval) {
+      clearInterval(importProgressInterval);
+      importProgressInterval = null;
+    }
+  }, 300);
+}
+
+// =============================================================
+// EVENT LISTENER UNTUK DETECT PAGE UNLOAD & LOAD
+// =============================================================
+
+// 1. Saat form submit (sebelum halaman berubah), loading tetap jalan
+//    Tapi kita perlu mendeteksi kapan halaman selesai load (redirect kembali)
+//    Menggunakan event 'pageshow' yang selalu terpanggil saat halaman muncul
+//    (termasuk dari cache)
+
+// 2. Gunakan 'beforeunload' untuk membersihkan interval jika user keluar
+window.addEventListener('beforeunload', function() {
+  if (importProgressInterval) {
+    clearInterval(importProgressInterval);
+    importProgressInterval = null;
+  }
+});
+
+// 3. Gunakan 'pageshow' untuk mendeteksi halaman selesai load (termasuk redirect)
+window.addEventListener('pageshow', function(event) {
+  // Jika halaman muncul (setelah redirect dari import), sembunyikan loading
+  // Cek apakah ada flash message dari import (berarti proses selesai)
+  const toastContainer = document.getElementById('toastContainer');
+  if (toastContainer && toastContainer.children.length > 0) {
+    // Ada flash message → import selesai
+    setTimeout(hideImportLoading, 500);
+  } else {
+    // Tidak ada flash message → cek apakah loading masih aktif
+    const overlay = document.getElementById('importLoadingOverlay');
+    if (overlay && !overlay.classList.contains('hidden')) {
+      // Jika loading masih aktif dan tidak ada flash message, mungkin error
+      // Tapi kita tunggu sebentar, bisa jadi flash muncul belakangan
+      setTimeout(() => {
+        const toastContainer2 = document.getElementById('toastContainer');
+        if (toastContainer2 && toastContainer2.children.length > 0) {
+          hideImportLoading();
+        } else {
+          // Jika setelah 2 detik masih tidak ada flash, sembunyikan loading
+          // (berarti proses selesai tanpa flash, atau ada error)
+          setTimeout(hideImportLoading, 2000);
+        }
+      }, 1000);
+    }
+  }
+});
+
+// 4. Jika user menekan tombol Escape
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    hideImportLoading();
+  }
+});
+
+// 5. Double click untuk membatalkan (dengan konfirmasi)
+let cancelClickCount = 0;
+document.addEventListener('dblclick', function(e) {
+  const overlay = document.getElementById('importLoadingOverlay');
+  if (overlay && !overlay.classList.contains('hidden')) {
+    cancelClickCount++;
+    if (cancelClickCount >= 2) {
+      if (confirm('Batalkan proses import? (Data yang sudah terproses mungkin tetap tersimpan)')) {
+        hideImportLoading();
+        cancelClickCount = 0;
+      }
+    }
+    setTimeout(() => { cancelClickCount = 0; }, 3000);
+  }
+});
+
+// 6. Fallback: jika loading masih muncul setelah 10 detik (tanpa flash)
+//    Cek setiap 3 detik apakah ada flash message
+setInterval(() => {
+  const overlay = document.getElementById('importLoadingOverlay');
+  if (overlay && !overlay.classList.contains('hidden')) {
+    const toastContainer = document.getElementById('toastContainer');
+    if (toastContainer && toastContainer.children.length > 0) {
+      hideImportLoading();
+    }
+  }
+}, 3000);
