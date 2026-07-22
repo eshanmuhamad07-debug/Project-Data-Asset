@@ -5,9 +5,9 @@
 {% block subheader %}
 <p class="text-xs text-slate-400">
   {% if current_user.role == 'admin' %}
-    Ringkasan aset dan history aktivitas
+  Ringkasan aset dan history aktivitas
   {% else %}
-    Ringkasan data aset perusahaan
+  Ringkasan data aset perusahaan
   {% endif %}
 </p>
 {% endblock %}
@@ -24,7 +24,10 @@
       <p class="text-xs text-slate-400 mt-1">Seluruh aset terdaftar</p>
     </div>
     <span class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+      </svg>
     </span>
   </div>
 
@@ -35,7 +38,10 @@
       <p class="text-xs text-slate-400 mt-1">Jenis barang terdaftar</p>
     </div>
     <span class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+      </svg>
     </span>
   </div>
 
@@ -46,7 +52,10 @@
       <p class="text-xs text-slate-400 mt-1">Menunggu perbaikan</p>
     </div>
     <span class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+      </svg>
     </span>
   </div>
 </div>
@@ -71,90 +80,139 @@
   <!-- ============================================================ -->
   <div class="card p-5 lg:col-span-2">
     {% if current_user.role == 'admin' %}
-      <!-- ADMIN: Tampilkan History Terbaru -->
-      <div class="flex items-center justify-between mb-3">
-        <p class="text-sm font-semibold text-slate-700">📋 History Aktivitas Terbaru</p>
-        <a href="{{ url_for('history_list') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat semua &rarr;</a>
-      </div>
-      <div class="overflow-x-auto -mx-5">
-        <table class="w-full">
-          <thead>
-            <tr class="border-b border-slate-100">
-              <th class="th">#</th>
-              <th class="th">Jenis</th>
-              <th class="th">Pelaku</th>
-              <th class="th">Detail</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for h in history_terbaru %}
-            <tr class="table-row hover:bg-slate-50">
-              <td class="td font-medium"><a class="text-indigo-600 hover:text-indigo-700" href="{{ url_for('history_detail', tiket_id=h.id) if h.jenis_tiket else '#' }}">#{{ h.id }}</a></td>
-              <td class="td">
-                <span class="pill {{ 'bg-rose-100 text-rose-700 border-rose-200' if h.jenis_tiket == 'Kerusakan' else 'bg-blue-100 text-blue-700 border-blue-200' }}">
-                  <span class="pill-dot {{ 'bg-rose-500' if h.jenis_tiket == 'Kerusakan' else 'bg-blue-500' }}"></span>
-                  {{ h.jenis_tiket if h.jenis_tiket else 'Aktivitas' }}
-                </span>
-              </td>
-              <td class="td text-slate-600">{{ h.nama_pemohon or '-' }}</td>
-              <td class="td text-slate-500 text-sm max-w-xs truncate">{{ h.catatan or '-' }}</td>
-            </tr>
+    <!-- ADMIN: Tampilkan History Terbaru -->
+    <div class="flex items-center justify-between mb-3">
+      <p class="text-sm font-semibold text-slate-700">📋 History Aktivitas Terbaru</p>
+      <a href="{{ url_for('history_list') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat
+        semua &rarr;</a>
+    </div>
+    <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
+      {% for h in history_terbaru %}
+      <div class="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 transition-all border border-slate-100/60">
+        <!-- Icon -->
+        <span class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 {{ 
+      'bg-rose-100 text-rose-600' if h.jenis_tiket == 'Kerusakan' else 
+      'bg-blue-100 text-blue-600' if h.jenis_tiket == 'Pemindahan' else 
+      'bg-indigo-100 text-indigo-600'
+    }}">
+          {% if h.jenis_tiket == 'Kerusakan' %}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          {% elif h.jenis_tiket == 'Pemindahan' %}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          {% else %}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {% endif %}
+        </span>
+
+        <!-- Content -->
+        <div class="flex-1 min-w-0">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-xs font-medium text-slate-500">{{ h.created_at.strftime('%d-%m-%Y %H:%M') if h.created_at
+              else '-' }}</span>
+            <span class="text-xs text-slate-300">•</span>
+            <span class="text-xs font-medium text-slate-600">{{ h.nama_pemohon or 'System' }}</span>
+            <span class="text-xs text-slate-300">•</span>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold {{ 
+          'bg-rose-100 text-rose-700' if h.jenis_tiket == 'Kerusakan' else 
+          'bg-blue-100 text-blue-700' if h.jenis_tiket == 'Pemindahan' else 
+          'bg-indigo-100 text-indigo-700'
+        }}">
+              {{ h.jenis_tiket if h.jenis_tiket else 'Aktivitas' }}
+            </span>
+          </div>
+          <p class="text-sm text-slate-700 truncate">
+            {% if h.link %}
+            <a href="{{ h.link }}" class="text-indigo-600 hover:text-indigo-700 hover:underline">
+              {{ h.catatan or h.deskripsi or '-' }}
+            </a>
             {% else %}
-            <tr><td colspan="4" class="py-10 text-center text-sm text-slate-400">Belum ada history aktivitas.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            {{ h.catatan or h.deskripsi or '-' }}
+            {% endif %}
+          </p>
+        </div>
+
+        <!-- Link arrow -->
+        {% if h.link %}
+        <a href="{{ h.link }}" class="shrink-0 text-slate-300 hover:text-indigo-600 self-center">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </a>
+        {% endif %}
       </div>
+      {% else %}
+      <div class="py-10 text-center">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"
+          class="mx-auto text-slate-300 mb-2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="text-sm text-slate-400">Belum ada history aktivitas.</p>
+      </div>
+      {% endfor %}
+    </div>
     {% else %}
-      <!-- USER: Tampilkan Ringkasan Aset -->
-      <div class="space-y-4">
-        <div class="flex items-center gap-3 mb-3">
-          <span class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
-          </span>
-          <div>
-            <p class="text-sm font-semibold text-slate-700">Ringkasan Aset</p>
-            <p class="text-xs text-slate-400">Informasi terkini data aset perusahaan</p>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div class="bg-slate-50 rounded-xl p-3 text-center">
-            <p class="text-xs text-slate-400">CAPEX</p>
-            <p class="text-lg font-bold text-violet-600">{{ total_capex or 0 }}</p>
-          </div>
-          <div class="bg-slate-50 rounded-xl p-3 text-center">
-            <p class="text-xs text-slate-400">OPEX</p>
-            <p class="text-lg font-bold text-sky-600">{{ total_opex or 0 }}</p>
-          </div>
-          <div class="bg-slate-50 rounded-xl p-3 text-center">
-            <p class="text-xs text-slate-400">Total Aset</p>
-            <p class="text-lg font-bold text-indigo-600">{{ total_aset }}</p>
-          </div>
-        </div>
-
-        <div class="bg-slate-50 rounded-xl p-3 flex items-center justify-between">
-          <div>
-            <p class="text-xs text-slate-400">Aset dengan Status Rusak</p>
-            <p class="text-sm font-semibold text-rose-600">{{ total_rusak }} aset</p>
-          </div>
-          <a href="{{ url_for('aset_list') }}?status=Rusak" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Lihat &rarr;</a>
-        </div>
-
-        <div class="bg-slate-50 rounded-xl p-3 flex items-center justify-between">
-          <div>
-            <p class="text-xs text-slate-400">Kategori Terbanyak</p>
-            <p class="text-sm font-semibold text-slate-700">
-              {% if kategori_terbanyak %}
-                {{ kategori_terbanyak.nama }} ({{ kategori_terbanyak.jumlah }} aset)
-              {% else %}
-                -
-              {% endif %}
-            </p>
-          </div>
-          <a href="{{ url_for('aset_list') }}" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Lihat semua &rarr;</a>
+    <!-- USER: Tampilkan Ringkasan Aset -->
+    <div class="space-y-4">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+          </svg>
+        </span>
+        <div>
+          <p class="text-sm font-semibold text-slate-700">Ringkasan Aset</p>
+          <p class="text-xs text-slate-400">Informasi terkini data aset perusahaan</p>
         </div>
       </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div class="bg-slate-50 rounded-xl p-3 text-center">
+          <p class="text-xs text-slate-400">CAPEX</p>
+          <p class="text-lg font-bold text-violet-600">{{ total_capex or 0 }}</p>
+        </div>
+        <div class="bg-slate-50 rounded-xl p-3 text-center">
+          <p class="text-xs text-slate-400">OPEX</p>
+          <p class="text-lg font-bold text-sky-600">{{ total_opex or 0 }}</p>
+        </div>
+        <div class="bg-slate-50 rounded-xl p-3 text-center">
+          <p class="text-xs text-slate-400">Total Aset</p>
+          <p class="text-lg font-bold text-indigo-600">{{ total_aset }}</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <p class="text-xs text-slate-400">Aset dengan Status Rusak</p>
+          <p class="text-sm font-semibold text-rose-600">{{ total_rusak }} aset</p>
+        </div>
+        <a href="{{ url_for('aset_list') }}?status=Rusak"
+          class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Lihat &rarr;</a>
+      </div>
+
+      <div class="bg-slate-50 rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <p class="text-xs text-slate-400">Kategori Terbanyak</p>
+          <p class="text-sm font-semibold text-slate-700">
+            {% if kategori_terbanyak %}
+            {{ kategori_terbanyak.nama }} ({{ kategori_terbanyak.jumlah }} aset)
+            {% else %}
+            -
+            {% endif %}
+          </p>
+        </div>
+        <a href="{{ url_for('aset_list') }}" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Lihat
+          semua &rarr;</a>
+      </div>
+    </div>
     {% endif %}
   </div>
 </div>
@@ -163,22 +221,22 @@
 
 {% block scripts %}
 <script>
-{% if chart_labels %}
-new Chart(document.getElementById('kategoriChart'), {
-  type: 'doughnut',
-  data: {
-    labels: {{ chart_labels | tojson }},
+  {% if chart_labels %}
+  new Chart(document.getElementById('kategoriChart'), {
+    type: 'doughnut',
+    data: {
+      labels: {{ chart_labels | tojson }},
     datasets: [{
       data: {{ chart_values | tojson }},
-      backgroundColor: ['#4f46e5','#0ea5e9','#f59e0b','#10b981','#f43f5e','#8b5cf6','#0d9488'],
-      borderWidth: 0,
+    backgroundColor: ['#4f46e5', '#0ea5e9', '#f59e0b', '#10b981', '#f43f5e', '#8b5cf6', '#0d9488'],
+    borderWidth: 0,
     }]
   },
-  options: {
+    options: {
     plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14, font: { size: 11, family: 'Inter' } } } },
     cutout: '65%',
   }
 });
-{% endif %}
+  {% endif %}
 </script>
 {% endblock %}

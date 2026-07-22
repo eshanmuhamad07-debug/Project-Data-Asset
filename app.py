@@ -348,10 +348,6 @@ def aset_list():
     ruangan = request.args.get("ruangan", "")
     tipe = request.args.get("tipe", "")
 
-    per_page = request.args.get("per_page", 10, type=int)
-    if per_page not in [10, 25, 50, 100]:
-        per_page = 10
-
     query = Aset.query
     if q:
         query = query.filter(
@@ -362,30 +358,48 @@ def aset_list():
     if kategori_id:
         query = query.filter_by(id_kategori=kategori_id)
     if gedung:
-        query = query.filter_by(gedung=gedung)
+        query = query.filter_by(gedung=gedung)  # <-- nilai gedung tetap (untuk filter)
     if lantai:
         query = query.filter_by(lantai=lantai)
     if ruangan:
         query = query.filter_by(ruangan=ruangan)
+    if tipe:
+        query = query.filter_by(tipe_aset=tipe)
 
-    filter_aktif = bool(q or status or kategori_id or gedung or lantai or ruangan)
+    filter_aktif = bool(q or status or kategori_id or gedung or lantai or ruangan or tipe)
 
     page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+    if per_page not in [10, 25, 50, 100]:
+        per_page = 10
+
     pagination = query.order_by(Aset.id.desc()).paginate(
         page=page, per_page=per_page, error_out=False
     )
     daftar_aset = pagination.items
     kategori_all = Kategori.query.all()
-    gedung_all = [
-        g[0] for g in db.session.query(Aset.gedung).distinct().order_by(Aset.gedung).all() if g[0]
+    
+    # --- TAMBAHAN: Ambil daftar AREA + GEDUNG (unik) ---
+    gedung_all = (
+        db.session.query(Aset.area, Aset.gedung)
+        .filter(Aset.gedung.isnot(None), Aset.gedung != "")
+        .distinct()
+        .order_by(Aset.area, Aset.gedung)
+        .all()
+    )
+    # Format: "Area - Gedung"
+    gedung_all_formatted = [
+        {"value": g.gedung, "label": f"{g.area} - {g.gedung}" if g.area else g.gedung}
+        for g in gedung_all
     ]
+
     total_keseluruhan = Aset.query.count()
     return render_template(
         "aset/list.html",
         daftar_aset=daftar_aset,
         kategori_all=kategori_all,
         pagination=pagination,
-        gedung_all=gedung_all,
+        gedung_all=gedung_all_formatted,  # <-- KIRIM FORMAT BARU
         filter_aktif=filter_aktif,
         total_keseluruhan=total_keseluruhan,
     )
@@ -558,7 +572,7 @@ def aset_create():
 def aset_edit(aset_id):
     aset = Aset.query.get_or_404(aset_id)
 
-    # Simpan data lama
+    # +++ DEFINISIKAN data_lama SEBELUM diubah +++
     data_lama = {
         "nama": aset.nama,
         "area": aset.area,
@@ -576,7 +590,10 @@ def aset_edit(aset_id):
         "keterangan": aset.keterangan,
     }
 
-    # Ambil data baru
+    # Simpan status lama untuk logika total_kerusakan
+    status_lama = aset.status_aset
+
+    # ... update semua field ...
     aset.nama = request.form.get("nama", "").strip()
     aset.area = request.form.get("area", "").strip() or None
     aset.fungsi = request.form.get("fungsi", "").strip() or None
@@ -591,8 +608,6 @@ def aset_edit(aset_id):
     aset.ruangan = request.form.get("ruangan", "").strip()
     aset.lantai = request.form.get("lantai", "").strip() or None
     aset.keterangan = request.form.get("keterangan", "").strip() or None
-
-    # Link QR (tetap disimpan, tidak ditampilkan di UI)
     aset.link_qr = request.form.get("link_qr", "").strip() or None
 
     # Tanggal datang
@@ -605,7 +620,7 @@ def aset_edit(aset_id):
     else:
         aset.tanggal_datang = None
 
-    # Kategori (jenis_barang)
+    # Kategori
     jenis_barang = request.form.get("jenis_barang", "").strip()
     id_kategori = None
     if jenis_barang:
@@ -616,6 +631,20 @@ def aset_edit(aset_id):
             db.session.flush()
         id_kategori = kategori.id
     aset.id_kategori = id_kategori
+
+    # Jika status berubah dari bukan Rusak menjadi Rusak
+    if aset.status_aset == "Rusak" and status_lama != "Rusak":
+        aset.total_kerusakan = (aset.total_kerusakan or 0) + 1
+        # Catat histori rusak
+        histori = HistoriAset(
+            id_aset=aset.id,
+            jenis_event="rusak",
+            gedung=aset.gedung,
+            lantai=aset.lantai,
+            ruangan=aset.ruangan,
+            id_tiket=None
+        )
+        db.session.add(histori)
 
     # Foto
     foto_url_raw = request.form.get("foto_url", "").strip()
@@ -631,7 +660,7 @@ def aset_edit(aset_id):
         if foto:
             aset.foto = foto
 
-    # Log aktivitas
+    # +++ DEFINISIKAN data_baru SETELAH perubahan +++
     data_baru = {
         "nama": aset.nama,
         "area": aset.area,
@@ -648,6 +677,8 @@ def aset_edit(aset_id):
         "lantai": aset.lantai,
         "keterangan": aset.keterangan,
     }
+
+    # Log aktivitas jika ada perubahan
     if data_lama != data_baru:
         catat_aktivitas(
             aksi="UPDATE",
@@ -911,17 +942,10 @@ def aset_import():
     ditambahkan, diperbarui, dilewati = 0, 0, 0
     error_baris = []
 
-    # Header yang diharapkan (24 kolom)
-    # area, kode_aset, nama, fungsi, jenis_barang, merek, serial_number, spesifikasi,
-    # tipe_aset, volume, satuan, status_aset, gedung, ruangan, lantai, foto_url,
-    # nama_project, harga_perolehan, tanggal_bast, evidence_bast, mitra, link_qr,
-    # tanggal_datang, keterangan
-
     for i, row in enumerate(rows, start=2):
         if not row or not any(row):
             continue
 
-        # Ambil 24 kolom, sisanya diabaikan
         cols = [str(c).strip() if c is not None else "" for c in row]
         cols += [""] * (24 - len(cols))
         cols = cols[:24]
@@ -937,6 +961,9 @@ def aset_import():
             dilewati += 1
             error_baris.append(f"Baris {i}: kode_aset atau nama kosong")
             continue
+
+        # +++ DEFINISIKAN DI SINI +++
+        foto_url_thumbnail = convert_gdrive_to_thumbnail(foto_url) if foto_url else None
 
         # Cari/buat Kategori dari "jenis_barang"
         id_kategori = None
@@ -967,6 +994,10 @@ def aset_import():
         aset = Aset.query.filter_by(kode_aset=kode_aset).first()
 
         if aset:
+            # Simpan status lama
+            status_lama = aset.status_aset
+            
+            # Update semua field
             aset.area = area or None
             aset.nama = nama
             aset.fungsi = fungsi or None
@@ -980,11 +1011,16 @@ def aset_import():
             aset.gedung = gedung or "-"
             aset.ruangan = ruangan or "-"
             aset.lantai = lantai or None
-            aset.foto_url = convert_gdrive_to_thumbnail(foto_url) if foto_url else None
+            aset.foto_url = foto_url_thumbnail  # <-- PAKAI VARIABEL YANG SUDAH DIDEKLARASIKAN
             aset.link_qr = link_qr or None
             aset.tanggal_datang = tanggal_datang
             aset.keterangan = keterangan or None
             aset.id_kategori = id_kategori
+            
+            # Jika status berubah dari bukan Rusak menjadi Rusak
+            if status_valid == "Rusak" and status_lama != "Rusak":
+                aset.total_kerusakan = (aset.total_kerusakan or 0) + 1
+            
             diperbarui += 1
         else:
             db.session.add(Aset(
@@ -1002,7 +1038,7 @@ def aset_import():
                 gedung=gedung or "-",
                 ruangan=ruangan or "-",
                 lantai=lantai or None,
-                foto_url=convert_gdrive_to_thumbnail(foto_url) if foto_url else None,
+                foto_url=foto_url_thumbnail,  # <-- PAKAI VARIABEL YANG SUDAH DIDEKLARASIKAN
                 link_qr=link_qr or None,
                 tanggal_datang=tanggal_datang,
                 keterangan=keterangan or None,
@@ -1364,7 +1400,6 @@ def users_create():
         flash("Password minimal 8 karakter.", "danger")
         return redirect(url_for("users_list"))
     
-    # Validasi role hanya admin atau user
     if role not in ["admin", "user"]:
         flash("Role tidak valid.", "danger")
         return redirect(url_for("users_list"))

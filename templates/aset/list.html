@@ -84,16 +84,17 @@
           </summary>
           <div class="flex flex-wrap gap-2 w-full mt-2">
             <select name="gedung" id="filterGedung" onchange="onFilterGedungChange(this)"
-              class="field-input w-full sm:w-40">
+              class="field-input w-full sm:w-48">
               <option value="">Semua Gedung</option>
               {% for g in gedung_all %}
-              <option value="{{ g }}" {{ 'selected' if request.args.get('gedung')==g }}>{{ g }}</option>
+              <option value="{{ g.value }}" {{ 'selected' if request.args.get('gedung')==g.value }}>{{ g.label }}
+              </option>
               {% endfor %}
             </select>
             <select name="lantai" id="filterLantai" onchange="onFilterLantaiChange(this)"
               class="field-input w-full sm:w-36">
               {% if request.args.get('lantai') %}
-              <option value="{{ request.args.get('lantai') }}" selected>{{ request.args.get('lantai') }}</option>
+              <option value="{{ request.args.get('lantai') }}" selected>Lantai {{ request.args.get('lantai') }}</option>
               {% else %}
               <option value="">{{ 'Pilih Gedung dulu' if not request.args.get('gedung') else 'Semua Lantai' }}</option>
               {% endif %}
@@ -888,105 +889,105 @@
   });
 
   // =============================================================
-// GO TO PAGE - Langsung ke halaman tertentu
-// =============================================================
-document.addEventListener('DOMContentLoaded', function() {
-  const goToPageInput = document.getElementById('goToPageInput');
-  const goToPageBtn = document.getElementById('goToPageBtn');
-  
-  if (goToPageBtn && goToPageInput) {
-    function goToPage() {
-      const page = parseInt(goToPageInput.value);
-      const maxPage = parseInt(goToPageInput.max);
-      if (isNaN(page) || page < 1 || page > maxPage) {
-        alert(`Masukkan halaman antara 1 - ${maxPage}`);
-        return;
-      }
-      const currentUrl = new URL(window.location.href);
-      currentUrl.searchParams.set('page', page);
-      window.location.href = currentUrl.toString();
-    }
-    
-    goToPageBtn.addEventListener('click', goToPage);
-    goToPageInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') goToPage();
-    });
-  }
-});
+  // GO TO PAGE - Langsung ke halaman tertentu
+  // =============================================================
+  document.addEventListener('DOMContentLoaded', function () {
+    const goToPageInput = document.getElementById('goToPageInput');
+    const goToPageBtn = document.getElementById('goToPageBtn');
 
-// =============================================================
-// SEARCH DI HALAMAN - Highlight & filter baris tabel
-// =============================================================
-document.addEventListener('DOMContentLoaded', function() {
-  const searchInput = document.getElementById('pageSearchInput');
-  const searchBtn = document.getElementById('pageSearchBtn');
-  
-  if (searchInput && searchBtn) {
-    function searchInPage() {
-      const query = searchInput.value.toLowerCase().trim();
-      const rows = document.querySelectorAll('.table-row');
-      let foundCount = 0;
-      
-      rows.forEach(row => {
-        const text = row.textContent.toLowerCase();
-        if (query === '') {
-          row.style.display = '';
-          foundCount++;
-        } else if (text.includes(query)) {
-          row.style.display = '';
-          foundCount++;
-          // Highlight matches di row (opsional)
-          const cells = row.querySelectorAll('.td');
-          cells.forEach(cell => {
-            const content = cell.textContent;
-            if (content.toLowerCase().includes(query)) {
-              // Tandai row yang match
-              row.classList.add('bg-indigo-50');
-            }
-          });
-        } else {
-          row.style.display = 'none';
-          row.classList.remove('bg-indigo-50');
+    if (goToPageBtn && goToPageInput) {
+      function goToPage() {
+        const page = parseInt(goToPageInput.value);
+        const maxPage = parseInt(goToPageInput.max);
+        if (isNaN(page) || page < 1 || page > maxPage) {
+          alert(`Masukkan halaman antara 1 - ${maxPage}`);
+          return;
         }
-      });
-      
-      // Hapus highlight jika search kosong
-      if (query === '') {
-        rows.forEach(row => {
-          row.classList.remove('bg-indigo-50');
-        });
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('page', page);
+        window.location.href = currentUrl.toString();
       }
-      
-      // Tampilkan pesan jika tidak ada hasil
-      const noResult = document.getElementById('noSearchResult');
-      if (foundCount === 0 && query !== '') {
-        if (!noResult) {
-          const tbody = document.querySelector('tbody');
-          const tr = document.createElement('tr');
-          tr.id = 'noSearchResult';
-          tr.className = 'py-10 text-center';
-          tr.innerHTML = `
+
+      goToPageBtn.addEventListener('click', goToPage);
+      goToPageInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') goToPage();
+      });
+    }
+  });
+
+  // =============================================================
+  // SEARCH DI HALAMAN - Highlight & filter baris tabel
+  // =============================================================
+  document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('pageSearchInput');
+    const searchBtn = document.getElementById('pageSearchBtn');
+
+    if (searchInput && searchBtn) {
+      function searchInPage() {
+        const query = searchInput.value.toLowerCase().trim();
+        const rows = document.querySelectorAll('.table-row');
+        let foundCount = 0;
+
+        rows.forEach(row => {
+          const text = row.textContent.toLowerCase();
+          if (query === '') {
+            row.style.display = '';
+            foundCount++;
+          } else if (text.includes(query)) {
+            row.style.display = '';
+            foundCount++;
+            // Highlight matches di row (opsional)
+            const cells = row.querySelectorAll('.td');
+            cells.forEach(cell => {
+              const content = cell.textContent;
+              if (content.toLowerCase().includes(query)) {
+                // Tandai row yang match
+                row.classList.add('bg-indigo-50');
+              }
+            });
+          } else {
+            row.style.display = 'none';
+            row.classList.remove('bg-indigo-50');
+          }
+        });
+
+        // Hapus highlight jika search kosong
+        if (query === '') {
+          rows.forEach(row => {
+            row.classList.remove('bg-indigo-50');
+          });
+        }
+
+        // Tampilkan pesan jika tidak ada hasil
+        const noResult = document.getElementById('noSearchResult');
+        if (foundCount === 0 && query !== '') {
+          if (!noResult) {
+            const tbody = document.querySelector('tbody');
+            const tr = document.createElement('tr');
+            tr.id = 'noSearchResult';
+            tr.className = 'py-10 text-center';
+            tr.innerHTML = `
             <td colspan="8" class="py-10 text-center">
               <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" class="mx-auto text-slate-300 mb-2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
               <p class="text-sm text-slate-400">Tidak ditemukan hasil untuk "<strong class="text-slate-600">${query}</strong>"</p>
             </td>
           `;
-          tbody.appendChild(tr);
-        } else {
-          noResult.style.display = '';
-          noResult.querySelector('strong').textContent = query;
+            tbody.appendChild(tr);
+          } else {
+            noResult.style.display = '';
+            noResult.querySelector('strong').textContent = query;
+          }
+        } else if (noResult) {
+          noResult.style.display = 'none';
         }
-      } else if (noResult) {
-        noResult.style.display = 'none';
       }
+
+      searchBtn.addEventListener('click', searchInPage);
+      searchInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') searchInPage();
+      });
     }
-    
-    searchBtn.addEventListener('click', searchInPage);
-    searchInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') searchInPage();
-    });
-  }
-});
+  });
 
   // =============================================================
   // FUNGSI DETAIL ASET (dengan semua field baru, kecuali link_qr)
