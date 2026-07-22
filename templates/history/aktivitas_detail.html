@@ -48,144 +48,71 @@
     {% if log.aksi == 'CREATE' %}
       <!-- Tambah Aset -->
       <div class="bg-emerald-50 rounded-xl p-4 space-y-2">
-        <div class="grid grid-cols-2 gap-2 text-sm">
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          {% for d in field_diff %}
           <div>
-            <p class="text-xs text-slate-400">Kode Aset</p>
-            <p class="font-medium text-slate-700">{{ log.data_baru.kode_aset or '-' }}</p>
+            <p class="text-xs text-slate-400">{{ d.label }}</p>
+            {% if d.key == 'foto_url' and d.new %}
+            <img src="{{ d.new }}" alt="Foto aset" class="mt-1 w-20 h-20 object-cover rounded-lg border border-emerald-200">
+            {% else %}
+            <p class="font-medium text-slate-700 break-words">{{ d.new or '-' }}</p>
+            {% endif %}
           </div>
-          <div>
-            <p class="text-xs text-slate-400">Nama Aset</p>
-            <p class="font-medium text-slate-700">{{ log.data_baru.nama or '-' }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-400">Merek</p>
-            <p class="font-medium text-slate-700">{{ log.data_baru.merek or '-' }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-400">Jenis Aset</p>
-            <p class="font-medium text-slate-700">{{ log.data_baru.jenis or '-' }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-400">Gedung</p>
-            <p class="font-medium text-slate-700">{{ log.data_baru.gedung or '-' }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-400">Ruangan</p>
-            <p class="font-medium text-slate-700">{{ log.data_baru.ruangan or '-' }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-400">Status</p>
-            <p class="font-medium text-slate-700">{{ log.data_baru.status or '-' }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-400">Spesifikasi</p>
-            <p class="font-medium text-slate-700">{{ log.data_baru.spesifikasi or '-' }}</p>
-          </div>
+          {% endfor %}
         </div>
       </div>
 
     {% elif log.aksi == 'UPDATE' %}
-      <!-- Edit Aset - Tampilkan Perubahan -->
+      <!-- Edit Aset - Tampilkan Semua Perubahan -->
       <div class="bg-amber-50 rounded-xl p-4 space-y-3">
         <p class="text-xs font-medium text-amber-700">Perubahan yang dilakukan:</p>
-        <div class="space-y-2">
-          {% if log.data_lama.nama != log.data_baru.nama %}
-          <div class="flex items-center gap-2 text-sm">
-            <span class="text-slate-500 w-20">Nama</span>
-            <span class="text-rose-600 line-through">{{ log.data_lama.nama or '-' }}</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
-            <span class="text-emerald-600">{{ log.data_baru.nama or '-' }}</span>
+        <div class="space-y-3">
+          {% for d in field_diff if d.changed %}
+          <div class="text-sm">
+            <span class="text-slate-500 text-xs block mb-1">{{ d.label }}</span>
+            {% if d.key == 'foto_url' %}
+              <div class="flex items-center gap-2 flex-wrap">
+                {% if d.old %}
+                <img src="{{ d.old }}" alt="Foto lama" class="w-16 h-16 object-cover rounded-lg border border-rose-200">
+                {% else %}
+                <span class="text-rose-600 line-through text-xs">-</span>
+                {% endif %}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-400 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                {% if d.new %}
+                <img src="{{ d.new }}" alt="Foto baru" class="w-16 h-16 object-cover rounded-lg border border-emerald-300">
+                {% else %}
+                <span class="text-emerald-600 text-xs">-</span>
+                {% endif %}
+              </div>
+            {% else %}
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-rose-600 line-through break-words">{{ d.old or '-' }}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-400 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                <span class="text-emerald-600 break-words">{{ d.new or '-' }}</span>
+              </div>
+            {% endif %}
           </div>
-          {% endif %}
-          
-          {% if log.data_lama.gedung != log.data_baru.gedung %}
-          <div class="flex items-center gap-2 text-sm">
-            <span class="text-slate-500 w-20">Gedung</span>
-            <span class="text-rose-600 line-through">{{ log.data_lama.gedung or '-' }}</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
-            <span class="text-emerald-600">{{ log.data_baru.gedung or '-' }}</span>
-          </div>
-          {% endif %}
-          
-          {% if log.data_lama.ruangan != log.data_baru.ruangan %}
-          <div class="flex items-center gap-2 text-sm">
-            <span class="text-slate-500 w-20">Ruangan</span>
-            <span class="text-rose-600 line-through">{{ log.data_lama.ruangan or '-' }}</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
-            <span class="text-emerald-600">{{ log.data_baru.ruangan or '-' }}</span>
-          </div>
-          {% endif %}
-          
-          {% if log.data_lama.status != log.data_baru.status %}
-          <div class="flex items-center gap-2 text-sm">
-            <span class="text-slate-500 w-20">Status</span>
-            <span class="text-rose-600 line-through">{{ log.data_lama.status or '-' }}</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
-            <span class="text-emerald-600">{{ log.data_baru.status or '-' }}</span>
-          </div>
-          {% endif %}
-          
-          {% if log.data_lama.jenis != log.data_baru.jenis %}
-          <div class="flex items-center gap-2 text-sm">
-            <span class="text-slate-500 w-20">Jenis Aset</span>
-            <span class="text-rose-600 line-through">{{ log.data_lama.jenis or '-' }}</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
-            <span class="text-emerald-600">{{ log.data_baru.jenis or '-' }}</span>
-          </div>
-          {% endif %}
-          
-          {% if log.data_lama.spesifikasi != log.data_baru.spesifikasi %}
-          <div class="flex items-center gap-2 text-sm">
-            <span class="text-slate-500 w-20">Spesifikasi</span>
-            <span class="text-rose-600 line-through">{{ log.data_lama.spesifikasi or '-' }}</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
-            <span class="text-emerald-600">{{ log.data_baru.spesifikasi or '-' }}</span>
-          </div>
-          {% endif %}
+          {% else %}
+          <p class="text-xs text-slate-400">Tidak ada perubahan data yang terdeteksi.</p>
+          {% endfor %}
         </div>
-        
-        {% if log.data_lama == log.data_baru %}
-        <p class="text-xs text-slate-400">Tidak ada perubahan data yang terdeteksi.</p>
-        {% endif %}
       </div>
 
     {% elif log.aksi == 'DELETE' %}
       <!-- Hapus Aset -->
       <div class="bg-rose-50 rounded-xl p-4 space-y-2">
         <p class="text-xs font-medium text-rose-700">Data aset yang dihapus:</p>
-        <div class="grid grid-cols-2 gap-2 text-sm">
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          {% for d in field_diff %}
           <div>
-            <p class="text-xs text-slate-400">Kode Aset</p>
-            <p class="font-medium text-slate-700">{{ log.data_lama.kode_aset or '-' }}</p>
+            <p class="text-xs text-slate-400">{{ d.label }}</p>
+            {% if d.key == 'foto_url' and d.old %}
+            <img src="{{ d.old }}" alt="Foto aset" class="mt-1 w-20 h-20 object-cover rounded-lg border border-rose-200">
+            {% else %}
+            <p class="font-medium text-slate-700 break-words">{{ d.old or '-' }}</p>
+            {% endif %}
           </div>
-          <div>
-            <p class="text-xs text-slate-400">Nama Aset</p>
-            <p class="font-medium text-slate-700">{{ log.data_lama.nama or '-' }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-400">Merek</p>
-            <p class="font-medium text-slate-700">{{ log.data_lama.merek or '-' }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-400">Jenis Aset</p>
-            <p class="font-medium text-slate-700">{{ log.data_lama.jenis or '-' }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-400">Gedung</p>
-            <p class="font-medium text-slate-700">{{ log.data_lama.gedung or '-' }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-400">Ruangan</p>
-            <p class="font-medium text-slate-700">{{ log.data_lama.ruangan or '-' }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-400">Status</p>
-            <p class="font-medium text-slate-700">{{ log.data_lama.status or '-' }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-slate-400">Spesifikasi</p>
-            <p class="font-medium text-slate-700">{{ log.data_lama.spesifikasi or '-' }}</p>
-          </div>
+          {% endfor %}
         </div>
       </div>
 

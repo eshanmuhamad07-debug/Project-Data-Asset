@@ -74,13 +74,13 @@
 
           <!-- TOMBOL TAMBAH ASET (di samping Terapkan) -->
           {% if current_user.role == 'admin' %}
-          <button onclick="openModal('modalTambahAset')" class="btn btn-primary shrink-0">
+          <button type="button" onclick="openModal('modalTambahAset')" class="btn btn-primary shrink-0">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             Tambah Aset
           </button>
-          <button id="toggleSelectModeBtn" class="btn btn-secondary shrink-0">
+          <button type="button" id="toggleSelectModeBtn" class="btn btn-secondary shrink-0">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round"
                 d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -88,8 +88,7 @@
             Pilih Aset
           </button>
 
-          <!-- HAPUS TERPILIH (hidden by default) -->
-          <button id="deleteSelectedBtn" class="btn btn-danger hidden shrink-0">
+          <button type="button" id="deleteSelectedBtn" class="btn btn-danger hidden shrink-0">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round"
                 d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />

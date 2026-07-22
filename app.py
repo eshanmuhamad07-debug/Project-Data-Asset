@@ -128,6 +128,84 @@ def catat_aktivitas(aksi, target_model, target_id, deskripsi=None, data_lama=Non
     )
     db.session.add(log)
 
+
+# Urutan & label field aset yang ditampilkan di detail histori (Tambah/Edit/Hapus).
+# Tambahkan/rename di sini kalau ada field baru -> otomatis ikut muncul di histori.
+FIELD_LABELS_ASET = [
+    ("kode_aset", "Kode Aset"),
+    ("nama", "Nama Aset"),
+    ("foto_url", "Foto"),
+    ("kategori", "Kategori"),
+    ("tipe_aset", "Tipe Aset"),
+    ("area", "Area"),
+    ("fungsi", "Fungsi"),
+    ("merek", "Merek"),
+    ("serial_number", "Serial Number"),
+    ("spesifikasi", "Spesifikasi"),
+    ("volume", "Volume"),
+    ("satuan", "Satuan"),
+    ("status", "Status"),
+    ("gedung", "Gedung"),
+    ("lantai", "Lantai"),
+    ("ruangan", "Ruangan"),
+    ("link_qr", "Link QR"),
+    ("tanggal_datang", "Tanggal Datang"),
+    ("keterangan", "Keterangan"),
+]
+
+
+def snapshot_aset(aset, kategori_nama=None):
+    """Snapshot lengkap satu aset untuk disimpan di log histori (CREATE/UPDATE/DELETE).
+    kategori_nama dioper manual (bukan lewat relationship) supaya tidak kena masalah
+    cache relasi SQLAlchemy saat kategori baru saja diganti dalam request yang sama."""
+    return {
+        "kode_aset": aset.kode_aset,
+        "nama": aset.nama,
+        "foto_url": aset.foto_url,
+        "kategori": kategori_nama,
+        "tipe_aset": aset.tipe_aset,
+        "area": aset.area,
+        "fungsi": aset.fungsi,
+        "merek": aset.merek,
+        "serial_number": aset.serial_number,
+        "spesifikasi": aset.spesifikasi,
+        "volume": aset.volume,
+        "satuan": aset.satuan,
+        "status": aset.status_aset,
+        "gedung": aset.gedung,
+        "lantai": aset.lantai,
+        "ruangan": aset.ruangan,
+        "link_qr": aset.link_qr,
+        "tanggal_datang": aset.tanggal_datang.strftime("%Y-%m-%d") if aset.tanggal_datang else None,
+        "keterangan": aset.keterangan,
+    }
+
+
+def build_field_diff(data_lama, data_baru):
+    """Bandingkan dua snapshot aset field-per-field, hasilkan daftar siap-tampil
+    (dipakai di halaman Detail Aktivitas / History) mengikuti urutan FIELD_LABELS_ASET,
+    plus field lain yang mungkin ada di data tapi belum terdaftar di label map."""
+    data_lama = data_lama or {}
+    data_baru = data_baru or {}
+    known_keys = [k for k, _ in FIELD_LABELS_ASET]
+    extra_keys = [k for k in {**data_lama, **data_baru}.keys() if k not in known_keys]
+    all_fields = FIELD_LABELS_ASET + [(k, k.replace("_", " ").title()) for k in extra_keys]
+
+    diff = []
+    for key, label in all_fields:
+        if key not in data_lama and key not in data_baru:
+            continue
+        old_val = data_lama.get(key)
+        new_val = data_baru.get(key)
+        diff.append({
+            "key": key,
+            "label": label,
+            "old": old_val,
+            "new": new_val,
+            "changed": old_val != new_val,
+        })
+    return diff
+
 def role_required(*roles):
     def decorator(f):
         @wraps(f)
@@ -462,6 +540,12 @@ def api_aset_by_lokasi():
 @login_required
 @role_required(ROLE_ADMIN)
 def aset_create():
+    print("=" * 50)
+    print("FORM DATA:")
+    for key, value in request.form.items():
+        print(f"  {key}: {value}")
+    print("=" * 50)
+
     kode_aset = request.form.get("kode_aset", "").strip()
     if Aset.query.filter_by(kode_aset=kode_aset).first():
         flash("Kode aset sudah digunakan.", "danger")
@@ -533,29 +617,16 @@ def aset_create():
         tanggal_datang=tanggal_datang,
         keterangan=keterangan,
         id_kategori=id_kategori,
+        total_kerusakan=0,
     )
     db.session.add(aset)
+    db.session.flush()  # penting: dapatkan aset.id dari MySQL (AUTO_INCREMENT) sebelum dipakai di log aktivitas
     catat_aktivitas(
         aksi="CREATE",
         target_model="Aset",
         target_id=aset.id,
         deskripsi=f"Menambahkan aset baru: {aset.nama} ({aset.kode_aset})",
-        data_baru={
-            "kode_aset": aset.kode_aset,
-            "nama": aset.nama,
-            "area": aset.area,
-            "fungsi": aset.fungsi,
-            "merek": aset.merek,
-            "serial_number": aset.serial_number,
-            "spesifikasi": aset.spesifikasi,
-            "tipe_aset": aset.tipe_aset,
-            "volume": aset.volume,
-            "satuan": aset.satuan,
-            "status": aset.status_aset,
-            "gedung": aset.gedung,
-            "ruangan": aset.ruangan,
-            "lantai": aset.lantai,
-        }
+        data_baru=snapshot_aset(aset, kategori_nama=jenis_barang or None)
     )
     db.session.commit()
     
@@ -572,23 +643,9 @@ def aset_create():
 def aset_edit(aset_id):
     aset = Aset.query.get_or_404(aset_id)
 
-    # +++ DEFINISIKAN data_lama SEBELUM diubah +++
-    data_lama = {
-        "nama": aset.nama,
-        "area": aset.area,
-        "fungsi": aset.fungsi,
-        "merek": aset.merek,
-        "serial_number": aset.serial_number,
-        "spesifikasi": aset.spesifikasi,
-        "tipe_aset": aset.tipe_aset,
-        "volume": aset.volume,
-        "satuan": aset.satuan,
-        "status": aset.status_aset,
-        "gedung": aset.gedung,
-        "ruangan": aset.ruangan,
-        "lantai": aset.lantai,
-        "keterangan": aset.keterangan,
-    }
+    # +++ DEFINISIKAN data_lama SEBELUM diubah (snapshot lengkap semua field) +++
+    kategori_lama_nama = aset.kategori_ref.nama if aset.kategori_ref else None
+    data_lama = snapshot_aset(aset, kategori_nama=kategori_lama_nama)
 
     # Simpan status lama untuk logika total_kerusakan
     status_lama = aset.status_aset
@@ -660,23 +717,9 @@ def aset_edit(aset_id):
         if foto:
             aset.foto = foto
 
-    # +++ DEFINISIKAN data_baru SETELAH perubahan +++
-    data_baru = {
-        "nama": aset.nama,
-        "area": aset.area,
-        "fungsi": aset.fungsi,
-        "merek": aset.merek,
-        "serial_number": aset.serial_number,
-        "spesifikasi": aset.spesifikasi,
-        "tipe_aset": aset.tipe_aset,
-        "volume": aset.volume,
-        "satuan": aset.satuan,
-        "status": aset.status_aset,
-        "gedung": aset.gedung,
-        "ruangan": aset.ruangan,
-        "lantai": aset.lantai,
-        "keterangan": aset.keterangan,
-    }
+    # +++ DEFINISIKAN data_baru SETELAH perubahan (snapshot lengkap semua field) +++
+    kategori_baru_nama = kategori.nama if jenis_barang else None
+    data_baru = snapshot_aset(aset, kategori_nama=kategori_baru_nama)
 
     # Log aktivitas jika ada perubahan
     if data_lama != data_baru:
@@ -704,24 +747,8 @@ def aset_edit(aset_id):
 def aset_delete(aset_id):
     aset = Aset.query.get_or_404(aset_id)
     
-    data_lama = {
-        "kode_aset": aset.kode_aset,
-        "nama": aset.nama,
-        "area": aset.area,
-        "fungsi": aset.fungsi,
-        "merek": aset.merek,
-        "serial_number": aset.serial_number,
-        "spesifikasi": aset.spesifikasi,
-        "tipe_aset": aset.tipe_aset,
-        "volume": aset.volume,
-        "satuan": aset.satuan,
-        "status": aset.status_aset,
-        "gedung": aset.gedung,
-        "ruangan": aset.ruangan,
-        "lantai": aset.lantai,
-        "keterangan": aset.keterangan,
-    }
-    
+    data_lama = snapshot_aset(aset, kategori_nama=aset.kategori_ref.nama if aset.kategori_ref else None)
+
     catat_aktivitas(
         aksi="DELETE",
         target_model="Aset",
@@ -830,23 +857,7 @@ def aset_delete_multiple():
             target_model="Aset",
             target_id=aset.id,
             deskripsi=f"Menghapus aset via bulk: {aset.nama} ({aset.kode_aset})",
-            data_lama={
-                "kode_aset": aset.kode_aset,
-                "nama": aset.nama,
-                "area": aset.area,
-                "fungsi": aset.fungsi,
-                "merek": aset.merek,
-                "serial_number": aset.serial_number,
-                "spesifikasi": aset.spesifikasi,
-                "tipe_aset": aset.tipe_aset,
-                "volume": aset.volume,
-                "satuan": aset.satuan,
-                "status": aset.status_aset,
-                "gedung": aset.gedung,
-                "ruangan": aset.ruangan,
-                "lantai": aset.lantai,
-                "keterangan": aset.keterangan,
-            }
+            data_lama=snapshot_aset(aset, kategori_nama=aset.kategori_ref.nama if aset.kategori_ref else None)
         )
         db.session.delete(aset)
     
@@ -1029,6 +1040,7 @@ def aset_import():
                 area=area or None,
                 fungsi=fungsi or None,
                 merek=merek or None,
+                total_kerusakan=0,
                 serial_number=serial_number or None,
                 spesifikasi=spesifikasi or None,
                 tipe_aset=tipe_valid,
@@ -1202,12 +1214,17 @@ def aktivitas_detail(log_id):
     
     user = User.query.get(log.id_user)
     pelaku = user.name if user else "Unknown"
-    
+
+    field_diff = []
+    if log.target_model == "Aset" and log.aksi in ("CREATE", "UPDATE", "DELETE"):
+        field_diff = build_field_diff(log.data_lama, log.data_baru)
+
     return render_template(
         "history/aktivitas_detail.html",
         log=log,
         label_aksi=label_aksi,
-        pelaku=pelaku
+        pelaku=pelaku,
+        field_diff=field_diff
     )
 
 @app.route("/history/<int:tiket_id>")
