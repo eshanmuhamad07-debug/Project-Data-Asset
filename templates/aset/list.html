@@ -63,11 +63,39 @@
             <option value="CAPEX" {{ 'selected' if request.args.get('tipe')=='CAPEX' }}>CAPEX</option>
             <option value="OPEX" {{ 'selected' if request.args.get('tipe')=='OPEX' }}>OPEX</option>
           </select>
+
+          <!-- Tombol Terapkan -->
           <button type="submit" class="btn btn-primary shrink-0">Terapkan</button>
           {% if request.args.get('q') or request.args.get('status') or request.args.get('kategori') or
           request.args.get('tipe') or request.args.get('gedung') or request.args.get('lantai') or
           request.args.get('ruangan') %}
           <a href="{{ url_for('aset_list') }}" class="btn btn-secondary shrink-0 text-slate-400">Reset</a>
+          {% endif %}
+
+          <!-- TOMBOL TAMBAH ASET (di samping Terapkan) -->
+          {% if current_user.role == 'admin' %}
+          <button onclick="openModal('modalTambahAset')" class="btn btn-primary shrink-0">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Tambah Aset
+          </button>
+          <button id="toggleSelectModeBtn" class="btn btn-secondary shrink-0">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Pilih Aset
+          </button>
+
+          <!-- HAPUS TERPILIH (hidden by default) -->
+          <button id="deleteSelectedBtn" class="btn btn-danger hidden shrink-0">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+            </svg>
+            Hapus Terpilih (<span id="selectedCount">0</span>)
+          </button>
           {% endif %}
         </div>
 
@@ -109,69 +137,7 @@
           </div>
         </details>
       </form>
-
-      {% if current_user.role == 'admin' %}
-      <div class="flex flex-wrap items-stretch gap-2 w-full lg:w-auto">
-        <div
-          class="flex items-stretch rounded-xl border border-slate-200 overflow-hidden divide-x divide-slate-200 shrink-0">
-          <a href="{{ url_for('aset_export') }}"
-            class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 whitespace-nowrap">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-            </svg>
-            Export Excel
-          </a>
-          <form method="POST" action="{{ url_for('aset_import') }}" enctype="multipart/form-data" id="formImportAset" class="flex" onsubmit="showImportLoading()">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <label class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer relative overflow-hidden whitespace-nowrap">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5" />
-              </svg>
-              Import Excel
-              <input type="file" name="file_import" accept=".xlsx" required
-                    onchange="document.getElementById('formImportAset').submit()"
-                    class="absolute inset-0 opacity-0 cursor-pointer">
-            </label>
-          </form>
-        </div>
-        <button onclick="openModal('modalTambahAset')" class="btn btn-primary shrink-0">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Tambah Aset
-        </button>
-        <button id="toggleSelectModeBtn" class="btn btn-secondary">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Pilih Aset
-        </button>
-
-        <!-- HAPUS TERPILIH (hidden by default) -->
-        <button id="deleteSelectedBtn" class="btn btn-danger hidden">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-          </svg>
-          Hapus Terpilih (<span id="selectedCount">0</span>)
-        </button>
-      </div>
-      {% endif %}
     </div>
-    {% if current_user.role == 'admin' %}
-    <p class="text-xs text-slate-400 flex items-center gap-1">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-        class="shrink-0">
-        <path stroke-linecap="round" stroke-linejoin="round"
-          d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-      </svg>
-      <span><b class="text-slate-500">Export</b> untuk unduh data ke Excel, edit di Excel, lalu pilih file yang sama di
-        <b class="text-slate-500">Import</b> untuk memperbarui data (dicocokkan berdasarkan Kode Aset) atau menambah
-        aset baru — langsung terunggah begitu file dipilih.</span>
-    </p>
-    {% endif %}
   </div>
 
   <div class="overflow-x-auto">
@@ -437,6 +403,52 @@
     </div>
   </div>
   {% endif %}
+
+  <!-- ============================================================ -->
+  <!-- EXPORT & IMPORT EXCEL (di bagian bawah) -->
+  <!-- ============================================================ -->
+  {% if current_user.role == 'admin' %}
+  <div
+    class="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
+    <div class="flex items-center gap-2 text-xs text-slate-500">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+        class="shrink-0">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+      </svg>
+      <span><b class="text-slate-600">Export</b> untuk unduh data ke Excel, edit, lalu <b
+          class="text-slate-600">Import</b> untuk memperbarui data — dicocokkan berdasarkan Kode Aset.</span>
+    </div>
+    <div class="flex items-stretch gap-2 shrink-0">
+      <div class="flex items-stretch rounded-xl border border-slate-200 overflow-hidden divide-x divide-slate-200">
+        <a href="{{ url_for('aset_export') }}"
+          class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 whitespace-nowrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+          Export Excel
+        </a>
+        <form method="POST" action="{{ url_for('aset_import') }}" enctype="multipart/form-data" id="formImportAset"
+          class="flex" onsubmit="showImportLoading()">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label
+            class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer relative overflow-hidden whitespace-nowrap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5" />
+            </svg>
+            Import Excel
+            <input type="file" name="file_import" accept=".xlsx" required
+              onchange="document.getElementById('formImportAset').submit()"
+              class="absolute inset-0 opacity-0 cursor-pointer">
+          </label>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Form untuk bulk delete -->
   <form id="deleteMultipleForm" method="POST" action="{{ url_for('aset_delete_multiple') }}" class="hidden">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -728,18 +740,23 @@
 </div>
 
 <!-- Loading Overlay untuk Import Excel -->
-<div id="importLoadingOverlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-white/70 backdrop-blur-sm transition-opacity duration-300">
+<div id="importLoadingOverlay"
+  class="fixed inset-0 z-50 hidden items-center justify-center bg-white/70 backdrop-blur-sm transition-opacity duration-300">
   <div class="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/90 shadow-lg border border-slate-100/50">
     <div class="relative">
       <div class="w-10 h-10 border-4 border-indigo-100 rounded-full"></div>
-      <div class="absolute top-0 left-0 w-10 h-10 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+      <div
+        class="absolute top-0 left-0 w-10 h-10 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin">
+      </div>
     </div>
     <div class="text-center">
       <p class="text-sm font-semibold text-slate-700">Mengimpor Data...</p>
-      <p id="importProgressText" class="text-xs text-slate-400 mt-0.5">Mohon tunggu, proses ini bisa memakan waktu beberapa saat</p>
+      <p id="importProgressText" class="text-xs text-slate-400 mt-0.5">Mohon tunggu, proses ini bisa memakan waktu
+        beberapa saat</p>
     </div>
     <div class="w-48 h-1 bg-slate-100 rounded-full overflow-hidden mt-1">
-      <div id="importProgressBar" class="h-full bg-indigo-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+      <div id="importProgressBar" class="h-full bg-indigo-500 rounded-full transition-all duration-300"
+        style="width: 0%"></div>
     </div>
   </div>
 </div>
@@ -1252,6 +1269,6 @@
     document.getElementById('editLinkQr').value = data.link_qr || '';
     openModal('modalEditAset');
   }
-  
+
 </script>
 {% endblock %}
