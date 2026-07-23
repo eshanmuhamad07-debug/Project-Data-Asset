@@ -1,0 +1,389 @@
+{% import "_macros.html" as m %}
+{% extends "base.html" %}
+{% block title %}Maintenance Aset{% endblock %}
+{% block header %}Maintenance Aset{% endblock %}
+{% block subheader %}
+<p class="text-xs text-slate-400">Jadwal perawatan rutin aset — {{ pagination.total if pagination else 0 }} jadwal
+    terdaftar</p>
+{% endblock %}
+{% block content %}
+
+<!-- Statistik -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+    <div class="card p-3 text-center">
+        <p class="text-xs text-slate-400">Total Jadwal</p>
+        <p class="text-xl font-bold text-slate-800">{{ pagination.total if pagination else 0 }}</p>
+    </div>
+    <div class="card p-3 text-center border-l-4 border-emerald-500">
+        <p class="text-xs text-slate-400">Scheduled</p>
+        <p class="text-xl font-bold text-emerald-600">{{ daftar_maintenance|selectattr('status', 'equalto',
+            'Scheduled')|list|length }}</p>
+    </div>
+    <div class="card p-3 text-center border-l-4 border-amber-500">
+        <p class="text-xs text-slate-400">On Progress</p>
+        <p class="text-xl font-bold text-amber-600">{{ daftar_maintenance|selectattr('status', 'equalto', 'On
+            Progress')|list|length }}</p>
+    </div>
+    <div class="card p-3 text-center border-l-4 border-blue-500">
+        <p class="text-xs text-slate-400">Completed</p>
+        <p class="text-xl font-bold text-blue-600">{{ daftar_maintenance|selectattr('status', 'equalto',
+            'Completed')|list|length }}</p>
+    </div>
+</div>
+
+<div class="card">
+    <!-- Filter & Tombol Tambah -->
+    <div
+        class="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <form method="GET" class="flex flex-wrap gap-2">
+            <div class="relative">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                    class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+                <input type="text" name="search" value="{{ search or '' }}" placeholder="Cari aset atau judul..."
+                    class="field-input pl-8 w-full sm:w-48 text-sm">
+            </div>
+            <select name="kategori" class="field-input w-full sm:w-36 text-sm" onchange="this.form.submit()">
+                <option value="">Semua Kategori</option>
+                <option value="Elektronik" {{ 'selected' if kategori_terpilih=='Elektronik' }}>Elektronik</option>
+                <option value="Furniture" {{ 'selected' if kategori_terpilih=='Furniture' }}>Furniture</option>
+            </select>
+            <select name="status" class="field-input w-full sm:w-36 text-sm" onchange="this.form.submit()">
+                <option value="">Semua Status</option>
+                <option value="Scheduled" {{ 'selected' if status_terpilih=='Scheduled' }}>Scheduled</option>
+                <option value="On Progress" {{ 'selected' if status_terpilih=='On Progress' }}>On Progress</option>
+                <option value="Completed" {{ 'selected' if status_terpilih=='Completed' }}>Completed</option>
+                <option value="Cancelled" {{ 'selected' if status_terpilih=='Cancelled' }}>Cancelled</option>
+            </select>
+            <button type="submit" class="btn btn-secondary shrink-0 text-sm">Filter</button>
+            {% if search or kategori_terpilih or status_terpilih %}
+            <a href="{{ url_for('maintenance_list') }}"
+                class="btn btn-secondary shrink-0 text-slate-400 text-sm">Reset</a>
+            {% endif %}
+        </form>
+        <button onclick="openModal('modalTambahMaintenance')" class="btn btn-primary shrink-0">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Tambah Data
+        </button>
+    </div>
+
+    <!-- Tabel -->
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-slate-100 bg-slate-50/60">
+                    <th class="th">No</th>
+                    <th class="th">Nama Barang</th>
+                    <th class="th">Kode</th>
+                    <th class="th">Vendor</th>
+                    <th class="th">Tipe</th>
+                    <th class="th">Judul</th>
+                    <th class="th">Tanggal Mulai</th>
+                    <th class="th">Tanggal Akhir</th>
+                    <th class="th">Status</th>
+                    <th class="th text-right">Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in daftar_maintenance %}
+                <tr class="table-row hover:bg-slate-50">
+                    <td class="td text-slate-500 text-center">{{ loop.index + ((pagination.page - 1) *
+                        pagination.per_page) }}</td>
+                    <td class="td font-medium text-slate-800">{{ m.aset.nama if m.aset else '-' }}</td>
+                    <td class="td font-mono text-xs text-slate-500">{{ m.aset.kode_aset if m.aset else '-' }}</td>
+                    <td class="td text-slate-600">{{ m.vendor or '-' }}</td>
+                    <td class="td">
+                        <span
+                            class="pill {{ 'bg-blue-50 text-blue-700 border-blue-200' if m.tipe == 'Preventif' else 'bg-amber-50 text-amber-700 border-amber-200' if m.tipe == 'Korektif' else 'bg-slate-50 text-slate-600 border-slate-200' }}">
+                            {{ m.tipe }}
+                        </span>
+                    </td>
+                    <td class="td text-slate-700">{{ m.judul }}</td>
+                    <td class="td text-slate-500 text-sm">{{ m.tanggal_mulai.strftime('%d-%m-%Y') if m.tanggal_mulai
+                        else '-' }}</td>
+                    <td class="td text-slate-500 text-sm">{{ m.tanggal_akhir.strftime('%d-%m-%Y') if m.tanggal_akhir
+                        else '-' }}</td>
+                    <td class="td">
+                        <span
+                            class="pill {{ 'bg-slate-100 text-slate-600 border-slate-200' if m.status == 'Scheduled' else 'bg-amber-100 text-amber-700 border-amber-200' if m.status == 'On Progress' else 'bg-emerald-100 text-emerald-700 border-emerald-200' if m.status == 'Completed' else 'bg-rose-100 text-rose-700 border-rose-200' }}">
+                            {{ m.status }}
+                        </span>
+                    </td>
+                    <td class="td whitespace-nowrap text-right">
+                        <button onclick="openEditMaintenance(this)" data-id="{{ m.id }}" data-judul="{{ m.judul }}"
+                            data-deskripsi="{{ m.deskripsi or '' }}" data-vendor="{{ m.vendor or '' }}"
+                            data-tipe="{{ m.tipe }}" data-biaya="{{ m.biaya }}" data-status="{{ m.status }}"
+                            data-tanggal-akhir="{{ m.tanggal_akhir.strftime('%Y-%m-%d') if m.tanggal_akhir else '' }}"
+                            class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-indigo-50">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                            </svg>
+                            Edit
+                        </button>
+                        <form method="POST" action="{{ url_for('maintenance_delete', id=m.id) }}" class="inline"
+                            onsubmit="return confirm('Hapus jadwal maintenance ini?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit"
+                                class="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-rose-50">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                </svg>
+                                Hapus
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" class="py-14 text-center">
+                        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.3" class="mx-auto text-slate-300 mb-2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L1.5 3l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
+                        </svg>
+                        <p class="text-sm text-slate-400">Belum ada jadwal maintenance.</p>
+                        <p class="text-xs text-slate-400 mt-1">Klik "Tambah Data" untuk membuat jadwal baru.</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if pagination and pagination.pages > 1 %}
+    <div
+        class="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 text-xs text-slate-500">
+        <span>Menampilkan {{ ((pagination.page - 1) * pagination.per_page) + 1 }} - {{ [pagination.page *
+            pagination.per_page, pagination.total] | min }} dari {{ pagination.total }}</span>
+        <div class="flex gap-1">
+            {% if pagination.has_prev %}
+            <a href="{{ url_for('maintenance_list', page=pagination.prev_num, search=search or '', kategori=kategori_terpilih or '', status=status_terpilih or '') }}"
+                class="px-3 py-1 rounded-lg hover:bg-slate-100">‹ Sebelumnya</a>
+            {% endif %}
+            {% if pagination.has_next %}
+            <a href="{{ url_for('maintenance_list', page=pagination.next_num, search=search or '', kategori=kategori_terpilih or '', status=status_terpilih or '') }}"
+                class="px-3 py-1 rounded-lg hover:bg-slate-100">Berikutnya ›</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL TAMBAH MAINTENANCE -->
+<!-- ============================================================ -->
+<div id="modalTambahMaintenance" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+            <h2 class="font-display font-bold text-slate-800">Tambah Jadwal Maintenance</h2>
+            <button onclick="closeModal('modalTambahMaintenance')" class="text-slate-400 hover:text-slate-600">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <form method="POST" action="{{ url_for('maintenance_create') }}" class="p-5 space-y-3.5">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div>
+                <label class="field-label">Pilih Aset <span class="text-rose-500">*</span></label>
+                <select name="id_aset" required class="field-input" id="asetSelectAdd">
+                    <option value="">Pilih Aset...</option>
+                    {% for a in aset_all %}
+                    <option value="{{ a.id }}" data-kategori="{{ a.kategori_ref.nama if a.kategori_ref else '' }}">{{
+                        a.kode_aset }} - {{ a.nama }}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-[10px] text-slate-400 mt-0.5">Kategori aset akan otomatis terisi</p>
+            </div>
+
+            <div>
+                <label class="field-label">Kategori Maintenance</label>
+                <select name="kategori" id="kategoriAdd" required class="field-input">
+                    <option value="Elektronik">Elektronik</option>
+                    <option value="Furniture">Furniture</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="field-label">Judul <span class="text-rose-500">*</span></label>
+                <input name="judul" required placeholder="Mis: Pembersihan AC" class="field-input">
+            </div>
+
+            <div>
+                <label class="field-label">Deskripsi</label>
+                <textarea name="deskripsi" rows="2" class="field-input"
+                    placeholder="Detail pekerjaan maintenance..."></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Vendor</label>
+                    <input name="vendor" class="field-input" placeholder="Nama vendor">
+                </div>
+                <div>
+                    <label class="field-label">Tipe</label>
+                    <select name="tipe" class="field-input">
+                        <option value="Preventif">Preventif</option>
+                        <option value="Korektif">Korektif</option>
+                        <option value="Inspeksi">Inspeksi</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Tanggal Mulai <span class="text-rose-500">*</span></label>
+                    <input name="tanggal_mulai" type="date" required class="field-input">
+                </div>
+                <div>
+                    <label class="field-label">Tanggal Akhir</label>
+                    <input name="tanggal_akhir" type="date" class="field-input">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Biaya</label>
+                    <input name="biaya" type="number" step="0.01" class="field-input" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="field-label">Status</label>
+                    <select name="status" class="field-input">
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="On Progress">On Progress</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Jadwal</button>
+        </form>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL EDIT MAINTENANCE -->
+<!-- ============================================================ -->
+<div id="modalEditMaintenance" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+            <h2 class="font-display font-bold text-slate-800">Edit Jadwal Maintenance</h2>
+            <button onclick="closeModal('modalEditMaintenance')" class="text-slate-400 hover:text-slate-600">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <form id="formEditMaintenance" method="POST" class="p-5 space-y-3.5">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div>
+                <label class="field-label">Judul <span class="text-rose-500">*</span></label>
+                <input name="judul" id="editJudul" required class="field-input">
+            </div>
+
+            <div>
+                <label class="field-label">Deskripsi</label>
+                <textarea name="deskripsi" id="editDeskripsi" rows="2" class="field-input"></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Vendor</label>
+                    <input name="vendor" id="editVendor" class="field-input">
+                </div>
+                <div>
+                    <label class="field-label">Tipe</label>
+                    <select name="tipe" id="editTipe" class="field-input">
+                        <option value="Preventif">Preventif</option>
+                        <option value="Korektif">Korektif</option>
+                        <option value="Inspeksi">Inspeksi</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Biaya</label>
+                    <input name="biaya" id="editBiaya" type="number" step="0.01" class="field-input">
+                </div>
+                <div>
+                    <label class="field-label">Status</label>
+                    <select name="status" id="editStatus" class="field-input">
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="On Progress">On Progress</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="field-label">Tanggal Akhir</label>
+                <input name="tanggal_akhir" id="editTanggalAkhir" type="date" class="field-input">
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Perubahan</button>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-fill kategori maintenance berdasarkan aset yang dipilih
+    document.addEventListener('DOMContentLoaded', function () {
+        const asetSelect = document.getElementById('asetSelectAdd');
+        const kategoriSelect = document.getElementById('kategoriAdd');
+
+        if (asetSelect && kategoriSelect) {
+            asetSelect.addEventListener('change', function () {
+                const selectedOption = this.options[this.selectedIndex];
+                const kategori = selectedOption.dataset.kategori || '';
+                // Mapping kategori aset ke kategori maintenance
+                if (kategori.toLowerCase().includes('elektronik')) {
+                    kategoriSelect.value = 'Elektronik';
+                } else if (kategori.toLowerCase().includes('furniture')) {
+                    kategoriSelect.value = 'Furniture';
+                }
+            });
+        }
+    });
+
+// FUNGSI EDIT MAINTENANCE (dari data attribute)
+// =============================================================
+function openEditMaintenance(button) {
+  const id = button.dataset.id;
+  const judul = button.dataset.judul;
+  const deskripsi = button.dataset.deskripsi;
+  const vendor = button.dataset.vendor;
+  const tipe = button.dataset.tipe;
+  const biaya = button.dataset.biaya;
+  const status = button.dataset.status;
+  const tanggal_akhir = button.dataset.tanggalAkhir;
+  
+  const form = document.getElementById('formEditMaintenance');
+  form.action = `/maintenance/${id}/edit`;
+  document.getElementById('editJudul').value = judul || '';
+  document.getElementById('editDeskripsi').value = deskripsi || '';
+  document.getElementById('editVendor').value = vendor || '';
+  document.getElementById('editTipe').value = tipe || 'Preventif';
+  document.getElementById('editBiaya').value = biaya || 0;
+  document.getElementById('editStatus').value = status || 'Scheduled';
+  document.getElementById('editTanggalAkhir').value = tanggal_akhir || '';
+  openModal('modalEditMaintenance');
+}
+</script>
+{% endblock %}

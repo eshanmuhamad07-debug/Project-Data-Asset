@@ -154,3 +154,23 @@ class AktivitasLog(db.Model):
     data_baru = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, default=get_wib_now)
     user = db.relationship("User")
+
+class Maintenance(db.Model):
+    __tablename__ = "maintenance"
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=False)
+    kategori = db.Column(db.String(50), nullable=False)  # Elektronik / Furniture
+    judul = db.Column(db.String(200), nullable=False)
+    deskripsi = db.Column(db.Text, nullable=True)
+    vendor = db.Column(db.String(100), nullable=True)
+    tipe = db.Column(db.String(50), nullable=False)  # Preventif / Korektif / Inspeksi
+    tanggal_mulai = db.Column(db.Date, nullable=False)
+    tanggal_akhir = db.Column(db.Date, nullable=True)
+    biaya = db.Column(db.Numeric(15, 2), default=0.00)  # <-- PAKAI NUMERIC
+    status = db.Column(db.String(20), default="Scheduled")
+    created_at = db.Column(db.DateTime, default=get_wib_now)
+    created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+
+    aset = db.relationship("Aset")
+    user = db.relationship("User")

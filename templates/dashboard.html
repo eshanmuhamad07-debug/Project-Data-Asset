@@ -14,229 +14,309 @@
 {% block content %}
 
 <!-- ============================================================ -->
-<!-- KARTU STATISTIK (Sama untuk Admin & User) -->
+<!-- KARTU STATISTIK -->
 <!-- ============================================================ -->
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-  <div class="card p-5 flex items-start justify-between">
-    <div>
-      <p class="text-xs font-medium text-slate-400 mb-1.5">Total Aset</p>
-      <p class="font-display text-2xl font-bold text-slate-800">{{ total_aset }}</p>
-      <p class="text-xs text-slate-400 mt-1">Seluruh aset terdaftar</p>
+<div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 mb-4">
+  <!-- Total Aset -->
+  <a href="{{ url_for('aset_list') }}"
+    class="card p-4 flex flex-col items-start justify-between group hover:shadow-md hover:border-indigo-200 hover:-translate-y-0.5 transition-all cursor-pointer">
+    <div class="flex items-center justify-between w-full">
+      <span class="text-xs font-medium text-slate-400">Total Aset</span>
+      <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-100">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+      </span>
     </div>
-    <span class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-        <path stroke-linecap="round" stroke-linejoin="round"
-          d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+    <p class="font-display text-2xl font-bold text-slate-800 mt-1">{{ total_aset }}</p>
+    <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+      Seluruh aset
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+        class="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-indigo-500">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
       </svg>
-    </span>
-  </div>
+    </p>
+  </a>
 
-  <div class="card p-5 flex items-start justify-between">
-    <div>
-      <p class="text-xs font-medium text-slate-400 mb-1.5">Total Kategori</p>
-      <p class="font-display text-2xl font-bold text-slate-800">{{ total_kategori }}</p>
-      <p class="text-xs text-slate-400 mt-1">Jenis barang terdaftar</p>
+  <!-- Total Kategori -->
+  <a href="{{ url_for('kategori_list') }}"
+    class="card p-4 flex flex-col items-start justify-between group hover:shadow-md hover:border-emerald-200 hover:-translate-y-0.5 transition-all cursor-pointer">
+    <div class="flex items-center justify-between w-full">
+      <span class="text-xs font-medium text-slate-400">Total Kategori</span>
+      <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-100">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/></svg>
+      </span>
     </div>
-    <span class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-        <path stroke-linecap="round" stroke-linejoin="round"
-          d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+    <p class="font-display text-2xl font-bold text-slate-800 mt-1">{{ total_kategori }}</p>
+    <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+      Jenis barang
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+        class="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-emerald-500">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
       </svg>
-    </span>
-  </div>
+    </p>
+  </a>
 
-  <div class="card p-5 flex items-start justify-between">
-    <div>
-      <p class="text-xs font-medium text-slate-400 mb-1.5">Aset Rusak</p>
-      <p class="font-display text-2xl font-bold text-slate-800">{{ total_rusak }}</p>
-      <p class="text-xs text-slate-400 mt-1">Menunggu perbaikan</p>
+  <!-- Total Maintenance (HANYA ADMIN) -->
+  {% if current_user.role == 'admin' %}
+  <a href="{{ url_for('maintenance_list') }}"
+    class="card p-4 flex flex-col items-start justify-between group hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5 transition-all cursor-pointer">
+    <div class="flex items-center justify-between w-full">
+      <span class="text-xs font-medium text-slate-400">Total Maintenance</span>
+      <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-100">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L1.5 3l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"/></svg>
+      </span>
     </div>
-    <span class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-        <path stroke-linecap="round" stroke-linejoin="round"
-          d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+    <p class="font-display text-2xl font-bold text-slate-800 mt-1">{{ total_maintenance }}</p>
+    <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+      Jadwal perawatan
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+        class="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-amber-500">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
       </svg>
-    </span>
-  </div>
+    </p>
+  </a>
+  {% endif %}
+
+  <!-- Total Pemindahan -->
+  <a href="{{ url_for('history_list', filter='Pemindahan') }}"
+    class="card p-4 flex flex-col items-start justify-between group hover:shadow-md hover:border-blue-200 hover:-translate-y-0.5 transition-all cursor-pointer">
+    <div class="flex items-center justify-between w-full">
+      <span class="text-xs font-medium text-slate-400">Total Pemindahan</span>
+      <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-100">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+      </span>
+    </div>
+    <p class="font-display text-2xl font-bold text-slate-800 mt-1">{{ total_pemindahan }}</p>
+    <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+      Aset dipindahkan
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+        class="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-blue-500">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+      </svg>
+    </p>
+  </a>
+
+  <!-- Aset Rusak -->
+  <a href="{{ url_for('aset_list', status='Rusak') }}"
+    class="card p-4 flex flex-col items-start justify-between group hover:shadow-md hover:border-rose-200 hover:-translate-y-0.5 transition-all cursor-pointer">
+    <div class="flex items-center justify-between w-full">
+      <span class="text-xs font-medium text-slate-400">Aset Rusak</span>
+      <span class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center group-hover:bg-rose-100">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+      </span>
+    </div>
+    <p class="font-display text-2xl font-bold text-slate-800 mt-1">{{ total_rusak }}</p>
+    <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+      Perlu perbaikan
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+        class="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-rose-500">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+      </svg>
+    </p>
+  </a>
 </div>
 
 <!-- ============================================================ -->
-<!-- GRAFIK ASET PER KATEGORI (Sama untuk Admin & User) -->
+<!-- PANEL HISTORY (khusus Admin) -->
 <!-- ============================================================ -->
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-  <div class="card p-5 lg:col-span-1">
-    <p class="text-sm font-semibold text-slate-700 mb-4">Aset per Kategori</p>
-    {% if chart_labels %}
-    <canvas id="kategoriChart" class="w-full"></canvas>
-    {% else %}
-    <div class="py-10 text-center">
-      <p class="text-xs text-slate-400">Belum ada data kategori.</p>
-    </div>
-    {% endif %}
-  </div>
+{% if current_user.role == 'admin' %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
 
-  <!-- ============================================================ -->
-  <!-- KONTEN SISI KANAN: History untuk Admin / Ringkasan untuk User -->
-  <!-- ============================================================ -->
-  <div class="card p-5 lg:col-span-2">
-    {% if current_user.role == 'admin' %}
-    <!-- ADMIN: Tampilkan History Terbaru -->
-    <div class="flex items-center justify-between mb-3">
-      <p class="text-sm font-semibold text-slate-700">📋 History Aktivitas Terbaru</p>
-      <a href="{{ url_for('history_list') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat
-        semua &rarr;</a>
+  <!-- 1. History Aktivitas -->
+  <div class="card p-4 flex flex-col">
+    <div class="flex items-center justify-between mb-2">
+      <p class="text-sm font-semibold text-slate-700">📋 History Aktivitas</p>
+      <div class="flex items-center gap-1">
+        <a href="{{ url_for('history_list') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat semua →</a>
+        <button type="button" onclick="toggleCard('historyAktivitasBody', 'historyAktivitasIcon')"
+          class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+          <svg id="historyAktivitasIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="transition-transform duration-300">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+      </div>
     </div>
-    <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
-      {% for h in history_terbaru %}
-      <div class="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 transition-all border border-slate-100/60">
-        <!-- Icon -->
-        <span class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 {{ 
-      'bg-rose-100 text-rose-600' if h.jenis_tiket == 'Kerusakan' else 
-      'bg-blue-100 text-blue-600' if h.jenis_tiket == 'Pemindahan' else 
-      'bg-indigo-100 text-indigo-600'
-    }}">
-          {% if h.jenis_tiket == 'Kerusakan' %}
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-          </svg>
-          {% elif h.jenis_tiket == 'Pemindahan' %}
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          {% else %}
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          {% endif %}
-        </span>
-
-        <!-- Content -->
-        <div class="flex-1 min-w-0">
-          <div class="flex flex-wrap items-center gap-1.5">
-            <span class="text-xs font-medium text-slate-500">{{ h.created_at.strftime('%d-%m-%Y %H:%M') if h.created_at
-              else '-' }}</span>
-            <span class="text-xs text-slate-300">•</span>
-            <span class="text-xs font-medium text-slate-600">{{ h.nama_pemohon or 'System' }}</span>
-            <span class="text-xs text-slate-300">•</span>
-            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold {{ 
-          'bg-rose-100 text-rose-700' if h.jenis_tiket == 'Kerusakan' else 
-          'bg-blue-100 text-blue-700' if h.jenis_tiket == 'Pemindahan' else 
-          'bg-indigo-100 text-indigo-700'
-        }}">
-              {{ h.jenis_tiket if h.jenis_tiket else 'Aktivitas' }}
-            </span>
-          </div>
-          <p class="text-sm text-slate-700 truncate">
-            {% if h.link %}
-            <a href="{{ h.link }}" class="text-indigo-600 hover:text-indigo-700 hover:underline">
+    <div id="historyAktivitasBody" class="overflow-hidden transition-all duration-300 ease-in-out" style="max-height: 18rem; opacity: 1;">
+      <div class="space-y-1.5 max-h-[16rem] overflow-y-auto pr-1">
+        {% for h in history_terbaru %}
+        <div class="flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-slate-50 transition-all border border-slate-100/60">
+          <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 {{
+            'bg-rose-100 text-rose-600' if h.jenis_tiket == 'Kerusakan' else
+            'bg-blue-100 text-blue-600' if h.jenis_tiket == 'Pemindahan' else
+            'bg-amber-100 text-amber-600' if h.jenis_tiket == 'Maintenance' else
+            'bg-indigo-100 text-indigo-600'
+          }}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              {% if h.jenis_tiket == 'Kerusakan' %}
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+              {% elif h.jenis_tiket == 'Pemindahan' %}
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+              {% elif h.jenis_tiket == 'Maintenance' %}
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L1.5 3l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"/>
+              {% else %}
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              {% endif %}
+            </svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-1 text-xs">
+              <span class="font-medium text-slate-500">{{ h.created_at.strftime('%d-%m-%Y %H:%M') if h.created_at else '-' }}</span>
+              <span class="text-slate-300">•</span>
+              <span class="font-medium text-slate-600">{{ h.nama_pemohon or 'System' }}</span>
+              <span class="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-semibold {{
+                'bg-rose-100 text-rose-700' if h.jenis_tiket == 'Kerusakan' else
+                'bg-blue-100 text-blue-700' if h.jenis_tiket == 'Pemindahan' else
+                'bg-amber-100 text-amber-700' if h.jenis_tiket == 'Maintenance' else
+                'bg-indigo-100 text-indigo-700'
+              }}">{{ h.jenis_tiket if h.jenis_tiket else 'Aktivitas' }}</span>
+            </div>
+            <p class="text-sm text-slate-700 truncate">
+              {% if h.link %}
+              <a href="{{ h.link }}" class="text-indigo-600 hover:text-indigo-700 hover:underline">{{ h.catatan or h.deskripsi or '-' }}</a>
+              {% else %}
               {{ h.catatan or h.deskripsi or '-' }}
-            </a>
-            {% else %}
-            {{ h.catatan or h.deskripsi or '-' }}
-            {% endif %}
-          </p>
+              {% endif %}
+            </p>
+          </div>
+          {% if h.link %}
+          <a href="{{ h.link }}" class="shrink-0 text-slate-300 hover:text-indigo-600">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+          </a>
+          {% endif %}
         </div>
-
-        <!-- Link arrow -->
-        {% if h.link %}
-        <a href="{{ h.link }}" class="shrink-0 text-slate-300 hover:text-indigo-600 self-center">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-          </svg>
-        </a>
-        {% endif %}
-      </div>
-      {% else %}
-      <div class="py-10 text-center">
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"
-          class="mx-auto text-slate-300 mb-2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <p class="text-sm text-slate-400">Belum ada history aktivitas.</p>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <!-- USER: Tampilkan Ringkasan Aset -->
-    <div class="space-y-4">
-      <div class="flex items-center gap-3 mb-3">
-        <span class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
-          </svg>
-        </span>
-        <div>
-          <p class="text-sm font-semibold text-slate-700">Ringkasan Aset</p>
-          <p class="text-xs text-slate-400">Informasi terkini data aset perusahaan</p>
+        {% else %}
+        <div class="py-8 text-center">
+          <p class="text-sm text-slate-400">Belum ada aktivitas.</p>
         </div>
-      </div>
-
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div class="bg-slate-50 rounded-xl p-3 text-center">
-          <p class="text-xs text-slate-400">CAPEX</p>
-          <p class="text-lg font-bold text-violet-600">{{ total_capex or 0 }}</p>
-        </div>
-        <div class="bg-slate-50 rounded-xl p-3 text-center">
-          <p class="text-xs text-slate-400">OPEX</p>
-          <p class="text-lg font-bold text-sky-600">{{ total_opex or 0 }}</p>
-        </div>
-        <div class="bg-slate-50 rounded-xl p-3 text-center">
-          <p class="text-xs text-slate-400">Total Aset</p>
-          <p class="text-lg font-bold text-indigo-600">{{ total_aset }}</p>
-        </div>
-      </div>
-
-      <div class="bg-slate-50 rounded-xl p-3 flex items-center justify-between">
-        <div>
-          <p class="text-xs text-slate-400">Aset dengan Status Rusak</p>
-          <p class="text-sm font-semibold text-rose-600">{{ total_rusak }} aset</p>
-        </div>
-        <a href="{{ url_for('aset_list') }}?status=Rusak"
-          class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Lihat &rarr;</a>
-      </div>
-
-      <div class="bg-slate-50 rounded-xl p-3 flex items-center justify-between">
-        <div>
-          <p class="text-xs text-slate-400">Kategori Terbanyak</p>
-          <p class="text-sm font-semibold text-slate-700">
-            {% if kategori_terbanyak %}
-            {{ kategori_terbanyak.nama }} ({{ kategori_terbanyak.jumlah }} aset)
-            {% else %}
-            -
-            {% endif %}
-          </p>
-        </div>
-        <a href="{{ url_for('aset_list') }}" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Lihat
-          semua &rarr;</a>
+        {% endfor %}
       </div>
     </div>
-    {% endif %}
   </div>
+
+  <!-- 2. History Maintenance -->
+  <div class="card p-4 flex flex-col">
+    <div class="flex items-center justify-between mb-2">
+      <p class="text-sm font-semibold text-slate-700">🛠️ History Maintenance</p>
+      <div class="flex items-center gap-1">
+        <a href="{{ url_for('history_list', filter='Maintenance') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat semua →</a>
+        <button type="button" onclick="toggleCard('historyMaintenanceBody', 'historyMaintenanceIcon')"
+          class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+          <svg id="historyMaintenanceIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="transition-transform duration-300">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div id="historyMaintenanceBody" class="overflow-hidden transition-all duration-300 ease-in-out" style="max-height: 18rem; opacity: 1;">
+      <div class="space-y-1.5 max-h-[16rem] overflow-y-auto pr-1">
+        {% for mt in maintenance_terbaru %}
+        <div class="flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-slate-50 transition-all border border-slate-100/60">
+          <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-amber-100 text-amber-600">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L1.5 3l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"/></svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-1 text-xs">
+              <span class="font-medium text-slate-500">{{ mt.tanggal_mulai.strftime('%d-%m-%Y') if mt.tanggal_mulai else '-' }}</span>
+              <span class="text-slate-300">•</span>
+              <span class="font-medium text-slate-600">{{ mt.aset.nama if mt.aset else '-' }}</span>
+              <span class="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-700">{{ mt.tipe }}</span>
+            </div>
+            <p class="text-sm text-slate-700 truncate">
+              <a href="{{ url_for('maintenance_list') }}" class="text-indigo-600 hover:text-indigo-700 hover:underline">{{ mt.judul }}</a>
+            </p>
+          </div>
+          <a href="{{ url_for('maintenance_list') }}" class="shrink-0 text-slate-300 hover:text-indigo-600">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+          </a>
+        </div>
+        {% else %}
+        <div class="py-8 text-center">
+          <p class="text-sm text-slate-400">Belum ada maintenance.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. History Pemindahan -->
+  <div class="card p-4 flex flex-col">
+    <div class="flex items-center justify-between mb-2">
+      <p class="text-sm font-semibold text-slate-700">📦 History Pemindahan</p>
+      <div class="flex items-center gap-1">
+        <a href="{{ url_for('history_list', filter='Pemindahan') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat semua →</a>
+        <button type="button" onclick="toggleCard('historyPemindahanBody', 'historyPemindahanIcon')"
+          class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+          <svg id="historyPemindahanIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="transition-transform duration-300">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div id="historyPemindahanBody" class="overflow-hidden transition-all duration-300 ease-in-out" style="max-height: 18rem; opacity: 1;">
+      <div class="space-y-1.5 max-h-[16rem] overflow-y-auto pr-1">
+        {% for p in pemindahan_terbaru %}
+        <div class="flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-slate-50 transition-all border border-slate-100/60">
+          <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-blue-100 text-blue-600">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-1 text-xs">
+              <span class="font-medium text-slate-500">{{ p.created_at.strftime('%d-%m-%Y %H:%M') if p.created_at else '-' }}</span>
+              <span class="text-slate-300">•</span>
+              <span class="font-medium text-slate-600">{{ p.nama_pemohon or 'System' }}</span>
+            </div>
+            <p class="text-sm text-slate-700 truncate">
+              <a href="{{ url_for('history_detail', tiket_id=p.id) }}" class="text-indigo-600 hover:text-indigo-700 hover:underline">
+                {{ p.gedung_asal or '-' }}{% if p.lantai_asal %} / L{{ p.lantai_asal }}{% endif %}{% if p.ruangan_asal %} / {{ p.ruangan_asal }}{% endif %}
+                →
+                {{ p.gedung_tujuan or '-' }}{% if p.lantai_tujuan %} / L{{ p.lantai_tujuan }}{% endif %}{% if p.ruangan_tujuan %} / {{ p.ruangan_tujuan }}{% endif %}
+              </a>
+            </p>
+          </div>
+          <a href="{{ url_for('history_detail', tiket_id=p.id) }}" class="shrink-0 text-slate-300 hover:text-indigo-600">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+          </a>
+        </div>
+        {% else %}
+        <div class="py-8 text-center">
+          <p class="text-sm text-slate-400">Belum ada pemindahan.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
 </div>
+{% endif %}
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-  {% if chart_labels %}
-  new Chart(document.getElementById('kategoriChart'), {
-    type: 'doughnut',
-    data: {
-      labels: {{ chart_labels | tojson }},
-    datasets: [{
-      data: {{ chart_values | tojson }},
-    backgroundColor: ['#4f46e5', '#0ea5e9', '#f59e0b', '#10b981', '#f43f5e', '#8b5cf6', '#0d9488'],
-    borderWidth: 0,
-    }]
-  },
-    options: {
-    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14, font: { size: 11, family: 'Inter' } } } },
-    cutout: '65%',
+// ============================================================
+// FUNGSI TOGGLE COLLAPSE (INDEPENDEN UNTUK SETIAP CARD)
+// ============================================================
+function toggleCard(bodyId, iconId) {
+  const body = document.getElementById(bodyId);
+  const icon = document.getElementById(iconId);
+  if (!body) return;
+
+  const isCollapsed = body.style.maxHeight === '0px' || body.classList.contains('is-collapsed');
+
+  if (isCollapsed) {
+    // Expand
+    body.style.maxHeight = '18rem';
+    body.style.opacity = '1';
+    body.style.marginTop = '';
+    body.classList.remove('is-collapsed');
+    if (icon) icon.style.transform = 'rotate(0deg)';
+  } else {
+    // Collapse
+    body.style.maxHeight = '0px';
+    body.style.opacity = '0';
+    body.style.marginTop = '-0.5rem';
+    body.classList.add('is-collapsed');
+    if (icon) icon.style.transform = 'rotate(-90deg)';
   }
-});
-  {% endif %}
+}
 </script>
 {% endblock %}

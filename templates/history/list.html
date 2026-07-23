@@ -2,30 +2,39 @@
 {% extends "base.html" %}
 {% block title %}History{% endblock %}
 {% block header %}History / Log Aktivitas{% endblock %}
-{% block subheader %}<p class="text-xs text-slate-400">{{ pagination.total if pagination else 0 }} kejadian tercatat</p>{% endblock %}
+{% block subheader %}<p class="text-xs text-slate-400">{{ pagination.total if pagination else 0 }} kejadian tercatat</p>
+{% endblock %}
 {% block content %}
 
 <div class="card">
   <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
     <div class="flex flex-wrap gap-2">
       <span class="text-xs font-medium text-slate-500 self-center">Filter:</span>
-      <select name="filter_jenis" id="filterJenis" onchange="applyFilter()" class="field-input w-full sm:w-40">
+      <select name="filter" id="filterJenis" onchange="applyFilter(this.value)" class="field-input w-full sm:w-48">
         <option value="">Semua</option>
-        <option value="Tiket">Tiket</option>
-        <option value="Aktivitas">Aktivitas Admin</option>
+        <option value="Pemindahan" {{ 'selected' if filter_terpilih=='Pemindahan' }}>Pemindahan</option>
+        <option value="Kerusakan" {{ 'selected' if filter_terpilih=='Kerusakan' }}>Kerusakan</option>
+        <option value="Maintenance" {{ 'selected' if filter_terpilih=='Maintenance' }}>Maintenance</option>
+        <option value="Aktivitas" {{ 'selected' if filter_terpilih=='Aktivitas' }}>Aktivitas Admin</option>
       </select>
-      <input type="text" id="filterSearch" placeholder="Cari..." class="field-input w-full sm:w-48" onkeyup="applyFilter()">
+      <input type="text" id="filterSearch" placeholder="Cari..." class="field-input w-full sm:w-48"
+        onkeyup="applyFilter()">
       <button onclick="resetFilter()" class="btn btn-secondary btn-sm">Reset</button>
     </div>
-    
+
     {% if current_user.role == 'admin' %}
     <div class="flex flex-wrap gap-2">
       <button onclick="openModal('modalPemindahan')" class="btn btn-primary">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
         Pemindahan
       </button>
-      <button onclick="openModal('modalKerusakan')" class="btn" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+      <button onclick="openModal('modalKerusakan')" class="btn"
+        style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
         Kerusakan
       </button>
     </div>
@@ -33,87 +42,121 @@
   </div>
 
   <!-- Timeline / Daftar Kejadian -->
-    <div class="divide-y divide-slate-100">
+  <div class="divide-y divide-slate-100">
     {% for h in daftar_history %}
-    <div class="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50 transition-all event-item" 
-        data-jenis="{{ h.jenis }}" data-search="{{ h.detail|lower }} {{ h.pelaku|lower }} {{ h.aksi|lower }}">
-        <!-- Icon / Warna -->
-        <span class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 {{ h.warna }}">
+    <div class="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50 transition-all event-item"
+      data-jenis="{{ h.jenis }}" data-aksi="{{ h.aksi }}" data-search="{{ h.detail|lower }} {{ h.pelaku|lower }} {{ h.aksi|lower }}">
+      <!-- Icon / Warna -->
+      <span class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 {{ h.warna }}">
         {% if h.jenis == 'Tiket' and h.aksi == 'Pemindahan' %}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
         {% elif h.jenis == 'Tiket' and h.aksi == 'Kerusakan' %}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
         {% elif h.aksi == 'Tambah Aset' %}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
         {% elif h.aksi == 'Edit Aset' %}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+        </svg>
         {% elif h.aksi == 'Hapus Aset' %}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+        </svg>
         {% elif h.aksi == 'Pemindahan Aset' %}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
         {% else %}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
         {% endif %}
-        </span>
-        
-        <!-- Konten -->
-        <div class="flex-1 min-w-0">
+      </span>
+
+      <!-- Konten -->
+      <div class="flex-1 min-w-0">
         <div class="flex flex-wrap items-center gap-2">
-            <span class="text-xs font-medium text-slate-400">{{ h.waktu.strftime('%d-%m-%Y %H:%M') }}</span>
-            <span class="text-xs font-medium text-slate-500">• {{ h.pelaku }}</span>
-            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold {{ h.warna }}">
+          <span class="text-xs font-medium text-slate-400">{{ h.waktu.strftime('%d-%m-%Y %H:%M') }}</span>
+          <span class="text-xs font-medium text-slate-500">• {{ h.pelaku }}</span>
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold {{ h.warna }}">
             {{ h.jenis }}
-            </span>
-            <!-- HAPUS STATUS -->
+          </span>
+          <!-- HAPUS STATUS -->
         </div>
         <div class="flex flex-wrap items-center gap-1 mt-0.5">
-            <span class="text-sm font-semibold text-slate-700">{{ h.aksi }}</span>
-            <span class="text-sm text-slate-500">—</span>
-            <span class="text-sm text-slate-600">
+          <span class="text-sm font-semibold text-slate-700">{{ h.aksi }}</span>
+          <span class="text-sm text-slate-500">—</span>
+          <span class="text-sm text-slate-600">
             {% if h.link %}
-                <a href="{{ h.link }}" class="text-indigo-600 hover:text-indigo-700 hover:underline">{{ h.detail }}</a>
+            <a href="{{ h.link }}" class="text-indigo-600 hover:text-indigo-700 hover:underline">{{ h.detail }}</a>
             {% else %}
-                {{ h.detail }}
+            {{ h.detail }}
             {% endif %}
-            </span>
+          </span>
         </div>
-        </div>
-        
-        <!-- Link -->
-        {% if h.link %}
-        <a href="{{ h.link }}" class="shrink-0 text-slate-400 hover:text-indigo-600 self-center">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
-        </a>
-        {% endif %}
+      </div>
+
+      <!-- Link -->
+      {% if h.link %}
+      <a href="{{ h.link }}" class="shrink-0 text-slate-400 hover:text-indigo-600 self-center">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        </svg>
+      </a>
+      {% endif %}
     </div>
     {% else %}
     <div class="py-14 text-center">
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" class="mx-auto text-slate-300 mb-2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        <p class="text-sm text-slate-400">Belum ada history atau aktivitas.</p>
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"
+        class="mx-auto text-slate-300 mb-2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <p class="text-sm text-slate-400">Belum ada history atau aktivitas.</p>
     </div>
     {% endfor %}
-    </div>
+  </div>
 
   <!-- Pagination -->
   {% if pagination and pagination.pages > 1 %}
-  <div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-100 text-xs text-slate-500">
-    <span>Menampilkan {{ ((pagination.page - 1) * pagination.per_page) + 1 }} - {{ [pagination.page * pagination.per_page, pagination.total] | min }} dari {{ pagination.total }}</span>
+  <div
+    class="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-100 text-xs text-slate-500">
+    <span>Menampilkan {{ ((pagination.page - 1) * pagination.per_page) + 1 }} - {{ [pagination.page *
+      pagination.per_page, pagination.total] | min }} dari {{ pagination.total }}</span>
     <div class="flex items-center gap-1.5">
       {% if pagination.has_prev %}
-      <a href="{{ url_for('history_list', page=1) }}" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400"><<</a>
-      <a href="{{ url_for('history_list', page=pagination.prev_num) }}" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600"><</a>
-      {% endif %}
-      {% for p in range([pagination.page-2, 1]|max, [pagination.page+2, pagination.pages]|min + 1) %}
-        {% if p == pagination.page %}
-        <span class="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-xs">{{ p }}</span>
-        {% else %}
-        <a href="{{ url_for('history_list', page=p) }}" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500 text-xs">{{ p }}</a>
-        {% endif %}
-      {% endfor %}
-      {% if pagination.has_next %}
-      <a href="{{ url_for('history_list', page=pagination.next_num) }}" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600">></a>
-      <a href="{{ url_for('history_list', page=pagination.pages) }}" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400">>></a>
-      {% endif %}
+      <a href="{{ url_for('history_list', page=1) }}"
+        class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400">
+        <<< /a>
+          <a href="{{ url_for('history_list', page=pagination.prev_num) }}"
+            class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600">
+            << /a>
+              {% endif %}
+              {% for p in range([pagination.page-2, 1]|max, [pagination.page+2, pagination.pages]|min + 1) %}
+              {% if p == pagination.page %}
+              <span
+                class="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-xs">{{
+                p }}</span>
+              {% else %}
+              <a href="{{ url_for('history_list', page=p) }}"
+                class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500 text-xs">{{
+                p }}</a>
+              {% endif %}
+              {% endfor %}
+              {% if pagination.has_next %}
+              <a href="{{ url_for('history_list', page=pagination.next_num) }}"
+                class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-600">></a>
+              <a href="{{ url_for('history_list', page=pagination.pages) }}"
+                class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400">>></a>
+              {% endif %}
     </div>
   </div>
   {% endif %}
@@ -127,22 +170,26 @@
     <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
       <h2 class="font-display font-bold text-slate-800">Pindahkan Aset</h2>
       <button onclick="closeModal('modalPemindahan')" class="text-slate-400 hover:text-slate-600">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
       </button>
     </div>
-    <form method="POST" action="{{ url_for('tiket_create_pemindahan') }}" enctype="multipart/form-data" class="p-5 space-y-3.5">
+    <form method="POST" action="{{ url_for('tiket_create_pemindahan') }}" enctype="multipart/form-data"
+      class="p-5 space-y-3.5">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      
+
       <div>
         <label class="field-label">Nama Pemohon</label>
         <input name="nama_pemohon" required placeholder="Nama pengaju" class="field-input">
       </div>
-      
+
       <p class="text-xs font-semibold text-slate-500 pt-1">📍 Lokasi Asal</p>
       <div class="grid grid-cols-3 gap-2">
         <div>
           <label class="field-label text-[10px]">Gedung</label>
-          <select name="gedung_asal" id="pindah_gedung_asal" required class="field-input text-sm" onchange="loadLantai(this.value, 'pindah_lantai_asal', 'pindah_ruangan_asal', 'pindah_aset_list')">
+          <select name="gedung_asal" id="pindah_gedung_asal" required class="field-input text-sm"
+            onchange="loadLantai(this.value, 'pindah_lantai_asal', 'pindah_ruangan_asal', 'pindah_aset_list')">
             <option value="">Pilih</option>
             {% for g in gedung_all %}
             <option value="{{ g }}">{{ g }}</option>
@@ -151,23 +198,26 @@
         </div>
         <div>
           <label class="field-label text-[10px]">Lantai</label>
-          <select name="lantai_asal" id="pindah_lantai_asal" class="field-input text-sm" onchange="loadRuanganByGedungLantai('pindah_gedung_asal', 'pindah_lantai_asal', 'pindah_ruangan_asal', 'pindah_aset_list')">
+          <select name="lantai_asal" id="pindah_lantai_asal" class="field-input text-sm"
+            onchange="loadRuanganByGedungLantai('pindah_gedung_asal', 'pindah_lantai_asal', 'pindah_ruangan_asal', 'pindah_aset_list')">
             <option value="">Pilih</option>
           </select>
         </div>
         <div>
           <label class="field-label text-[10px]">Ruangan</label>
-          <select name="ruangan_asal" id="pindah_ruangan_asal" class="field-input text-sm" onchange="loadAsetByLokasi('pindah_gedung_asal', 'pindah_lantai_asal', 'pindah_ruangan_asal', 'pindah_aset_list')">
+          <select name="ruangan_asal" id="pindah_ruangan_asal" class="field-input text-sm"
+            onchange="loadAsetByLokasi('pindah_gedung_asal', 'pindah_lantai_asal', 'pindah_ruangan_asal', 'pindah_aset_list')">
             <option value="">Pilih</option>
           </select>
         </div>
       </div>
-      
+
       <p class="text-xs font-semibold text-slate-500 pt-1">🎯 Lokasi Tujuan</p>
       <div class="grid grid-cols-3 gap-2">
         <div>
           <label class="field-label text-[10px]">Gedung</label>
-          <select name="gedung_tujuan" id="pindah_gedung_tujuan" required class="field-input text-sm" onchange="loadLantai(this.value, 'pindah_lantai_tujuan', 'pindah_ruangan_tujuan', null)">
+          <select name="gedung_tujuan" id="pindah_gedung_tujuan" required class="field-input text-sm"
+            onchange="loadLantai(this.value, 'pindah_lantai_tujuan', 'pindah_ruangan_tujuan', null)">
             <option value="">Pilih</option>
             {% for g in gedung_all %}
             <option value="{{ g }}">{{ g }}</option>
@@ -176,7 +226,8 @@
         </div>
         <div>
           <label class="field-label text-[10px]">Lantai</label>
-          <select name="lantai_tujuan" id="pindah_lantai_tujuan" class="field-input text-sm" onchange="loadRuanganByGedungLantai('pindah_gedung_tujuan', 'pindah_lantai_tujuan', 'pindah_ruangan_tujuan', null)">
+          <select name="lantai_tujuan" id="pindah_lantai_tujuan" class="field-input text-sm"
+            onchange="loadRuanganByGedungLantai('pindah_gedung_tujuan', 'pindah_lantai_tujuan', 'pindah_ruangan_tujuan', null)">
             <option value="">Pilih</option>
           </select>
         </div>
@@ -187,24 +238,26 @@
           </select>
         </div>
       </div>
-      
+
       <div>
         <label class="field-label">Pilih Aset</label>
-        <div id="pindah_aset_list" class="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2.5 space-y-1.5">
+        <div id="pindah_aset_list"
+          class="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2.5 space-y-1.5">
           <p class="text-xs text-slate-400">Pilih lokasi asal terlebih dahulu</p>
         </div>
       </div>
-      
+
       <div>
         <label class="field-label">Catatan</label>
         <textarea name="catatan" rows="2" class="field-input"></textarea>
       </div>
-      
+
       <div>
         <label class="field-label">Upload Foto</label>
-        <input type="file" name="foto" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
+        <input type="file" name="foto" accept="image/*"
+          class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
       </div>
-      
+
       <button type="submit" class="btn btn-primary w-full py-2.5">Pindahkan Aset</button>
     </form>
   </div>
@@ -218,23 +271,27 @@
     <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
       <h2 class="font-display font-bold text-slate-800">Lapor Kerusakan</h2>
       <button onclick="closeModal('modalKerusakan')" class="text-slate-400 hover:text-slate-600">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
       </button>
     </div>
-    <form method="POST" action="{{ url_for('tiket_create_kerusakan') }}" enctype="multipart/form-data" class="p-5 space-y-3.5">
+    <form method="POST" action="{{ url_for('tiket_create_kerusakan') }}" enctype="multipart/form-data"
+      class="p-5 space-y-3.5">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      
+
       <div>
         <label class="field-label">Nama Pemohon</label>
         <input name="nama_pemohon" required placeholder="Nama pengaju" class="field-input">
       </div>
-      
+
       <div>
         <label class="field-label">Lokasi Aset</label>
         <div class="grid grid-cols-3 gap-2">
           <div>
             <label class="field-label text-[10px]">Gedung</label>
-            <select name="gedung_asal" id="rusak_gedung_asal" required class="field-input text-sm" onchange="loadLantai(this.value, 'rusak_lantai_asal', 'rusak_ruangan_asal', 'rusak_aset_list')">
+            <select name="gedung_asal" id="rusak_gedung_asal" required class="field-input text-sm"
+              onchange="loadLantai(this.value, 'rusak_lantai_asal', 'rusak_ruangan_asal', 'rusak_aset_list')">
               <option value="">Pilih</option>
               {% for g in gedung_all %}
               <option value="{{ g }}">{{ g }}</option>
@@ -243,37 +300,41 @@
           </div>
           <div>
             <label class="field-label text-[10px]">Lantai</label>
-            <select name="lantai_asal" id="rusak_lantai_asal" class="field-input text-sm" onchange="loadRuanganByGedungLantai('rusak_gedung_asal', 'rusak_lantai_asal', 'rusak_ruangan_asal', 'rusak_aset_list')">
+            <select name="lantai_asal" id="rusak_lantai_asal" class="field-input text-sm"
+              onchange="loadRuanganByGedungLantai('rusak_gedung_asal', 'rusak_lantai_asal', 'rusak_ruangan_asal', 'rusak_aset_list')">
               <option value="">Pilih</option>
             </select>
           </div>
           <div>
             <label class="field-label text-[10px]">Ruangan</label>
-            <select name="ruangan_asal" id="rusak_ruangan_asal" class="field-input text-sm" onchange="loadAsetByLokasi('rusak_gedung_asal', 'rusak_lantai_asal', 'rusak_ruangan_asal', 'rusak_aset_list')">
+            <select name="ruangan_asal" id="rusak_ruangan_asal" class="field-input text-sm"
+              onchange="loadAsetByLokasi('rusak_gedung_asal', 'rusak_lantai_asal', 'rusak_ruangan_asal', 'rusak_aset_list')">
               <option value="">Pilih</option>
             </select>
           </div>
         </div>
       </div>
-      
+
       <div>
         <label class="field-label">Pilih Aset</label>
         <div id="rusak_aset_list" class="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2.5 space-y-1.5">
           <p class="text-xs text-slate-400">Pilih lokasi aset terlebih dahulu</p>
         </div>
       </div>
-      
+
       <div>
         <label class="field-label">Catatan</label>
         <textarea name="catatan" rows="2" class="field-input"></textarea>
       </div>
-      
+
       <div>
         <label class="field-label">Upload Foto</label>
-        <input type="file" name="foto" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
+        <input type="file" name="foto" accept="image/*"
+          class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
       </div>
-      
-      <button type="submit" class="btn w-full py-2.5" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Kirim Laporan Kerusakan</button>
+
+      <button type="submit" class="btn w-full py-2.5"
+        style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Kirim Laporan Kerusakan</button>
     </form>
   </div>
 </div>
@@ -282,119 +343,138 @@
 
 {% block scripts %}
 <script>
-// =============================================================
-// FILTER JS UNTUK TIMELINE
-// =============================================================
-function applyFilter() {
-  const jenis = document.getElementById('filterJenis').value;
-  const search = document.getElementById('filterSearch').value.toLowerCase();
-  const items = document.querySelectorAll('.event-item');
-  
-  items.forEach(item => {
-    const itemJenis = item.dataset.jenis;
-    const itemSearch = item.dataset.search;
-    let show = true;
-    
-    if (jenis && itemJenis !== jenis) show = false;
-    if (search && !itemSearch.includes(search)) show = false;
-    
-    item.style.display = show ? 'flex' : 'none';
-  });
-}
+  // =============================================================
+  // FILTER HISTORY
+  // =============================================================
+  function applyFilter(value) {
+    const items = document.querySelectorAll('.event-item');
+    const filterValue = value || document.getElementById('filterJenis').value;
 
-function resetFilter() {
-  document.getElementById('filterJenis').value = '';
-  document.getElementById('filterSearch').value = '';
-  applyFilter();
-}
+    items.forEach(item => {
+      const jenis = item.dataset.jenis;
+      const aksi = item.dataset.aksi;
+      let show = true;
 
-// =============================================================
-// FUNGSI DROPDOWN DINAMIS (sama seperti sebelumnya)
-// =============================================================
-function loadLantai(gedung, lantaiTargetId, ruanganTargetId, asetTargetId) {
-  const lantaiEl = document.getElementById(lantaiTargetId);
-  if (!lantaiEl) return;
-  if (!gedung) {
-    lantaiEl.innerHTML = '<option value="">Pilih Gedung</option>';
-    if (ruanganTargetId) document.getElementById(ruanganTargetId).innerHTML = '<option value="">Pilih Gedung dulu</option>';
-    return;
-  }
-  fetch(`/api/lantai?gedung=${encodeURIComponent(gedung)}`)
-    .then(res => res.json())
-    .then(data => {
-      lantaiEl.innerHTML = '<option value="">Pilih Lantai</option>';
-      data.forEach(lt => {
-        const opt = document.createElement('option');
-        opt.value = lt;
-        opt.textContent = `Lantai ${lt}`;
-        lantaiEl.appendChild(opt);
-      });
-      if (ruanganTargetId) document.getElementById(ruanganTargetId).innerHTML = '<option value="">Pilih Lantai dulu</option>';
-      if (asetTargetId) document.getElementById(asetTargetId).innerHTML = '<p class="text-xs text-slate-400">Pilih lokasi terlebih dahulu</p>';
-    });
-}
-
-function loadRuanganByGedungLantai(gedungId, lantaiId, ruanganTargetId, asetTargetId) {
-  const gedungEl = document.getElementById(gedungId);
-  const lantaiEl = document.getElementById(lantaiId);
-  const ruanganEl = document.getElementById(ruanganTargetId);
-  if (!ruanganEl || !gedungEl) return;
-  const gedung = gedungEl.value;
-  const lantai = lantaiEl ? lantaiEl.value : '';
-  if (!gedung) {
-    ruanganEl.innerHTML = '<option value="">Pilih Gedung</option>';
-    return;
-  }
-  let url = `/api/ruangan?gedung=${encodeURIComponent(gedung)}`;
-  if (lantai) url += `&lantai=${encodeURIComponent(lantai)}`;
-  fetch(url)
-    .then(res => res.json())
-    .then(data => {
-      ruanganEl.innerHTML = '<option value="">Pilih Ruangan</option>';
-      data.forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = r;
-        opt.textContent = r;
-        ruanganEl.appendChild(opt);
-      });
-      if (asetTargetId) document.getElementById(asetTargetId).innerHTML = '<p class="text-xs text-slate-400">Pilih ruangan terlebih dahulu</p>';
-    });
-}
-
-function loadAsetByLokasi(gedungId, lantaiId, ruanganId, asetTargetId) {
-  const gedungEl = document.getElementById(gedungId);
-  const lantaiEl = document.getElementById(lantaiId);
-  const ruanganEl = document.getElementById(ruanganId);
-  const asetEl = document.getElementById(asetTargetId);
-  if (!asetEl || !gedungEl) return;
-  const gedung = gedungEl.value;
-  const lantai = lantaiEl ? lantaiEl.value : '';
-  const ruangan = ruanganEl ? ruanganEl.value : '';
-  if (!gedung || !ruangan) {
-    asetEl.innerHTML = '<p class="text-xs text-slate-400">Pilih ruangan terlebih dahulu</p>';
-    return;
-  }
-  let url = `/api/aset-by-lokasi?gedung=${encodeURIComponent(gedung)}`;
-  if (lantai) url += `&lantai=${encodeURIComponent(lantai)}`;
-  if (ruangan) url += `&ruangan=${encodeURIComponent(ruangan)}`;
-  fetch(url)
-    .then(res => res.json())
-    .then(data => {
-      if (data.length === 0) {
-        asetEl.innerHTML = '<p class="text-xs text-slate-400">Tidak ada aset di lokasi ini</p>';
-        return;
+      if (filterValue) {
+        if (filterValue === 'Pemindahan' || filterValue === 'Kerusakan') {
+          // Filter berdasarkan aksi (Pemindahan/Kerusakan)
+          show = (aksi === filterValue);
+        } else {
+          // Filter berdasarkan jenis (Maintenance/Aktivitas)
+          show = (jenis === filterValue);
+        }
       }
-      asetEl.innerHTML = '';
-      data.forEach(a => {
-        const label = document.createElement('label');
-        label.className = 'flex items-center gap-2 text-sm text-slate-600 px-1.5 py-1 rounded-lg hover:bg-slate-50';
-        label.innerHTML = `
+
+      item.style.display = show ? 'flex' : 'none';
+    });
+  }
+
+  // Jalankan filter saat halaman dimuat (jika ada parameter filter)
+  document.addEventListener('DOMContentLoaded', function () {
+    const urlParams = new URLSearchParams(window.location.search);
+    const filterParam = urlParams.get('filter');
+
+    if (filterParam) {
+      const dropdown = document.getElementById('filterJenis');
+      if (dropdown) {
+        dropdown.value = filterParam;
+        applyFilter(filterParam);
+      }
+    }
+  });
+  function resetFilter() {
+    document.getElementById('filterJenis').value = '';
+    document.getElementById('filterSearch').value = '';
+    applyFilter();
+  }
+
+  // =============================================================
+  // FUNGSI DROPDOWN DINAMIS (sama seperti sebelumnya)
+  // =============================================================
+  function loadLantai(gedung, lantaiTargetId, ruanganTargetId, asetTargetId) {
+    const lantaiEl = document.getElementById(lantaiTargetId);
+    if (!lantaiEl) return;
+    if (!gedung) {
+      lantaiEl.innerHTML = '<option value="">Pilih Gedung</option>';
+      if (ruanganTargetId) document.getElementById(ruanganTargetId).innerHTML = '<option value="">Pilih Gedung dulu</option>';
+      return;
+    }
+    fetch(`/api/lantai?gedung=${encodeURIComponent(gedung)}`)
+      .then(res => res.json())
+      .then(data => {
+        lantaiEl.innerHTML = '<option value="">Pilih Lantai</option>';
+        data.forEach(lt => {
+          const opt = document.createElement('option');
+          opt.value = lt;
+          opt.textContent = `Lantai ${lt}`;
+          lantaiEl.appendChild(opt);
+        });
+        if (ruanganTargetId) document.getElementById(ruanganTargetId).innerHTML = '<option value="">Pilih Lantai dulu</option>';
+        if (asetTargetId) document.getElementById(asetTargetId).innerHTML = '<p class="text-xs text-slate-400">Pilih lokasi terlebih dahulu</p>';
+      });
+  }
+
+  function loadRuanganByGedungLantai(gedungId, lantaiId, ruanganTargetId, asetTargetId) {
+    const gedungEl = document.getElementById(gedungId);
+    const lantaiEl = document.getElementById(lantaiId);
+    const ruanganEl = document.getElementById(ruanganTargetId);
+    if (!ruanganEl || !gedungEl) return;
+    const gedung = gedungEl.value;
+    const lantai = lantaiEl ? lantaiEl.value : '';
+    if (!gedung) {
+      ruanganEl.innerHTML = '<option value="">Pilih Gedung</option>';
+      return;
+    }
+    let url = `/api/ruangan?gedung=${encodeURIComponent(gedung)}`;
+    if (lantai) url += `&lantai=${encodeURIComponent(lantai)}`;
+    fetch(url)
+      .then(res => res.json())
+      .then(data => {
+        ruanganEl.innerHTML = '<option value="">Pilih Ruangan</option>';
+        data.forEach(r => {
+          const opt = document.createElement('option');
+          opt.value = r;
+          opt.textContent = r;
+          ruanganEl.appendChild(opt);
+        });
+        if (asetTargetId) document.getElementById(asetTargetId).innerHTML = '<p class="text-xs text-slate-400">Pilih ruangan terlebih dahulu</p>';
+      });
+  }
+
+  function loadAsetByLokasi(gedungId, lantaiId, ruanganId, asetTargetId) {
+    const gedungEl = document.getElementById(gedungId);
+    const lantaiEl = document.getElementById(lantaiId);
+    const ruanganEl = document.getElementById(ruanganId);
+    const asetEl = document.getElementById(asetTargetId);
+    if (!asetEl || !gedungEl) return;
+    const gedung = gedungEl.value;
+    const lantai = lantaiEl ? lantaiEl.value : '';
+    const ruangan = ruanganEl ? ruanganEl.value : '';
+    if (!gedung || !ruangan) {
+      asetEl.innerHTML = '<p class="text-xs text-slate-400">Pilih ruangan terlebih dahulu</p>';
+      return;
+    }
+    let url = `/api/aset-by-lokasi?gedung=${encodeURIComponent(gedung)}`;
+    if (lantai) url += `&lantai=${encodeURIComponent(lantai)}`;
+    if (ruangan) url += `&ruangan=${encodeURIComponent(ruangan)}`;
+    fetch(url)
+      .then(res => res.json())
+      .then(data => {
+        if (data.length === 0) {
+          asetEl.innerHTML = '<p class="text-xs text-slate-400">Tidak ada aset di lokasi ini</p>';
+          return;
+        }
+        asetEl.innerHTML = '';
+        data.forEach(a => {
+          const label = document.createElement('label');
+          label.className = 'flex items-center gap-2 text-sm text-slate-600 px-1.5 py-1 rounded-lg hover:bg-slate-50';
+          label.innerHTML = `
           <input type="checkbox" name="aset_ids[]" value="${a.id}" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
           <span class="font-mono text-[11px] text-slate-400">${a.kode}</span> ${a.nama}
         `;
-        asetEl.appendChild(label);
+          asetEl.appendChild(label);
+        });
       });
-    });
-}
+  }
 </script>
 {% endblock %}

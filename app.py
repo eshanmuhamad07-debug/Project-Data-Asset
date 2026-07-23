@@ -22,7 +22,7 @@ import re
 from extensions import db, login_manager, csrf, limiter
 from models import (
     User, Kategori, Aset, Tiket, TiketAset,
-    LogStatus, HistoriAset, AktivitasLog 
+    LogStatus, HistoriAset, AktivitasLog, Maintenance
 )
 from roles import ROLE_ADMIN
 
@@ -286,6 +286,9 @@ def dashboard():
     # Untuk user: statistik CAPEX/OPEX
     total_capex = Aset.query.filter_by(tipe_aset="CAPEX").count()
     total_opex = Aset.query.filter_by(tipe_aset="OPEX").count()
+
+    total_maintenance = Maintenance.query.count()
+    total_pemindahan = Tiket.query.filter_by(jenis_tiket="Pemindahan").count()
     
     # Kategori terbanyak
     kategori_terbanyak = None
@@ -315,21 +318,22 @@ def dashboard():
     # History terbaru (hanya untuk admin)
     history_terbaru = []
     if current_user.role == ROLE_ADMIN:
-        # Ambil semua event (tiket + aktivitas log) untuk admin
+        # Ambil semua event (tiket + aktivitas log + maintenance) untuk admin
         events = []
-        for t in Tiket.query.order_by(Tiket.created_at.desc()).limit(10).all():
+        for t in Tiket.query.order_by(Tiket.created_at.desc()).limit(15).all():
             events.append({
                 "id": t.id,
                 "jenis_tiket": t.jenis_tiket,
                 "nama_pemohon": t.nama_pemohon,
                 "catatan": t.catatan[:50] if t.catatan else "-",
                 "created_at": t.created_at,
-                "is_tiket": True
+                "is_tiket": True,
+                "link": url_for("history_detail", tiket_id=t.id),
             })
-        
-        # Gabungkan dengan aktivitas log (urutkan berdasarkan waktu)
+
+        # Gabungkan dengan aktivitas log
         from models import AktivitasLog
-        for a in AktivitasLog.query.order_by(AktivitasLog.created_at.desc()).limit(5).all():
+        for a in AktivitasLog.query.order_by(AktivitasLog.created_at.desc()).limit(10).all():
             user = User.query.get(a.id_user)
             events.append({
                 "id": a.id,
@@ -337,24 +341,55 @@ def dashboard():
                 "nama_pemohon": user.name if user else "System",
                 "catatan": a.deskripsi[:50] if a.deskripsi else "-",
                 "created_at": a.created_at,
-                "is_tiket": False
+                "is_tiket": False,
+                "link": url_for("aktivitas_detail", log_id=a.id),
             })
-        
-        # Urutkan berdasarkan waktu terbaru dan ambil 5 teratas
+
+        # Gabungkan dengan riwayat maintenance
+        for mt in Maintenance.query.order_by(Maintenance.created_at.desc()).limit(10).all():
+            events.append({
+                "id": mt.id,
+                "jenis_tiket": "Maintenance",
+                "nama_pemohon": mt.aset.nama if mt.aset else "-",
+                "catatan": mt.judul[:50] if mt.judul else "-",
+                "created_at": mt.created_at,
+                "is_tiket": False,
+                "link": url_for("maintenance_list"),
+            })
+
+        # Urutkan berdasarkan waktu terbaru dan ambil 20 teratas
         events.sort(key=lambda x: x["created_at"], reverse=True)
-        history_terbaru = events[:5]
+        history_terbaru = events[:20]
+
+    # History khusus Maintenance & Pemindahan (kartu terpisah di dashboard)
+    maintenance_terbaru = []
+    pemindahan_terbaru = []
+    if current_user.role == ROLE_ADMIN:
+        maintenance_terbaru = (
+            Maintenance.query.order_by(Maintenance.created_at.desc()).limit(20).all()
+        )
+        pemindahan_terbaru = (
+            Tiket.query.filter_by(jenis_tiket="Pemindahan")
+            .order_by(Tiket.created_at.desc())
+            .limit(20)
+            .all()
+        )
     
     return render_template(
         "dashboard.html",
         total_aset=total_aset,
         total_rusak=total_rusak,
         total_kategori=total_kategori,
+        total_maintenance=total_maintenance,  
+        total_pemindahan=total_pemindahan,
         total_capex=total_capex,
         total_opex=total_opex,
         kategori_terbanyak=kategori_terbanyak,
         chart_labels=chart_labels,
         chart_values=chart_values,
         history_terbaru=history_terbaru,
+        maintenance_terbaru=maintenance_terbaru,
+        pemindahan_terbaru=pemindahan_terbaru,
     )
 
 @app.route("/register", methods=["GET", "POST"])
@@ -534,7 +569,6 @@ def api_aset_by_lokasi():
         filters.append(Aset.ruangan == ruangan)
     hasil = Aset.query.filter(*filters).all()
     return jsonify([{"id": a.id, "kode": a.kode_aset, "nama": a.nama} for a in hasil])
-
 
 @app.route("/aset/create", methods=["POST"])
 @login_required
@@ -1097,67 +1131,95 @@ def kategori_create():
 @login_required
 @role_required(ROLE_ADMIN)
 def history_list():
-    """Halaman history terpadu: tiket + aktivitas admin."""
+    """Halaman history terpadu: tiket + aktivitas admin + maintenance."""
+    filter_jenis = request.args.get("filter", "")
     
-    # Ambil semua tiket
-    tiket_all = Tiket.query.all()
-    # Ambil semua aktivitas log
-    aktivitas_all = AktivitasLog.query.all()
-
-    # Buat list event
     events = []
     
-    # === TAMBAHKAN TIKET (hanya 1 entri per tiket) ===
-    for t in tiket_all:
-        creator_name = "System"
-        if t.created_by:
-            creator = User.query.get(t.created_by)
-            if creator:
-                creator_name = creator.name
-        elif t.log_status:
-            first_log = t.log_status[0]
-            if first_log.user_pengubah:
-                creator_name = first_log.user_pengubah.name
-
-        aset_list = ", ".join([ta.aset.nama for ta in t.aset_terkait[:3]])
-        if len(t.aset_terkait) > 3:
-            aset_list += f" dan {len(t.aset_terkait)-3} lainnya"
-
-        events.append({
-            "id": t.id,
-            "waktu": t.created_at,
-            "pelaku": creator_name,
-            "jenis": "Tiket",
-            "aksi": t.jenis_tiket,  # "Pemindahan" atau "Kerusakan"
-            "detail": f"{t.nama_pemohon} - {aset_list or 'Tidak ada aset'}",
-            "link": url_for("history_detail", tiket_id=t.id),
-            "warna": "bg-rose-100 text-rose-700 border-rose-200" if t.jenis_tiket == "Kerusakan" else "bg-blue-100 text-blue-700 border-blue-200"
-        })
-
-    # === TAMBAHKAN AKTIVITAS ADMIN ===
-    for a in aktivitas_all:
-        user = User.query.get(a.id_user)
-        pelaku = user.name if user else "Unknown"
+    # === 1. TIKET (Pemindahan / Kerusakan) ===
+    if filter_jenis in ["", "Tiket", "Pemindahan", "Kerusakan"]:
+        tiket_query = Tiket.query
+        if filter_jenis == "Pemindahan":
+            tiket_query = tiket_query.filter_by(jenis_tiket="Pemindahan")
+        elif filter_jenis == "Kerusakan":
+            tiket_query = tiket_query.filter_by(jenis_tiket="Kerusakan")
         
-        label_aksi = {
-            "CREATE": "Tambah Aset",
-            "UPDATE": "Edit Aset",
-            "DELETE": "Hapus Aset",
-            "MOVE": "Pemindahan Aset"
-        }.get(a.aksi, a.aksi)
+        for t in tiket_query.order_by(Tiket.created_at.desc()).all():
+            creator_name = "System"
+            if t.created_by:
+                creator = User.query.get(t.created_by)
+                if creator:
+                    creator_name = creator.name
+            elif t.log_status:
+                first_log = t.log_status[0]
+                if first_log.user_pengubah:
+                    creator_name = first_log.user_pengubah.name
 
-        events.append({
-            "id": a.id,
-            "waktu": a.created_at,
-            "pelaku": pelaku,
-            "jenis": "Aktivitas",
-            "aksi": label_aksi,
-            "detail": a.deskripsi or f"{label_aksi} ID {a.target_id}",
-            "link": url_for("aktivitas_detail", log_id=a.id),  # <-- route baru
-            "warna": "bg-indigo-100 text-indigo-700 border-indigo-200" if a.aksi == "CREATE" else "bg-amber-100 text-amber-700 border-amber-200" if a.aksi == "UPDATE" else "bg-rose-100 text-rose-700 border-rose-200" if a.aksi == "DELETE" else "bg-emerald-100 text-emerald-700 border-emerald-200",
-            "data_lama": a.data_lama,
-            "data_baru": a.data_baru
-        })
+            aset_list = ", ".join([ta.aset.nama for ta in t.aset_terkait[:3]])
+            if len(t.aset_terkait) > 3:
+                aset_list += f" dan {len(t.aset_terkait)-3} lainnya"
+
+            events.append({
+                "id": t.id,
+                "waktu": t.created_at,
+                "pelaku": creator_name,
+                "jenis": "Tiket",
+                "aksi": t.jenis_tiket,
+                "detail": f"{t.nama_pemohon} - {aset_list or 'Tidak ada aset'}",
+                "link": url_for("history_detail", tiket_id=t.id),
+                "warna": "bg-rose-100 text-rose-700 border-rose-200" if t.jenis_tiket == "Kerusakan" else "bg-blue-100 text-blue-700 border-blue-200",
+                "is_tiket": True,
+                "is_maintenance": False,
+                "is_aktivitas": False,
+            })
+
+    # === 2. AKTIVITAS ADMIN ===
+    if filter_jenis in ["", "Aktivitas"]:
+        for a in AktivitasLog.query.order_by(AktivitasLog.created_at.desc()).all():
+            user = User.query.get(a.id_user)
+            pelaku = user.name if user else "Unknown"
+            
+            label_aksi = {
+                "CREATE": "Tambah Aset",
+                "UPDATE": "Edit Aset",
+                "DELETE": "Hapus Aset",
+                "MOVE": "Pemindahan Aset"
+            }.get(a.aksi, a.aksi)
+
+            events.append({
+                "id": a.id,
+                "waktu": a.created_at,
+                "pelaku": pelaku,
+                "jenis": "Aktivitas",
+                "aksi": label_aksi,
+                "detail": a.deskripsi or f"{label_aksi} ID {a.target_id}",
+                "link": url_for("aktivitas_detail", log_id=a.id),
+                "warna": "bg-indigo-100 text-indigo-700 border-indigo-200" if a.aksi == "CREATE" else "bg-amber-100 text-amber-700 border-amber-200" if a.aksi == "UPDATE" else "bg-rose-100 text-rose-700 border-rose-200" if a.aksi == "DELETE" else "bg-emerald-100 text-emerald-700 border-emerald-200",
+                "is_tiket": False,
+                "is_maintenance": False,
+                "is_aktivitas": True,
+                "data_lama": a.data_lama,
+                "data_baru": a.data_baru
+            })
+
+    # === 3. MAINTENANCE ===
+    if filter_jenis in ["", "Maintenance"]:
+        for m in Maintenance.query.order_by(Maintenance.created_at.desc()).all():
+            aset = Aset.query.get(m.id_aset)
+            pelaku = m.user.name if m.user else "System"
+            events.append({
+                "id": m.id,
+                "waktu": m.created_at,
+                "pelaku": pelaku,
+                "jenis": "Maintenance",
+                "aksi": "Jadwal Maintenance",
+                "detail": f"{aset.nama if aset else '-'} - {m.judul}",
+                "link": url_for("maintenance_list"),
+                "warna": "bg-emerald-100 text-emerald-700 border-emerald-200",
+                "is_tiket": False,
+                "is_maintenance": True,
+                "is_aktivitas": False,
+            })
 
     # Urutkan berdasarkan waktu terbaru
     events.sort(key=lambda x: x["waktu"], reverse=True)
@@ -1195,6 +1257,7 @@ def history_list():
         daftar_history=daftar_history,
         pagination=pagination,
         gedung_all=gedung_all,
+        filter_terpilih=filter_jenis,
     )
 
 @app.route("/aktivitas/<int:log_id>")
@@ -1390,6 +1453,157 @@ def tiket_create_kerusakan():
     flash(f"Laporan kerusakan berhasil dibuat. {len(aset_ids)} aset ditandai rusak.", "success")
     return redirect(url_for("history_list"))
 
+@app.route("/maintenance")
+@login_required
+@role_required(ROLE_ADMIN)
+def maintenance_list():
+    """Halaman daftar maintenance aset."""
+    kategori = request.args.get("kategori", "")
+    search = request.args.get("search", "").strip()
+    status = request.args.get("status", "")
+    
+    query = Maintenance.query.join(Aset)
+    
+    if kategori:
+        query = query.filter(Maintenance.kategori == kategori)
+    if status:
+        query = query.filter(Maintenance.status == status)
+    if search:
+        query = query.filter(
+            db.or_(
+                Aset.nama.ilike(f"%{search}%"),
+                Aset.kode_aset.ilike(f"%{search}%"),
+                Maintenance.judul.ilike(f"%{search}%")
+            )
+        )
+    
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+    pagination = query.order_by(Maintenance.tanggal_mulai.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    daftar_maintenance = pagination.items
+    aset_all = Aset.query.order_by(Aset.nama).all()
+    
+    return render_template(
+        "maintenance/list.html",
+        daftar_maintenance=daftar_maintenance,
+        pagination=pagination,
+        aset_all=aset_all,
+        kategori_terpilih=kategori,
+        status_terpilih=status,
+        search=search,
+    )
+
+
+@app.route("/maintenance/create", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def maintenance_create():
+    """Tambah jadwal maintenance baru."""
+    id_aset = request.form.get("id_aset")
+    kategori = request.form.get("kategori")
+    judul = request.form.get("judul", "").strip()
+    deskripsi = request.form.get("deskripsi", "").strip()
+    vendor = request.form.get("vendor", "").strip()
+    tipe = request.form.get("tipe", "Preventif")
+    tanggal_mulai_str = request.form.get("tanggal_mulai")
+    tanggal_akhir_str = request.form.get("tanggal_akhir")
+    biaya = request.form.get("biaya", 0)
+    status = request.form.get("status", "Scheduled")
+    
+    if not id_aset or not judul or not tanggal_mulai_str:
+        flash("Nama aset, judul, dan tanggal mulai wajib diisi.", "danger")
+        return redirect(url_for("maintenance_list"))
+    
+    # Validasi aset
+    aset = Aset.query.get(id_aset)
+    if not aset:
+        flash("Aset tidak ditemukan.", "danger")
+        return redirect(url_for("maintenance_list"))
+    
+    # Parse tanggal
+    try:
+        tanggal_mulai = datetime.strptime(tanggal_mulai_str, "%Y-%m-%d").date()
+    except ValueError:
+        flash("Format tanggal mulai tidak valid.", "danger")
+        return redirect(url_for("maintenance_list"))
+    
+    tanggal_akhir = None
+    if tanggal_akhir_str:
+        try:
+            tanggal_akhir = datetime.strptime(tanggal_akhir_str, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    
+    maintenance = Maintenance(
+        id_aset=int(id_aset),
+        kategori=kategori,
+        judul=judul,
+        deskripsi=deskripsi or None,
+        vendor=vendor or None,
+        tipe=tipe,
+        tanggal_mulai=tanggal_mulai,
+        tanggal_akhir=tanggal_akhir,
+        biaya=float(biaya) if biaya else 0,
+        status=status,
+        created_by=current_user.id,
+    )
+    db.session.add(maintenance)
+    
+    # Catat histori aset
+    histori = HistoriAset(
+        id_aset=int(id_aset),
+        jenis_event="maintenance",
+        gedung=aset.gedung,
+        lantai=aset.lantai,
+        ruangan=aset.ruangan,
+        id_tiket=None
+    )
+    db.session.add(histori)
+    
+    db.session.commit()
+    flash("Jadwal maintenance berhasil ditambahkan.", "success")
+    return redirect(url_for("maintenance_list"))
+
+
+@app.route("/maintenance/<int:id>/edit", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def maintenance_edit(id):
+    """Edit jadwal maintenance."""
+    maintenance = Maintenance.query.get_or_404(id)
+    
+    maintenance.judul = request.form.get("judul", "").strip()
+    maintenance.deskripsi = request.form.get("deskripsi", "").strip() or None
+    maintenance.vendor = request.form.get("vendor", "").strip() or None
+    maintenance.tipe = request.form.get("tipe", "Preventif")
+    maintenance.biaya = float(request.form.get("biaya", 0))
+    maintenance.status = request.form.get("status", "Scheduled")
+    
+    tanggal_akhir_str = request.form.get("tanggal_akhir")
+    if tanggal_akhir_str:
+        try:
+            maintenance.tanggal_akhir = datetime.strptime(tanggal_akhir_str, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    
+    db.session.commit()
+    flash("Jadwal maintenance berhasil diperbarui.", "success")
+    return redirect(url_for("maintenance_list"))
+
+
+@app.route("/maintenance/<int:id>/delete", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def maintenance_delete(id):
+    """Hapus jadwal maintenance."""
+    maintenance = Maintenance.query.get_or_404(id)
+    db.session.delete(maintenance)
+    db.session.commit()
+    flash("Jadwal maintenance berhasil dihapus.", "success")
+    return redirect(url_for("maintenance_list"))
 
 # ---------------------------------------------------------------------------
 # USERS (Admin only)
