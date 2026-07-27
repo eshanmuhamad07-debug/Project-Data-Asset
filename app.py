@@ -1,5 +1,6 @@
 import os
 import io
+import json
 from functools import wraps
 from datetime import datetime, timedelta, timezone, date
 import pytz
@@ -428,6 +429,68 @@ def dashboard():
         .all()
     )
 
+    # ================================================================
+    # KALENDER PEMINJAMAN + NOTIFIKASI PERPANJANGAN H-10
+    # ================================================================
+    today = datetime.now(WIB).date()
+    batas_notif = today + timedelta(days=10)
+
+    # Peminjaman yang butuh konfirmasi perpanjangan: rencana kembali
+    # sudah lewat (terlambat) ATAU akan jatuh tempo dalam 10 hari ke depan,
+    # dan belum pernah dikonfirmasi (status_perpanjangan masih kosong).
+    peminjaman_reminder = []
+    peminjaman_calendar = {}
+    if current_user.role == ROLE_ADMIN:
+        peminjaman_reminder = (
+            Peminjaman.query.filter(
+                Peminjaman.status == "Dipinjam",
+                Peminjaman.tanggal_rencana_kembali.isnot(None),
+                Peminjaman.tanggal_rencana_kembali <= batas_notif,
+                Peminjaman.status_perpanjangan.is_(None),
+            )
+            .order_by(Peminjaman.tanggal_rencana_kembali.asc())
+            .all()
+        )
+
+        # Data untuk ditandai di kalender: semua peminjaman aktif yang punya tanggal rencana kembali
+        peminjaman_aktif = Peminjaman.query.filter(
+            Peminjaman.status == "Dipinjam",
+            Peminjaman.tanggal_rencana_kembali.isnot(None),
+        ).all()
+        for p in peminjaman_aktif:
+            key = p.tanggal_rencana_kembali.strftime("%Y-%m-%d")
+            aset_names = ", ".join([pa.aset.nama for pa in p.aset_terkait if pa.aset]) or "-"
+            peminjaman_calendar.setdefault(key, []).append({
+                "id": p.id,
+                "nama_peminjam": p.nama_peminjam,
+                "unit": p.unit or "-",
+                "aset": aset_names,
+                "tanggal_pinjam": p.tanggal_pinjam.strftime("%d-%m-%Y") if p.tanggal_pinjam else "-",
+                "overdue": p.tanggal_rencana_kembali < today,
+                "butuh_konfirmasi": p.status_perpanjangan is None,
+            })
+
+    # Daftar hari libur nasional 2026 (SKB 3 Menteri) untuk ditandai di kalender
+    hari_libur_nasional = {
+        "2026-01-01": "Tahun Baru Masehi",
+        "2026-01-16": "Isra Mikraj",
+        "2026-02-17": "Tahun Baru Imlek",
+        "2026-03-19": "Hari Suci Nyepi",
+        "2026-03-21": "Idulfitri (Hari 1)",
+        "2026-03-22": "Idulfitri (Hari 2)",
+        "2026-04-03": "Wafat Yesus Kristus",
+        "2026-04-05": "Paskah",
+        "2026-05-01": "Hari Buruh",
+        "2026-05-14": "Kenaikan Yesus Kristus",
+        "2026-05-27": "Iduladha",
+        "2026-05-31": "Hari Raya Waisak",
+        "2026-06-01": "Hari Lahir Pancasila",
+        "2026-06-16": "1 Muharam",
+        "2026-08-17": "Proklamasi Kemerdekaan",
+        "2026-08-25": "Maulid Nabi Muhammad",
+        "2026-12-25": "Hari Raya Natal",
+    }
+
     return render_template(
         "dashboard.html",
         total_aset=total_aset,
@@ -443,6 +506,12 @@ def dashboard():
         history_terbaru=history_terbaru,
         maintenance_terbaru=maintenance_terbaru,
         pemindahan_terbaru=pemindahan_terbaru,
+        peminjaman_reminder=peminjaman_reminder,
+        peminjaman_calendar_json=json.dumps(peminjaman_calendar),
+        hari_libur_json=json.dumps(hari_libur_nasional),
+        calendar_year=today.year,
+        today=today,
+        today_str=today.strftime("%Y-%m-%d"),
     )
 
 @app.route("/register", methods=["GET", "POST"])
@@ -1897,6 +1966,72 @@ def peminjaman_delete(id):
     db.session.commit()
     flash("Data peminjaman berhasil dihapus.", "success")
     return redirect(url_for("peminjaman_list"))
+
+
+@app.route("/peminjaman/<int:id>/konfirmasi-perpanjangan", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def peminjaman_konfirmasi_perpanjangan(id):
+    """Konfirmasi dari notifikasi H-10: apakah peminjaman diperpanjang atau tidak."""
+    peminjaman = Peminjaman.query.get_or_404(id)
+    keputusan = request.form.get("keputusan")  # 'perpanjang' atau 'tidak'
+
+    if peminjaman.status != "Dipinjam":
+        flash("Peminjaman ini sudah dikembalikan, tidak perlu konfirmasi perpanjangan.", "warning")
+        return redirect(url_for("dashboard"))
+
+    if keputusan == "perpanjang":
+        tanggal_baru_str = request.form.get("tanggal_baru")
+        if not tanggal_baru_str:
+            flash("Tanggal rencana kembali yang baru wajib diisi untuk perpanjangan.", "danger")
+            return redirect(url_for("dashboard"))
+        try:
+            tanggal_baru = datetime.strptime(tanggal_baru_str, "%Y-%m-%d").date()
+        except ValueError:
+            flash("Format tanggal tidak valid.", "danger")
+            return redirect(url_for("dashboard"))
+
+        tanggal_lama = peminjaman.tanggal_rencana_kembali
+        peminjaman.tanggal_rencana_kembali = tanggal_baru
+        # Reset supaya notifikasi bisa muncul lagi kalau tanggal baru juga mendekati H-10
+        peminjaman.status_perpanjangan = None
+
+        catat_aktivitas(
+            aksi="UPDATE",
+            target_model="Peminjaman",
+            target_id=peminjaman.id,
+            deskripsi=(
+                f"Perpanjangan peminjaman oleh {peminjaman.nama_peminjam}: "
+                f"{tanggal_lama.strftime('%d-%m-%Y') if tanggal_lama else '-'} → {tanggal_baru.strftime('%d-%m-%Y')}"
+            ),
+            data_lama={"tanggal_rencana_kembali": tanggal_lama.strftime("%Y-%m-%d") if tanggal_lama else None},
+            data_baru={"tanggal_rencana_kembali": tanggal_baru.strftime("%Y-%m-%d")},
+        )
+        db.session.commit()
+        flash(
+            f"Peminjaman oleh {peminjaman.nama_peminjam} berhasil diperpanjang sampai "
+            f"{tanggal_baru.strftime('%d-%m-%Y')}.",
+            "success",
+        )
+
+    elif keputusan == "tidak":
+        peminjaman.status_perpanjangan = "Tidak Diperpanjang"
+        catat_aktivitas(
+            aksi="UPDATE",
+            target_model="Peminjaman",
+            target_id=peminjaman.id,
+            deskripsi=(
+                f"Konfirmasi TIDAK diperpanjang untuk peminjaman oleh {peminjaman.nama_peminjam} "
+                f"— aset wajib dikembalikan sesuai jadwal."
+            ),
+        )
+        db.session.commit()
+        flash(f"Dikonfirmasi: peminjaman oleh {peminjaman.nama_peminjam} tidak diperpanjang.", "success")
+
+    else:
+        flash("Keputusan tidak valid.", "danger")
+
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/maintenance")
