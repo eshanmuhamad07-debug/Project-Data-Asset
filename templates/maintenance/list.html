@@ -45,10 +45,13 @@
                 <input type="text" name="search" value="{{ search or '' }}" placeholder="Cari aset atau judul..."
                     class="field-input pl-8 w-full sm:w-48 text-sm">
             </div>
-            <select name="kategori" class="field-input w-full sm:w-36 text-sm" onchange="this.form.submit()">
+            <select name="kategori" class="field-input w-full sm:w-44 text-sm" onchange="this.form.submit()">
                 <option value="">Semua Kategori</option>
-                <option value="Elektronik" {{ 'selected' if kategori_terpilih=='Elektronik' }}>Elektronik</option>
-                <option value="Furniture" {{ 'selected' if kategori_terpilih=='Furniture' }}>Furniture</option>
+                {% for k in kategori_all %}
+                <option value="{{ k.nama }}" {{ 'selected' if kategori_terpilih==k.nama }}>
+                    {{ k.nama }}
+                </option>
+                {% endfor %}
             </select>
             <select name="status" class="field-input w-full sm:w-36 text-sm" onchange="this.form.submit()">
                 <option value="">Semua Status</option>
@@ -183,114 +186,121 @@
 <!-- MODAL TAMBAH MAINTENANCE (dengan cascading lokasi) -->
 <!-- ============================================================ -->
 <div id="modalTambahMaintenance" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
-  <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
-    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
-      <h2 class="font-display font-bold text-slate-800">Tambah Jadwal Maintenance</h2>
-      <button onclick="closeModal('modalTambahMaintenance')" class="text-slate-400 hover:text-slate-600">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-      </button>
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+            <h2 class="font-display font-bold text-slate-800">Tambah Jadwal Maintenance</h2>
+            <button onclick="closeModal('modalTambahMaintenance')" class="text-slate-400 hover:text-slate-600">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <form method="POST" action="{{ url_for('maintenance_create') }}" class="p-5 space-y-3.5">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Lokasi Aset -->
+            <p class="text-xs font-semibold text-slate-500 pt-1">📍 Lokasi Aset</p>
+            <div class="grid grid-cols-3 gap-2">
+                <div>
+                    <label class="field-label text-[10px]">Gedung</label>
+                    <select name="gedung_asal" id="maintenance_gedung" required class="field-input text-sm"
+                        onchange="loadLantaiTiket(this.value, 'maintenance_lantai', 'maintenance_ruangan', 'maintenance_aset_list')">
+                        <option value="">Pilih</option>
+                        {% for g in gedung_all %}
+                        <option value="{{ g.value }}">{{ g.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label text-[10px]">Lantai</label>
+                    <select name="lantai_asal" id="maintenance_lantai" class="field-input text-sm"
+                        onchange="loadRuanganByGedungLantai('maintenance_gedung', 'maintenance_lantai', 'maintenance_ruangan', 'maintenance_aset_list')">
+                        <option value="">Pilih</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label text-[10px]">Ruangan</label>
+                    <select name="ruangan_asal" id="maintenance_ruangan" class="field-input text-sm"
+                        onchange="loadAsetByLokasi('maintenance_gedung', 'maintenance_lantai', 'maintenance_ruangan', 'maintenance_aset_list')">
+                        <option value="">Pilih</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Daftar Aset -->
+            <div>
+                <label class="field-label">Pilih Aset <span class="text-rose-500">*</span></label>
+                <div id="maintenance_aset_list"
+                    class="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2.5 space-y-1.5">
+                    <p class="text-xs text-slate-400">Pilih lokasi aset terlebih dahulu</p>
+                </div>
+            </div>
+
+            <!-- Kategori Maintenance (otomatis dari aset) -->
+            <div>
+                <label class="field-label">Kategori Maintenance</label>
+                <input type="text" id="maintenance_kategori_display" name="kategori"
+                    class="field-input bg-slate-100 cursor-not-allowed" readonly
+                    placeholder="Pilih aset terlebih dahulu">
+                <p class="text-[10px] text-slate-400 mt-0.5">Akan otomatis terisi dari kategori aset yang dipilih</p>
+            </div>
+
+            <div>
+                <label class="field-label">Jenis Pekerjaan <span class="text-rose-500">*</span></label>
+                <input name="judul" required placeholder="Mis: Pembersihan AC" class="field-input">
+            </div>
+
+            <div>
+                <label class="field-label">Deskripsi</label>
+                <textarea name="deskripsi" rows="2" class="field-input"
+                    placeholder="Detail pekerjaan maintenance..."></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Vendor</label>
+                    <input name="vendor" class="field-input" placeholder="Nama vendor">
+                </div>
+                <div>
+                    <label class="field-label">Tipe</label>
+                    <select name="tipe" class="field-input">
+                        <option value="Preventif">Preventif</option>
+                        <option value="Korektif">Korektif</option>
+                        <option value="Inspeksi">Inspeksi</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Tanggal Mulai <span class="text-rose-500">*</span></label>
+                    <input name="tanggal_mulai" type="date" required class="field-input">
+                </div>
+                <div>
+                    <label class="field-label">Tanggal Akhir</label>
+                    <input name="tanggal_akhir" type="date" class="field-input">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Biaya</label>
+                    <input name="biaya" type="number" step="0.01" class="field-input" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="field-label">Status</label>
+                    <select name="status" class="field-input">
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="On Progress">On Progress</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Jadwal</button>
+        </form>
     </div>
-    <form method="POST" action="{{ url_for('maintenance_create') }}" class="p-5 space-y-3.5">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      
-      <!-- Lokasi Aset -->
-      <p class="text-xs font-semibold text-slate-500 pt-1">📍 Lokasi Aset</p>
-      <div class="grid grid-cols-3 gap-2">
-        <div>
-          <label class="field-label text-[10px]">Gedung</label>
-          <select name="gedung_asal" id="maintenance_gedung" required class="field-input text-sm" onchange="loadLantaiTiket(this.value, 'maintenance_lantai', 'maintenance_ruangan', 'maintenance_aset_list')">
-            <option value="">Pilih</option>
-            {% for g in gedung_all %}
-            <option value="{{ g.value }}">{{ g.label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label class="field-label text-[10px]">Lantai</label>
-          <select name="lantai_asal" id="maintenance_lantai" class="field-input text-sm" onchange="loadRuanganByGedungLantai('maintenance_gedung', 'maintenance_lantai', 'maintenance_ruangan', 'maintenance_aset_list')">
-            <option value="">Pilih</option>
-          </select>
-        </div>
-        <div>
-          <label class="field-label text-[10px]">Ruangan</label>
-          <select name="ruangan_asal" id="maintenance_ruangan" class="field-input text-sm" onchange="loadAsetByLokasi('maintenance_gedung', 'maintenance_lantai', 'maintenance_ruangan', 'maintenance_aset_list')">
-            <option value="">Pilih</option>
-          </select>
-        </div>
-      </div>
-      
-      <!-- Daftar Aset -->
-      <div>
-        <label class="field-label">Pilih Aset <span class="text-rose-500">*</span></label>
-        <div id="maintenance_aset_list" class="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2.5 space-y-1.5">
-          <p class="text-xs text-slate-400">Pilih lokasi aset terlebih dahulu</p>
-        </div>
-      </div>
-      
-      <!-- Kategori Maintenance (otomatis) -->
-      <div>
-        <label class="field-label">Kategori Maintenance</label>
-        <select name="kategori" id="maintenance_kategori" required class="field-input">
-          <option value="Elektronik">Elektronik</option>
-          <option value="Furniture">Furniture</option>
-        </select>
-      </div>
-      
-      <div>
-        <label class="field-label">Jenis Pekerjaan <span class="text-rose-500">*</span></label>
-        <input name="judul" required placeholder="Mis: Pembersihan AC" class="field-input">
-      </div>
-      
-      <div>
-        <label class="field-label">Deskripsi</label>
-        <textarea name="deskripsi" rows="2" class="field-input" placeholder="Detail pekerjaan maintenance..."></textarea>
-      </div>
-      
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="field-label">Vendor</label>
-          <input name="vendor" class="field-input" placeholder="Nama vendor">
-        </div>
-        <div>
-          <label class="field-label">Tipe</label>
-          <select name="tipe" class="field-input">
-            <option value="Preventif">Preventif</option>
-            <option value="Korektif">Korektif</option>
-            <option value="Inspeksi">Inspeksi</option>
-          </select>
-        </div>
-      </div>
-      
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="field-label">Tanggal Mulai <span class="text-rose-500">*</span></label>
-          <input name="tanggal_mulai" type="date" required class="field-input">
-        </div>
-        <div>
-          <label class="field-label">Tanggal Akhir</label>
-          <input name="tanggal_akhir" type="date" class="field-input">
-        </div>
-      </div>
-      
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="field-label">Biaya</label>
-          <input name="biaya" type="number" step="0.01" class="field-input" placeholder="0.00">
-        </div>
-        <div>
-          <label class="field-label">Status</label>
-          <select name="status" class="field-input">
-            <option value="Scheduled">Scheduled</option>
-            <option value="On Progress">On Progress</option>
-            <option value="Completed">Completed</option>
-            <option value="Cancelled">Cancelled</option>
-          </select>
-        </div>
-      </div>
-      
-      <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Jadwal</button>
-    </form>
-  </div>
 </div>
 
 <!-- ============================================================ -->
@@ -314,13 +324,12 @@
                 <input name="judul" id="editJudul" required class="field-input">
             </div>
 
+            <!-- Kategori Maintenance - READONLY (tidak bisa diedit) -->
             <div>
                 <label class="field-label">Kategori Maintenance</label>
-                <select name="kategori" id="editKategori" class="field-input">
-                    <option value="Elektronik">Elektronik</option>
-                    <option value="Furniture">Furniture</option>
-                    <option value="Lainnya">Lainnya</option>
-                </select>
+                <input type="text" id="editKategori" name="kategori" readonly
+                    class="field-input bg-slate-100 cursor-not-allowed">
+                <p class="text-[10px] text-slate-400 mt-0.5">Kategori tidak dapat diubah karena terikat dengan aset</p>
             </div>
 
             <div>
@@ -374,153 +383,6 @@
 {% block scripts %}
 <script>
     // =============================================================
-    // Chained dropdown: Pilih Kategori -> Pilih Aset (modal Tambah Maintenance)
-    // =============================================================
-    document.addEventListener('DOMContentLoaded', function () {
-        const kategoriAsetSelect = document.getElementById('kategoriAsetAdd');
-        const asetHidden = document.getElementById('asetSelectAdd');
-        const asetSearchInput = document.getElementById('asetSearchAdd');
-        const asetDropdown = document.getElementById('asetDropdownAdd');
-        const kategoriMaintenanceSelect = document.getElementById('kategoriAdd');
-        const formTambahMaintenance = kategoriAsetSelect ? kategoriAsetSelect.closest('form') : null;
-
-        if (!kategoriAsetSelect || !asetHidden || !asetSearchInput || !asetDropdown) return;
-
-        let daftarAset = []; // cache hasil fetch aset untuk kategori yang sedang dipilih
-
-        function escapeHtml(str) {
-            return (str || '').replace(/[&<>"']/g, function (c) {
-                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-            });
-        }
-
-        function renderDropdown(list) {
-            if (!list.length) {
-                asetDropdown.innerHTML = '<div class="px-3 py-2 text-sm text-slate-400">Tidak ada aset yang cocok</div>';
-            } else {
-                asetDropdown.innerHTML = list.map(function (a) {
-                    return '<button type="button" data-id="' + a.id + '" data-kode="' + escapeHtml(a.kode) +
-                        '" data-nama="' + escapeHtml(a.nama) + '" data-kategori="' + escapeHtml(a.kategori) + '" ' +
-                        'class="aset-option w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 flex flex-col">' +
-                        '<span class="font-medium text-slate-700">' + escapeHtml(a.nama) + '</span>' +
-                        '<span class="text-xs text-slate-400 font-mono">' + escapeHtml(a.kode) + '</span>' +
-                        '</button>';
-                }).join('');
-            }
-            asetDropdown.classList.remove('hidden');
-        }
-
-        // Cari berdasarkan nama ATAU kode aset
-        function filterAset(keyword) {
-            const kw = keyword.trim().toLowerCase();
-            if (!kw) return daftarAset;
-            return daftarAset.filter(function (a) {
-                return (a.nama && a.nama.toLowerCase().includes(kw)) ||
-                    (a.kode && a.kode.toLowerCase().includes(kw));
-            });
-        }
-
-        function resetAsetField(placeholderText) {
-            daftarAset = [];
-            asetHidden.value = '';
-            asetSearchInput.value = '';
-            asetSearchInput.placeholder = placeholderText || 'Pilih kategori dulu...';
-            asetSearchInput.disabled = true;
-            asetSearchInput.classList.remove('border-rose-400');
-            asetDropdown.classList.add('hidden');
-            asetDropdown.innerHTML = '';
-        }
-
-        async function loadAsetByKategori(kategoriId) {
-            if (!kategoriId) {
-                resetAsetField('Pilih kategori dulu...');
-                return;
-            }
-            daftarAset = [];
-            asetHidden.value = '';
-            asetSearchInput.value = '';
-            asetSearchInput.disabled = true;
-            asetSearchInput.placeholder = 'Memuat data aset...';
-            try {
-                const res = await fetch(`/api/aset-by-kategori/${kategoriId}`);
-                const data = await res.json();
-                daftarAset = data;
-                if (!data.length) {
-                    asetSearchInput.placeholder = 'Tidak ada aset di kategori ini';
-                    asetSearchInput.disabled = true;
-                    return;
-                }
-                asetSearchInput.placeholder = 'Cari nama atau kode aset...';
-                asetSearchInput.disabled = false;
-            } catch (err) {
-                asetSearchInput.placeholder = 'Gagal memuat data aset';
-                asetSearchInput.disabled = true;
-            }
-        }
-
-        kategoriAsetSelect.addEventListener('change', function () {
-            loadAsetByKategori(this.value);
-        });
-
-        asetSearchInput.addEventListener('focus', function () {
-            if (asetSearchInput.disabled) return;
-            renderDropdown(filterAset(asetSearchInput.value));
-        });
-
-        asetSearchInput.addEventListener('input', function () {
-            asetHidden.value = ''; // ketik ulang = belum pilih aset yang valid
-            asetSearchInput.classList.remove('border-rose-400');
-            renderDropdown(filterAset(asetSearchInput.value));
-        });
-
-        asetDropdown.addEventListener('mousedown', function (e) {
-            const opt = e.target.closest('.aset-option');
-            if (!opt || !opt.dataset.id) return;
-            e.preventDefault(); // cegah blur menutup dropdown sebelum klik terbaca
-            asetHidden.value = opt.dataset.id;
-            asetSearchInput.value = opt.dataset.kode + ' - ' + opt.dataset.nama;
-            asetSearchInput.classList.remove('border-rose-400');
-            asetDropdown.classList.add('hidden');
-
-            // Auto-fill kategori maintenance (Elektronik/Furniture) berdasarkan kategori aset yang dipilih
-            if (kategoriMaintenanceSelect) {
-                const kategori = (opt.dataset.kategori || '').toLowerCase();
-                if (kategori.includes('elektronik')) {
-                    kategoriMaintenanceSelect.value = 'Elektronik';
-                } else if (kategori.includes('furniture')) {
-                    kategoriMaintenanceSelect.value = 'Furniture';
-                }
-            }
-        });
-
-        document.addEventListener('click', function (e) {
-            if (e.target !== asetSearchInput && !asetDropdown.contains(e.target)) {
-                asetDropdown.classList.add('hidden');
-            }
-        });
-
-        // Reset semua field tiap kali modal Tambah dibuka, supaya tidak nyangkut state lama
-        const tombolTambah = document.querySelector('[onclick*="modalTambahMaintenance"]');
-        if (tombolTambah) {
-            tombolTambah.addEventListener('click', function () {
-                kategoriAsetSelect.value = '';
-                resetAsetField('Pilih kategori dulu...');
-            });
-        }
-
-        // Validasi manual sebelum submit, karena id_aset sekarang input hidden (bukan <select required>)
-        if (formTambahMaintenance) {
-            formTambahMaintenance.addEventListener('submit', function (e) {
-                if (!asetHidden.value) {
-                    e.preventDefault();
-                    asetSearchInput.classList.add('border-rose-400');
-                    asetSearchInput.focus();
-                    alert('Silakan pilih aset terlebih dahulu dari daftar pencarian.');
-                }
-            });
-        }
-    });
-
     // FUNGSI EDIT MAINTENANCE (dari data attribute)
     // =============================================================
     function openEditMaintenance(button) {
@@ -537,7 +399,7 @@
         const form = document.getElementById('formEditMaintenance');
         form.action = `/maintenance/${id}/edit`;
         document.getElementById('editJudul').value = judul || '';
-        document.getElementById('editKategori').value = kategori || 'Elektronik';
+        document.getElementById('editKategori').value = kategori || '';
         document.getElementById('editDeskripsi').value = deskripsi || '';
         document.getElementById('editVendor').value = vendor || '';
         document.getElementById('editTipe').value = tipe || 'Preventif';
@@ -547,5 +409,71 @@
         openModal('modalEditMaintenance');
     }
 
+    // =============================================================
+    // AUTO-FILL KATEGORI MAINTENANCE SAAT ASET DIPILIH
+    // =============================================================
+    document.addEventListener('DOMContentLoaded', function () {
+        // Event delegation untuk radio button aset yang muncul dinamis
+        document.addEventListener('change', function (e) {
+            if (e.target && e.target.matches('.aset-radio')) {
+                const kategori = e.target.dataset.kategori || '';
+                const kategoriDisplay = document.getElementById('maintenance_kategori_display');
+                if (kategoriDisplay) {
+                    kategoriDisplay.value = kategori || '(Tidak ada kategori)';
+                }
+            }
+        });
+    });
+
+    // =============================================================
+    // OVERRIDE loadAsetByLokasi - tambah data-kategori pada radio button
+    // =============================================================
+    window.loadAsetByLokasi = function (gedungId, lantaiId, ruanganId, asetTargetId) {
+        const gedungEl = document.getElementById(gedungId);
+        const lantaiEl = document.getElementById(lantaiId);
+        const ruanganEl = document.getElementById(ruanganId);
+        const asetEl = document.getElementById(asetTargetId);
+        if (!asetEl || !gedungEl) return;
+
+        const gedung = gedungEl.value;
+        const lantai = lantaiEl ? lantaiEl.value : '';
+        const ruangan = ruanganEl ? ruanganEl.value : '';
+
+        if (!gedung || !ruangan) {
+            asetEl.innerHTML = '<p class="text-xs text-slate-400">Pilih ruangan terlebih dahulu</p>';
+            return;
+        }
+
+        let url = `/api/aset-by-lokasi?gedung=${encodeURIComponent(gedung)}`;
+        if (lantai) url += `&lantai=${encodeURIComponent(lantai)}`;
+        if (ruangan) url += `&ruangan=${encodeURIComponent(ruangan)}`;
+
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                if (data.length === 0) {
+                    asetEl.innerHTML = '<p class="text-xs text-slate-400">Tidak ada aset di lokasi ini</p>';
+                    return;
+                }
+                asetEl.innerHTML = '';
+                data.forEach(a => {
+                    const label = document.createElement('label');
+                    label.className = 'flex items-center gap-2 text-sm text-slate-600 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer';
+                    label.innerHTML = `
+                    <input type="radio" name="aset_ids" value="${a.id}" 
+                           data-kategori="${a.kategori || ''}"
+                           class="rounded-full border-slate-300 text-indigo-600 focus:ring-indigo-500 aset-radio">
+                    <span class="font-mono text-[11px] text-slate-400">${a.kode}</span> ${a.nama}
+                `;
+                    asetEl.appendChild(label);
+                });
+
+                // Reset kategori display
+                const kategoriDisplay = document.getElementById('maintenance_kategori_display');
+                if (kategoriDisplay) {
+                    kategoriDisplay.value = '';
+                }
+            });
+    };
 </script>
 {% endblock %}

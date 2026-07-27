@@ -663,7 +663,12 @@ def api_aset_by_lokasi():
     if ruangan:
         filters.append(Aset.ruangan == ruangan)
     hasil = Aset.query.filter(*filters).all()
-    return jsonify([{"id": a.id, "kode": a.kode_aset, "nama": a.nama} for a in hasil])
+    return jsonify([{
+        "id": a.id,
+        "kode": a.kode_aset,
+        "nama": a.nama,
+        "kategori": a.kategori_ref.nama if a.kategori_ref else ""  # <-- NAMA KATEGORI ASET
+    } for a in hasil])
 
 
 @app.route("/api/aset-by-kategori/<int:kategori_id>")
@@ -1608,8 +1613,8 @@ def tiket_create_kerusakan():
 
 @app.route("/maintenance")
 @login_required
+@role_required(ROLE_ADMIN)
 def maintenance_list():
-    """Halaman daftar maintenance aset."""
     kategori = request.args.get("kategori", "").strip()
     search = request.args.get("search", "").strip()
     status = request.args.get("status", "").strip()
@@ -1637,6 +1642,8 @@ def maintenance_list():
     
     daftar_maintenance = pagination.items
     aset_all = Aset.query.order_by(Aset.nama).all()
+    
+    # +++ TAMBAHAN: Ambil semua kategori aset untuk filter +++
     kategori_all = Kategori.query.order_by(Kategori.nama).all()
 
     gedung_all = (
@@ -1656,7 +1663,7 @@ def maintenance_list():
         daftar_maintenance=daftar_maintenance,
         pagination=pagination,
         aset_all=aset_all,
-        kategori_all=kategori_all,
+        kategori_all=kategori_all,  # <-- KIRIM KE TEMPLATE
         kategori_terpilih=kategori,
         status_terpilih=status,
         search=search,
@@ -1669,21 +1676,14 @@ def maintenance_list():
 @role_required(ROLE_ADMIN)
 def maintenance_create():
     """Tambah jadwal maintenance baru."""
-    # Ambil dari checkbox (multiple aset)
+    # Ambil dari radio button (single aset)
     aset_id = request.form.get("aset_ids")
     if not aset_id:
-        flash("Pilih minimal 1 aset.", "danger")
+        flash("Pilih aset terlebih dahulu.", "danger")
         return redirect(url_for("maintenance_list"))
     
-    # Pastikan kategori disimpan dengan format konsisten
-    kategori_raw = request.form.get("kategori", "").strip()
-    # Mapping ke format yang diinginkan
-    kategori_map = {
-        "elektronik": "Elektronik",
-        "furniture": "Furniture",
-        "lainnya": "Lainnya"
-    }
-    kategori_pilihan = kategori_map.get(kategori_raw.lower(), kategori_raw.capitalize()) if kategori_raw else ""
+    # Ambil kategori dari form (sudah otomatis terisi dari JavaScript)
+    kategori = request.form.get("kategori", "").strip()
     judul = request.form.get("judul", "").strip()
     deskripsi = request.form.get("deskripsi", "").strip()
     vendor = request.form.get("vendor", "").strip()
@@ -1693,9 +1693,20 @@ def maintenance_create():
     biaya = request.form.get("biaya", 0)
     status = request.form.get("status", "Scheduled")
     
+    # Validasi
     if not judul or not tanggal_mulai_str:
         flash("Judul dan tanggal mulai wajib diisi.", "danger")
         return redirect(url_for("maintenance_list"))
+    
+    # Validasi aset
+    aset = Aset.query.get(aset_id)
+    if not aset:
+        flash("Aset tidak ditemukan.", "danger")
+        return redirect(url_for("maintenance_list"))
+    
+    # Jika kategori dari form kosong, ambil dari kategori aset (fallback)
+    if not kategori:
+        kategori = aset.kategori_ref.nama if aset.kategori_ref else "Tidak ada kategori"
     
     # Parse tanggal
     try:
@@ -1711,51 +1722,53 @@ def maintenance_create():
         except ValueError:
             pass
     
-    # Proses setiap aset yang dipilih
-    for aid in aset_id.split(","):
-        aset = Aset.query.get(aid)
-        if not aset:
-            flash(f"Aset ID {aid} tidak ditemukan.", "danger")
-            return redirect(url_for("maintenance_list"))
-        
-        # Kategori maintenance: utamakan pilihan eksplisit dari dropdown form.
-        # Tebakan dari kategori aset cuma dipakai kalau form benar-benar tidak mengirim apa-apa.
-        if kategori_pilihan:
-            kategori_maintenance = kategori_pilihan
-        else:
-            kategori_aset = aset.kategori_ref.nama if aset.kategori_ref else ""
-            kategori_maintenance = "Elektronik" if "Elektronik" in kategori_aset else "Furniture" if "Furniture" in kategori_aset else "Lainnya"
-        
-        maintenance = Maintenance(
-            id_aset=int(aid),
-            kategori=kategori_maintenance,
-            judul=judul,
-            deskripsi=deskripsi or None,
-            vendor=vendor or None,
-            tipe=tipe,
-            tanggal_mulai=tanggal_mulai,
-            tanggal_akhir=tanggal_akhir,
-            biaya=float(biaya) if biaya else 0,
-            status=status,
-            created_by=current_user.id,
-        )
-        db.session.add(maintenance)
-        
-        # Catat histori aset
-        histori = HistoriAset(
-            id_aset=int(aid),
-            jenis_event="maintenance",
-            gedung=aset.gedung,
-            lantai=aset.lantai,
-            ruangan=aset.ruangan,
-            id_tiket=None
-        )
-        db.session.add(histori)
+    # Buat maintenance
+    maintenance = Maintenance(
+        id_aset=int(aset_id),
+        kategori=kategori,
+        judul=judul,
+        deskripsi=deskripsi or None,
+        vendor=vendor or None,
+        tipe=tipe,
+        tanggal_mulai=tanggal_mulai,
+        tanggal_akhir=tanggal_akhir,
+        biaya=float(biaya) if biaya else 0,
+        status=status,
+        created_by=current_user.id,
+    )
+    db.session.add(maintenance)
+    
+    # Catat histori aset
+    histori = HistoriAset(
+        id_aset=int(aset_id),
+        jenis_event="maintenance",
+        gedung=aset.gedung,
+        lantai=aset.lantai,
+        ruangan=aset.ruangan,
+        id_tiket=None
+    )
+    db.session.add(histori)
+    
+    # Catat aktivitas admin
+    catat_aktivitas(
+        aksi="CREATE",
+        target_model="Maintenance",
+        target_id=maintenance.id,
+        deskripsi=f"Menambahkan jadwal maintenance untuk aset {aset.nama} ({aset.kode_aset}): {judul}",
+        data_baru={
+            "aset": aset.nama,
+            "kode_aset": aset.kode_aset,
+            "kategori": kategori,
+            "judul": judul,
+            "tipe": tipe,
+            "tanggal_mulai": tanggal_mulai.strftime("%Y-%m-%d"),
+            "status": status,
+        }
+    )
     
     db.session.commit()
-    flash(f"Jadwal maintenance berhasil ditambahkan untuk {len(aset_id.split(','))} aset.", "success")
+    flash(f"Jadwal maintenance berhasil ditambahkan untuk aset {aset.nama}.", "success")
     return redirect(url_for("maintenance_list"))
-
 
 @app.route("/maintenance/<int:id>/edit", methods=["POST"])
 @login_required
