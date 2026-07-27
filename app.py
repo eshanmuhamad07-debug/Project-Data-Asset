@@ -1615,14 +1615,17 @@ def tiket_create_kerusakan():
 @login_required
 @role_required(ROLE_ADMIN)
 def maintenance_list():
-    kategori = request.args.get("kategori", "").strip()
+    kategori_id = request.args.get("kategori", "").strip()
     search = request.args.get("search", "").strip()
     status = request.args.get("status", "").strip()
     
     query = Maintenance.query.join(Aset)
     
-    if kategori:
-        query = query.filter(db.func.lower(Maintenance.kategori) == kategori.lower())
+    if kategori_id:
+        # PERBAIKAN: filter berdasarkan kategori ASET SAAT INI (Aset.id_kategori),
+        # bukan Maintenance.kategori (teks snapshot lama yang sudah tidak sinkron
+        # sejak kategori dipecah/diubah -- mis. "Furniture" -> "Office Furniture").
+        query = query.filter(Aset.id_kategori == kategori_id)
     if status:
         query = query.filter(Maintenance.status == status)
     if search:
@@ -1664,7 +1667,7 @@ def maintenance_list():
         pagination=pagination,
         aset_all=aset_all,
         kategori_all=kategori_all,  # <-- KIRIM KE TEMPLATE
-        kategori_terpilih=kategori,
+        kategori_terpilih=kategori_id,
         status_terpilih=status,
         search=search,
         gedung_all=gedung_all_formatted,
@@ -1737,6 +1740,7 @@ def maintenance_create():
         created_by=current_user.id,
     )
     db.session.add(maintenance)
+    db.session.flush()  # penting: dapatkan maintenance.id dari MySQL (AUTO_INCREMENT) sebelum dipakai di log aktivitas
     
     # Catat histori aset
     histori = HistoriAset(

@@ -48,7 +48,7 @@
             <select name="kategori" class="field-input w-full sm:w-44 text-sm" onchange="this.form.submit()">
                 <option value="">Semua Kategori</option>
                 {% for k in kategori_all %}
-                <option value="{{ k.nama }}" {{ 'selected' if kategori_terpilih==k.nama }}>
+                <option value="{{ k.id }}" {{ 'selected' if kategori_terpilih==k.id|string }}>
                     {{ k.nama }}
                 </option>
                 {% endfor %}
