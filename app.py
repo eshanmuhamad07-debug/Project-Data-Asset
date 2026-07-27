@@ -1,7 +1,7 @@
 import os
 import io
 from functools import wraps
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 import pytz
 
 from flask import (
@@ -218,6 +218,30 @@ def role_required(*roles):
         return wrapped
     return decorator
 
+@app.route("/api/aset/search")
+@login_required
+def api_aset_search():
+    """API untuk mencari aset berdasarkan nama atau kode aset (auto-complete)."""
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify([])
+    
+    hasil = Aset.query.filter(
+        db.or_(
+            Aset.nama.ilike(f"%{q}%"),
+            Aset.kode_aset.ilike(f"%{q}%")
+        )
+    ).limit(15).all()
+    
+    data = []
+    for a in hasil:
+        data.append({
+            "id": a.id,
+            "kode": a.kode_aset,
+            "nama": a.nama,
+            "kategori": a.kategori_ref.nama if a.kategori_ref else "Tidak ada kategori"
+        })
+    return jsonify(data)
 
 def catat_log(tiket, status_lama, status_baru):
     db.session.add(LogStatus(
@@ -259,6 +283,16 @@ def login():
         if user and check_password_hash(user.password, password):
             if not user.is_active:
                 flash("Akun ini sudah dinonaktifkan. Hubungi admin.", "danger")
+                return render_template("login.html")
+            if user.banned_until and user.banned_until > datetime.now(WIB).replace(tzinfo=None):
+                pesan_ban = (
+                    f"Akun ini sedang di-ban sementara sampai "
+                    f"{user.banned_until.strftime('%d-%m-%Y %H:%M')} WIB."
+                )
+                if user.ban_reason:
+                    pesan_ban += f" Alasan: {user.ban_reason}."
+                pesan_ban += " Hubungi admin."
+                flash(pesan_ban, "danger")
                 return render_template("login.html")
             login_user(user)
             return redirect(url_for("dashboard"))
@@ -318,22 +352,21 @@ def dashboard():
     # History terbaru (hanya untuk admin)
     history_terbaru = []
     if current_user.role == ROLE_ADMIN:
-        # Ambil semua event (tiket + aktivitas log + maintenance) untuk admin
+        # Ambil semua event (tiket + aktivitas log) untuk admin
         events = []
-        for t in Tiket.query.order_by(Tiket.created_at.desc()).limit(15).all():
+        for t in Tiket.query.order_by(Tiket.created_at.desc()).limit(10).all():
             events.append({
                 "id": t.id,
                 "jenis_tiket": t.jenis_tiket,
                 "nama_pemohon": t.nama_pemohon,
                 "catatan": t.catatan[:50] if t.catatan else "-",
                 "created_at": t.created_at,
-                "is_tiket": True,
-                "link": url_for("history_detail", tiket_id=t.id),
+                "is_tiket": True
             })
-
-        # Gabungkan dengan aktivitas log
+        
+        # Gabungkan dengan aktivitas log (urutkan berdasarkan waktu)
         from models import AktivitasLog
-        for a in AktivitasLog.query.order_by(AktivitasLog.created_at.desc()).limit(10).all():
+        for a in AktivitasLog.query.order_by(AktivitasLog.created_at.desc()).limit(5).all():
             user = User.query.get(a.id_user)
             events.append({
                 "id": a.id,
@@ -341,40 +374,28 @@ def dashboard():
                 "nama_pemohon": user.name if user else "System",
                 "catatan": a.deskripsi[:50] if a.deskripsi else "-",
                 "created_at": a.created_at,
-                "is_tiket": False,
-                "link": url_for("aktivitas_detail", log_id=a.id),
+                "is_tiket": False
             })
-
-        # Gabungkan dengan riwayat maintenance
-        for mt in Maintenance.query.order_by(Maintenance.created_at.desc()).limit(10).all():
-            events.append({
-                "id": mt.id,
-                "jenis_tiket": "Maintenance",
-                "nama_pemohon": mt.aset.nama if mt.aset else "-",
-                "catatan": mt.judul[:50] if mt.judul else "-",
-                "created_at": mt.created_at,
-                "is_tiket": False,
-                "link": url_for("maintenance_list"),
-            })
-
-        # Urutkan berdasarkan waktu terbaru dan ambil 20 teratas
+        
+        # Urutkan berdasarkan waktu terbaru dan ambil 5 teratas
         events.sort(key=lambda x: x["created_at"], reverse=True)
-        history_terbaru = events[:20]
+        history_terbaru = events[:5]
 
-    # History khusus Maintenance & Pemindahan (kartu terpisah di dashboard)
-    maintenance_terbaru = []
-    pemindahan_terbaru = []
-    if current_user.role == ROLE_ADMIN:
-        maintenance_terbaru = (
-            Maintenance.query.order_by(Maintenance.created_at.desc()).limit(20).all()
-        )
-        pemindahan_terbaru = (
-            Tiket.query.filter_by(jenis_tiket="Pemindahan")
-            .order_by(Tiket.created_at.desc())
-            .limit(20)
-            .all()
-        )
-    
+    # History Maintenance terbaru (5 jadwal terbaru)
+    maintenance_terbaru = (
+        Maintenance.query.order_by(Maintenance.tanggal_mulai.desc(), Maintenance.id.desc())
+        .limit(5)
+        .all()
+    )
+
+    # History Pemindahan terbaru (5 tiket pemindahan terbaru)
+    pemindahan_terbaru = (
+        Tiket.query.filter_by(jenis_tiket="Pemindahan")
+        .order_by(Tiket.created_at.desc())
+        .limit(5)
+        .all()
+    )
+
     return render_template(
         "dashboard.html",
         total_aset=total_aset,
@@ -449,6 +470,57 @@ def register():
 # ---------------------------------------------------------------------------
 JENIS_ASET_OPTIONS = ["Operasional", "Pusat"]
 
+# Nama kota/lokasi untuk tiap kode area TCU, ditampilkan di belakang kode area
+# pada label dropdown Gedung (mis. "TCU1" -> "TCU1 Jakarta").
+AREA_LOKASI_MAP = {
+    "TCU1": "Jakarta",
+    "TCU2": "Bandung",
+    "TCU3": "Semarang",
+    "TCU4": "Makassar",
+}
+
+
+def format_area_label(area):
+    """Tambahkan nama kota di belakang kode area, mis. 'TCU1' -> 'TCU1 Jakarta'.
+    Kode area yang tidak ada di AREA_LOKASI_MAP ditampilkan apa adanya."""
+    if not area:
+        return area
+    kota = AREA_LOKASI_MAP.get(area)
+    return f"{area} {kota}" if kota else area
+
+
+# Daftarkan sebagai fungsi global Jinja supaya bisa dipanggil langsung dari
+# template, mis. {{ format_area_label(a.area) }} -- dipakai di kolom Lokasi
+# tabel Data Aset supaya nama kota TCU juga tampil di sana, bukan cuma di
+# dropdown filter.
+app.jinja_env.globals["format_area_label"] = format_area_label
+
+
+def parse_gedung_value(value):
+    """
+    Parse nilai filter 'gedung' yang dikirim dari form.
+
+    Sejak perbaikan bug "Filter Lanjutan Gedung", value dropdown Gedung di
+    halaman Data Aset dikirim dalam format gabungan "AREA||NAMA_GEDUNG"
+    (bukan cuma nama gedung), karena banyak gedung punya NAMA YANG SAMA
+    di beberapa area/TCU berbeda (mis. "Gedung D" ada di TCU1, TCU2, dan
+    TCU3 sekaligus). Kalau cuma difilter pakai nama gedung saja, data dari
+    ke-3 TCU itu ikut tercampur, dan opsi <select> yang value-nya sama-sama
+    "Gedung D" bikin browser salah menampilkan pilihan yang ter-select
+    (efeknya: pilih TCU2 tapi yang muncul kepilih TCU3).
+
+    Fungsi ini tetap kompatibel dengan pemanggil lama (form Tiket, Riwayat,
+    Maintenance) yang masih mengirim nama gedung polos tanpa "||" -- dalam
+    kasus itu, area dikembalikan kosong dan filter area diabaikan (perilaku
+    lama tetap jalan, tidak ada yang rusak).
+    """
+    if not value:
+        return "", ""
+    if "||" in value:
+        area_part, gedung_part = value.split("||", 1)
+        return area_part, gedung_part
+    return "", value
+
 
 @app.route("/aset")
 @login_required
@@ -456,10 +528,12 @@ def aset_list():
     q = request.args.get("q", "").strip()
     status = request.args.get("status", "")
     kategori_id = request.args.get("kategori", "")
-    gedung = request.args.get("gedung", "")
+    gedung = request.args.get("gedung", "")  # format: "AREA||NAMA_GEDUNG"
     lantai = request.args.get("lantai", "")
     ruangan = request.args.get("ruangan", "")
     tipe = request.args.get("tipe", "")
+
+    gedung_area, gedung_nama = parse_gedung_value(gedung)
 
     query = Aset.query
     if q:
@@ -471,7 +545,13 @@ def aset_list():
     if kategori_id:
         query = query.filter_by(id_kategori=kategori_id)
     if gedung:
-        query = query.filter_by(gedung=gedung)  # <-- nilai gedung tetap (untuk filter)
+        # PERBAIKAN: filter berdasarkan area + nama gedung, bukan nama gedung
+        # saja -- karena beberapa nama gedung (mis. "Gedung D") dipakai di
+        # lebih dari satu area/TCU. Filter by nama gedung saja akan
+        # menggabungkan data dari area yang berbeda-beda.
+        query = query.filter_by(gedung=gedung_nama)
+        if gedung_area:
+            query = query.filter_by(area=gedung_area)
     if lantai:
         query = query.filter_by(lantai=lantai)
     if ruangan:
@@ -500,9 +580,14 @@ def aset_list():
         .order_by(Aset.area, Aset.gedung)
         .all()
     )
-    # Format: "Area - Gedung"
+    # Format: "Area - Gedung". Value dibuat UNIK per kombinasi area+gedung
+    # ("AREA||NAMA_GEDUNG"), bukan nama gedung saja -- lihat parse_gedung_value()
+    # untuk penjelasan kenapa ini penting (nama gedung bisa dobel di area lain).
     gedung_all_formatted = [
-        {"value": g.gedung, "label": f"{g.area} - {g.gedung}" if g.area else g.gedung}
+        {
+            "value": f"{g.area}||{g.gedung}" if g.area else g.gedung,
+            "label": f"{format_area_label(g.area)} - {g.gedung}" if g.area else g.gedung,
+        }
         for g in gedung_all
     ]
 
@@ -521,12 +606,16 @@ def aset_list():
 @app.route("/api/lantai")
 @login_required
 def api_lantai():
-    gedung = request.args.get("gedung", "")
-    if not gedung:
+    gedung_raw = request.args.get("gedung", "")
+    if not gedung_raw:
         return jsonify([])
+    gedung_area, gedung_nama = parse_gedung_value(gedung_raw)
+    filters = [Aset.gedung == gedung_nama, Aset.lantai.isnot(None), Aset.lantai != ""]
+    if gedung_area:
+        filters.append(Aset.area == gedung_area)
     hasil = (
         db.session.query(Aset.lantai)
-        .filter(Aset.gedung == gedung, Aset.lantai.isnot(None), Aset.lantai != "")
+        .filter(*filters)
         .distinct()
         .order_by(Aset.lantai)
         .all()
@@ -537,11 +626,14 @@ def api_lantai():
 @app.route("/api/ruangan")
 @login_required
 def api_ruangan():
-    gedung = request.args.get("gedung", "")
+    gedung_raw = request.args.get("gedung", "")
     lantai = request.args.get("lantai", "")
-    if not gedung:
+    if not gedung_raw:
         return jsonify([])
-    filters = [Aset.gedung == gedung, Aset.ruangan.isnot(None), Aset.ruangan != ""]
+    gedung_area, gedung_nama = parse_gedung_value(gedung_raw)
+    filters = [Aset.gedung == gedung_nama, Aset.ruangan.isnot(None), Aset.ruangan != ""]
+    if gedung_area:
+        filters.append(Aset.area == gedung_area)
     if lantai:
         filters.append(Aset.lantai == lantai)
     hasil = (
@@ -557,18 +649,37 @@ def api_ruangan():
 @app.route("/api/aset-by-lokasi")
 @login_required
 def api_aset_by_lokasi():
-    gedung = request.args.get("gedung", "")
+    gedung_raw = request.args.get("gedung", "")
     lantai = request.args.get("lantai", "")
     ruangan = request.args.get("ruangan", "")
-    if not gedung:
+    if not gedung_raw:
         return jsonify([])
-    filters = [Aset.gedung == gedung]
+    gedung_area, gedung_nama = parse_gedung_value(gedung_raw)
+    filters = [Aset.gedung == gedung_nama]
+    if gedung_area:
+        filters.append(Aset.area == gedung_area)
     if lantai:
         filters.append(Aset.lantai == lantai)
     if ruangan:
         filters.append(Aset.ruangan == ruangan)
     hasil = Aset.query.filter(*filters).all()
     return jsonify([{"id": a.id, "kode": a.kode_aset, "nama": a.nama} for a in hasil])
+
+
+@app.route("/api/aset-by-kategori/<int:kategori_id>")
+@login_required
+def api_aset_by_kategori(kategori_id):
+    """Daftar aset milik satu kategori (dipakai chained dropdown Kategori -> Aset)."""
+    hasil = Aset.query.filter_by(id_kategori=kategori_id).order_by(Aset.nama).all()
+    return jsonify([
+        {
+            "id": a.id,
+            "kode": a.kode_aset,
+            "nama": a.nama,
+            "kategori": a.kategori_ref.nama if a.kategori_ref else "",
+        }
+        for a in hasil
+    ])
 
 @app.route("/aset/create", methods=["POST"])
 @login_required
@@ -602,7 +713,7 @@ def aset_create():
     lantai = request.form.get("lantai", "").strip() or None
     link_qr = request.form.get("link_qr", "").strip() or None
     tanggal_datang_str = request.form.get("tanggal_datang", "").strip()
-    tanggal_datang = None
+    tanggal_datang = date.today()  # default ke tanggal hari ini kalau kosong
     if tanggal_datang_str:
         try:
             tanggal_datang = datetime.strptime(tanggal_datang_str, "%Y-%m-%d").date()
@@ -703,6 +814,7 @@ def aset_edit(aset_id):
 
     # Tanggal datang
     tanggal_datang_str = request.form.get("tanggal_datang", "").strip()
+    aset.tanggal_datang = None  # default ke None
     if tanggal_datang_str:
         try:
             aset.tanggal_datang = datetime.strptime(tanggal_datang_str, "%Y-%m-%d").date()
@@ -781,20 +893,22 @@ def aset_edit(aset_id):
 def aset_delete(aset_id):
     aset = Aset.query.get_or_404(aset_id)
     
-    data_lama = snapshot_aset(aset, kategori_nama=aset.kategori_ref.nama if aset.kategori_ref else None)
-
+    # Ambil alasan dari form
+    reason = request.form.get("delete_reason", "").strip()
+    
+    # Catat aktivitas dengan alasan
     catat_aktivitas(
         aksi="DELETE",
         target_model="Aset",
         target_id=aset.id,
-        deskripsi=f"Menghapus aset: {aset.nama} ({aset.kode_aset})",
-        data_lama=data_lama,
-        data_baru=None
+        deskripsi=f"Menghapus aset: {aset.nama} ({aset.kode_aset}) - Alasan: {reason or 'Tidak ada alasan'}",
+        data_lama=snapshot_aset(aset),
+        data_baru=None,
     )
     
     db.session.delete(aset)
     db.session.commit()
-    flash("Aset berhasil dihapus.", "success")
+    flash(f"Aset berhasil dihapus." + (f" Alasan: {reason}" if reason else ""), "success")
     return redirect(url_for("aset_list"))
 
 @app.route("/aset/<int:aset_id>/detail")
@@ -884,19 +998,22 @@ def aset_delete_multiple():
     if not aset_list:
         flash("Tidak ada aset yang ditemukan.", "danger")
         return redirect(url_for("aset_list"))
-    
+
+    # Ambil alasan dari form (sebelumnya tidak pernah dibaca, jadi selalu hilang)
+    reason = request.form.get("delete_reason", "").strip()
+
     for aset in aset_list:
         catat_aktivitas(
             aksi="DELETE",
             target_model="Aset",
             target_id=aset.id,
-            deskripsi=f"Menghapus aset via bulk: {aset.nama} ({aset.kode_aset})",
+            deskripsi=f"Menghapus aset via bulk: {aset.nama} ({aset.kode_aset}) - Alasan: {reason or 'Tidak ada alasan'}",
             data_lama=snapshot_aset(aset, kategori_nama=aset.kategori_ref.nama if aset.kategori_ref else None)
         )
         db.session.delete(aset)
     
     db.session.commit()
-    flash(f"Berhasil menghapus {len(aset_list)} aset.", "success")
+    flash(f"Berhasil menghapus {len(aset_list)} aset." + (f" Alasan: {reason}" if reason else ""), "success")
     return redirect(url_for("aset_list"))
 
 # ---------------------------------------------------------------------------
@@ -985,6 +1102,7 @@ def aset_import():
         return redirect(url_for("aset_list"))
 
     ditambahkan, diperbarui, dilewati = 0, 0, 0
+    tipe_kosong = 0  # baris yang tipe_aset-nya kosong/tidak valid di Excel
     error_baris = []
 
     for i, row in enumerate(rows, start=2):
@@ -1033,7 +1151,18 @@ def aset_import():
 
         # Status valid
         status_valid = status_aset if status_aset in ("Baik", "Rusak", "Dipindahkan") else "Baik"
+
+        # PERBAIKAN: tipe_aset (CAPEX/OPEX) dari Excel.
+        # tipe_valid = None berarti Excel TIDAK punya nilai CAPEX/OPEX yang valid
+        # untuk baris ini. Sebelumnya nilai None ini langsung di-assign ke
+        # aset.tipe_aset -- karena kolomnya nullable=False dengan default="OPEX"
+        # di models.py, SQLAlchemy diam-diam mengganti None dengan "OPEX" setiap
+        # kali membuat baris baru (perilaku default SQLAlchemy yang sering
+        # mengecoh), sehingga SEMUA aset yang tipe_aset-nya kosong di Excel
+        # otomatis jadi "OPEX" tanpa pemberitahuan apa pun ke user.
         tipe_valid = tipe_aset if tipe_aset in ("CAPEX", "OPEX") else None
+        if not tipe_valid:
+            tipe_kosong += 1
 
         # Cek apakah aset sudah ada
         aset = Aset.query.filter_by(kode_aset=kode_aset).first()
@@ -1049,7 +1178,11 @@ def aset_import():
             aset.merek = merek or None
             aset.serial_number = serial_number or None
             aset.spesifikasi = spesifikasi or None
-            aset.tipe_aset = tipe_valid
+            # PERBAIKAN: hanya timpa tipe_aset kalau Excel punya nilai valid.
+            # Kalau kosong, PERTAHANKAN nilai tipe_aset yang sudah ada di
+            # database -- jangan ikut-ikutan di-reset ke default "OPEX".
+            if tipe_valid:
+                aset.tipe_aset = tipe_valid
             aset.volume = volume or None
             aset.satuan = satuan or None
             aset.status_aset = status_valid
@@ -1077,7 +1210,11 @@ def aset_import():
                 total_kerusakan=0,
                 serial_number=serial_number or None,
                 spesifikasi=spesifikasi or None,
-                tipe_aset=tipe_valid,
+                # PERBAIKAN: default "OPEX" ditulis eksplisit di sini (bukan
+                # mengandalkan default kolom di models.py) supaya perilakunya
+                # jelas dan gampang ditelusuri -- ini HANYA berlaku untuk aset
+                # baru yang memang belum pernah ada tipe_aset-nya sama sekali.
+                tipe_aset=tipe_valid or "OPEX",
                 volume=volume or None,
                 satuan=satuan or None,
                 status_aset=status_valid,
@@ -1098,10 +1235,26 @@ def aset_import():
     if dilewati:
         pesan += f" {dilewati} baris dilewati karena data tidak lengkap."
     flash(pesan, "warning" if dilewati else "success")
+    if tipe_kosong:
+        flash(
+            f"Perhatian: {tipe_kosong} baris tidak punya nilai tipe_aset "
+            f"(CAPEX/OPEX) yang valid di Excel. Untuk aset baru, tipe_aset "
+            f"otomatis diset ke 'OPEX' (default); untuk aset yang sudah ada, "
+            f"tipe_aset lama TETAP dipertahankan (tidak ditimpa). Silakan "
+            f"lengkapi kolom tipe_aset di Excel jika perlu klasifikasi yang benar.",
+            "warning",
+        )
     if error_baris:
         flash(" | ".join(error_baris[:5]), "warning")
 
     return redirect(url_for("aset_list"))
+
+@app.route("/aset/import-guide")
+@login_required
+@role_required(ROLE_ADMIN)
+def aset_import_guide():
+    """Halaman panduan import Excel dengan contoh data."""
+    return render_template("aset/import_guide.html")
 
 
 # ---------------------------------------------------------------------------
@@ -1455,17 +1608,16 @@ def tiket_create_kerusakan():
 
 @app.route("/maintenance")
 @login_required
-@role_required(ROLE_ADMIN)
 def maintenance_list():
     """Halaman daftar maintenance aset."""
-    kategori = request.args.get("kategori", "")
+    kategori = request.args.get("kategori", "").strip()
     search = request.args.get("search", "").strip()
-    status = request.args.get("status", "")
+    status = request.args.get("status", "").strip()
     
     query = Maintenance.query.join(Aset)
     
     if kategori:
-        query = query.filter(Maintenance.kategori == kategori)
+        query = query.filter(db.func.lower(Maintenance.kategori) == kategori.lower())
     if status:
         query = query.filter(Maintenance.status == status)
     if search:
@@ -1485,15 +1637,30 @@ def maintenance_list():
     
     daftar_maintenance = pagination.items
     aset_all = Aset.query.order_by(Aset.nama).all()
+    kategori_all = Kategori.query.order_by(Kategori.nama).all()
+
+    gedung_all = (
+        db.session.query(Aset.area, Aset.gedung)
+        .filter(Aset.gedung.isnot(None), Aset.gedung != "")
+        .distinct()
+        .order_by(Aset.area, Aset.gedung)
+        .all()
+    )
+    gedung_all_formatted = [
+        {"value": g.gedung, "label": f"{format_area_label(g.area)} - {g.gedung}" if g.area else g.gedung}
+        for g in gedung_all
+    ]
     
     return render_template(
         "maintenance/list.html",
         daftar_maintenance=daftar_maintenance,
         pagination=pagination,
         aset_all=aset_all,
+        kategori_all=kategori_all,
         kategori_terpilih=kategori,
         status_terpilih=status,
         search=search,
+        gedung_all=gedung_all_formatted,
     )
 
 
@@ -1502,8 +1669,21 @@ def maintenance_list():
 @role_required(ROLE_ADMIN)
 def maintenance_create():
     """Tambah jadwal maintenance baru."""
-    id_aset = request.form.get("id_aset")
-    kategori = request.form.get("kategori")
+    # Ambil dari checkbox (multiple aset)
+    aset_id = request.form.get("aset_ids")
+    if not aset_id:
+        flash("Pilih minimal 1 aset.", "danger")
+        return redirect(url_for("maintenance_list"))
+    
+    # Pastikan kategori disimpan dengan format konsisten
+    kategori_raw = request.form.get("kategori", "").strip()
+    # Mapping ke format yang diinginkan
+    kategori_map = {
+        "elektronik": "Elektronik",
+        "furniture": "Furniture",
+        "lainnya": "Lainnya"
+    }
+    kategori_pilihan = kategori_map.get(kategori_raw.lower(), kategori_raw.capitalize()) if kategori_raw else ""
     judul = request.form.get("judul", "").strip()
     deskripsi = request.form.get("deskripsi", "").strip()
     vendor = request.form.get("vendor", "").strip()
@@ -1513,14 +1693,8 @@ def maintenance_create():
     biaya = request.form.get("biaya", 0)
     status = request.form.get("status", "Scheduled")
     
-    if not id_aset or not judul or not tanggal_mulai_str:
-        flash("Nama aset, judul, dan tanggal mulai wajib diisi.", "danger")
-        return redirect(url_for("maintenance_list"))
-    
-    # Validasi aset
-    aset = Aset.query.get(id_aset)
-    if not aset:
-        flash("Aset tidak ditemukan.", "danger")
+    if not judul or not tanggal_mulai_str:
+        flash("Judul dan tanggal mulai wajib diisi.", "danger")
         return redirect(url_for("maintenance_list"))
     
     # Parse tanggal
@@ -1537,34 +1711,49 @@ def maintenance_create():
         except ValueError:
             pass
     
-    maintenance = Maintenance(
-        id_aset=int(id_aset),
-        kategori=kategori,
-        judul=judul,
-        deskripsi=deskripsi or None,
-        vendor=vendor or None,
-        tipe=tipe,
-        tanggal_mulai=tanggal_mulai,
-        tanggal_akhir=tanggal_akhir,
-        biaya=float(biaya) if biaya else 0,
-        status=status,
-        created_by=current_user.id,
-    )
-    db.session.add(maintenance)
-    
-    # Catat histori aset
-    histori = HistoriAset(
-        id_aset=int(id_aset),
-        jenis_event="maintenance",
-        gedung=aset.gedung,
-        lantai=aset.lantai,
-        ruangan=aset.ruangan,
-        id_tiket=None
-    )
-    db.session.add(histori)
+    # Proses setiap aset yang dipilih
+    for aid in aset_id.split(","):
+        aset = Aset.query.get(aid)
+        if not aset:
+            flash(f"Aset ID {aid} tidak ditemukan.", "danger")
+            return redirect(url_for("maintenance_list"))
+        
+        # Kategori maintenance: utamakan pilihan eksplisit dari dropdown form.
+        # Tebakan dari kategori aset cuma dipakai kalau form benar-benar tidak mengirim apa-apa.
+        if kategori_pilihan:
+            kategori_maintenance = kategori_pilihan
+        else:
+            kategori_aset = aset.kategori_ref.nama if aset.kategori_ref else ""
+            kategori_maintenance = "Elektronik" if "Elektronik" in kategori_aset else "Furniture" if "Furniture" in kategori_aset else "Lainnya"
+        
+        maintenance = Maintenance(
+            id_aset=int(aid),
+            kategori=kategori_maintenance,
+            judul=judul,
+            deskripsi=deskripsi or None,
+            vendor=vendor or None,
+            tipe=tipe,
+            tanggal_mulai=tanggal_mulai,
+            tanggal_akhir=tanggal_akhir,
+            biaya=float(biaya) if biaya else 0,
+            status=status,
+            created_by=current_user.id,
+        )
+        db.session.add(maintenance)
+        
+        # Catat histori aset
+        histori = HistoriAset(
+            id_aset=int(aid),
+            jenis_event="maintenance",
+            gedung=aset.gedung,
+            lantai=aset.lantai,
+            ruangan=aset.ruangan,
+            id_tiket=None
+        )
+        db.session.add(histori)
     
     db.session.commit()
-    flash("Jadwal maintenance berhasil ditambahkan.", "success")
+    flash(f"Jadwal maintenance berhasil ditambahkan untuk {len(aset_id.split(','))} aset.", "success")
     return redirect(url_for("maintenance_list"))
 
 
@@ -1581,6 +1770,11 @@ def maintenance_edit(id):
     maintenance.tipe = request.form.get("tipe", "Preventif")
     maintenance.biaya = float(request.form.get("biaya", 0))
     maintenance.status = request.form.get("status", "Scheduled")
+
+    kategori_raw = request.form.get("kategori", "").strip()
+    if kategori_raw:
+        kategori_map = {"elektronik": "Elektronik", "furniture": "Furniture", "lainnya": "Lainnya"}
+        maintenance.kategori = kategori_map.get(kategori_raw.lower(), kategori_raw.capitalize())
     
     tanggal_akhir_str = request.form.get("tanggal_akhir")
     if tanggal_akhir_str:
@@ -1588,7 +1782,14 @@ def maintenance_edit(id):
             maintenance.tanggal_akhir = datetime.strptime(tanggal_akhir_str, "%Y-%m-%d").date()
         except ValueError:
             pass
-    
+
+    catat_aktivitas(
+        aksi="UPDATE",
+        target_model="Maintenance",
+        target_id=maintenance.id,
+        deskripsi=f"Memperbarui jadwal maintenance: {maintenance.judul}",
+    )
+
     db.session.commit()
     flash("Jadwal maintenance berhasil diperbarui.", "success")
     return redirect(url_for("maintenance_list"))
@@ -1600,6 +1801,16 @@ def maintenance_edit(id):
 def maintenance_delete(id):
     """Hapus jadwal maintenance."""
     maintenance = Maintenance.query.get_or_404(id)
+    judul = maintenance.judul
+    nama_aset = maintenance.aset.nama if maintenance.aset else "-"
+
+    catat_aktivitas(
+        aksi="DELETE",
+        target_model="Maintenance",
+        target_id=maintenance.id,
+        deskripsi=f"Menghapus jadwal maintenance: {judul} (aset {nama_aset})",
+    )
+
     db.session.delete(maintenance)
     db.session.commit()
     flash("Jadwal maintenance berhasil dihapus.", "success")
@@ -1613,7 +1824,11 @@ def maintenance_delete(id):
 @role_required(ROLE_ADMIN)
 def users_list():
     daftar_user = User.query.all()
-    return render_template("users/list.html", daftar_user=daftar_user)
+    return render_template(
+        "users/list.html",
+        daftar_user=daftar_user,
+        now=datetime.now(WIB).replace(tzinfo=None),
+    )
 
 
 @app.route("/users/create", methods=["POST"])
@@ -1661,6 +1876,156 @@ def users_toggle(user_id):
         "success",
     )
     return redirect(url_for("users_list"))
+
+
+@app.route("/users/<int:user_id>/ban", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def users_ban(user_id):
+    if user_id == current_user.id:
+        flash("Tidak bisa mem-ban akun sendiri.", "danger")
+        return redirect(url_for("users_list"))
+
+    user = User.query.get_or_404(user_id)
+    banned_until_str = request.form.get("banned_until", "").strip()
+    ban_reason = request.form.get("ban_reason", "").strip() or None
+
+    if not banned_until_str:
+        flash("Tentukan tanggal & waktu berakhirnya ban.", "danger")
+        return redirect(url_for("users_list"))
+    try:
+        banned_until = datetime.strptime(banned_until_str, "%Y-%m-%dT%H:%M")
+    except ValueError:
+        flash("Format tanggal/waktu ban tidak valid.", "danger")
+        return redirect(url_for("users_list"))
+
+    if banned_until <= datetime.now(WIB).replace(tzinfo=None):
+        flash("Waktu berakhirnya ban harus di masa depan.", "danger")
+        return redirect(url_for("users_list"))
+
+    user.banned_until = banned_until
+    user.ban_reason = ban_reason
+    db.session.commit()
+    flash(
+        f"{user.name} di-ban sementara sampai {banned_until.strftime('%d-%m-%Y %H:%M')}.",
+        "success",
+    )
+    return redirect(url_for("users_list"))
+
+
+@app.route("/users/<int:user_id>/unban", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def users_unban(user_id):
+    user = User.query.get_or_404(user_id)
+    user.banned_until = None
+    user.ban_reason = None
+    db.session.commit()
+    flash(f"Ban untuk {user.name} sudah dicabut.", "success")
+    return redirect(url_for("users_list"))
+
+
+# ---------------------------------------------------------------------------
+# PROFIL (akun sendiri, semua role bisa akses)
+# ---------------------------------------------------------------------------
+@app.route("/profile")
+@login_required
+def profile():
+    return render_template("profile.html")
+
+
+@app.route("/profile/update", methods=["POST"])
+@login_required
+def profile_update():
+    name = request.form.get("name", "").strip()
+    email = request.form.get("email", "").strip()
+
+    if not name:
+        flash("Nama tidak boleh kosong.", "danger")
+        return redirect(url_for("profile"))
+    if not email:
+        flash("Email tidak boleh kosong.", "danger")
+        return redirect(url_for("profile"))
+
+    # Cek email tidak dipakai user lain
+    existing = User.query.filter(
+        db.func.lower(User.email) == email.lower(), User.id != current_user.id
+    ).first()
+    if existing:
+        flash("Email sudah dipakai akun lain.", "danger")
+        return redirect(url_for("profile"))
+
+    current_user.name = name
+    current_user.email = email
+    db.session.commit()
+    flash("Profil berhasil diperbarui.", "success")
+    return redirect(url_for("profile"))
+
+
+@app.route("/profile/password", methods=["POST"])
+@login_required
+def profile_password():
+    password_lama = request.form.get("password_lama", "")
+    password_baru = request.form.get("password_baru", "")
+    password_konfirmasi = request.form.get("password_konfirmasi", "")
+
+    if not check_password_hash(current_user.password, password_lama):
+        flash("Password lama tidak sesuai.", "danger")
+        return redirect(url_for("profile"))
+    if len(password_baru) < 8:
+        flash("Password baru minimal 8 karakter.", "danger")
+        return redirect(url_for("profile"))
+    if password_baru != password_konfirmasi:
+        flash("Konfirmasi password baru tidak cocok.", "danger")
+        return redirect(url_for("profile"))
+
+    current_user.password = generate_password_hash(password_baru)
+    db.session.commit()
+    flash("Password berhasil diubah.", "success")
+    return redirect(url_for("profile"))
+
+
+@app.route("/profile/photo", methods=["POST"])
+@login_required
+def profile_photo():
+    # Hapus foto profil
+    if request.form.get("hapus_foto"):
+        if current_user.foto_profil:
+            old_path = os.path.join(app.config["UPLOAD_FOLDER"], current_user.foto_profil)
+            if os.path.exists(old_path):
+                try:
+                    os.remove(old_path)
+                except Exception:
+                    pass
+            current_user.foto_profil = None
+            db.session.commit()
+            flash("Foto profil dihapus.", "success")
+        return redirect(url_for("profile"))
+
+    # Upload foto profil baru
+    foto_file = request.files.get("foto_profil")
+    if not foto_file or foto_file.filename == "":
+        flash("Pilih file foto terlebih dahulu.", "danger")
+        return redirect(url_for("profile"))
+
+    unique_name, error = save_upload(foto_file, prefix=f"profil_{current_user.id}_")
+    if error:
+        flash(error, "danger")
+        return redirect(url_for("profile"))
+
+    # Hapus file foto lama supaya tidak menumpuk file yatim di server
+    if current_user.foto_profil:
+        old_path = os.path.join(app.config["UPLOAD_FOLDER"], current_user.foto_profil)
+        if os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+            except Exception:
+                pass
+
+    current_user.foto_profil = unique_name
+    db.session.commit()
+    flash("Foto profil berhasil diperbarui.", "success")
+    return redirect(url_for("profile"))
 
 
 if __name__ == "__main__":

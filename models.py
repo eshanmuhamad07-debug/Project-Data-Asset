@@ -26,6 +26,9 @@ class User(db.Model, UserMixin):
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False)  # hanya 'admin'
     is_active = db.Column(db.Boolean, default=True, nullable=False)
+    foto_profil = db.Column(db.String(255), nullable=True)  # nama file di static/uploads
+    banned_until = db.Column(db.DateTime, nullable=True)  # ban sementara sampai waktu ini
+    ban_reason = db.Column(db.String(255), nullable=True)
 
 
 # ============================================================
@@ -67,7 +70,7 @@ class Aset(db.Model):
     serial_number = db.Column(db.String(100), nullable=True)  # Serial Number
     volume = db.Column(db.String(50), nullable=True)          # Volume
     satuan = db.Column(db.String(50), nullable=True)          # Satuan
-    tipe_aset = db.Column(db.String(20), nullable=False, default="OPEX")  # CAPEX / OPEX
+    tipe_aset = db.Column(db.String(20), nullable=True)  # CAPEX / OPEX
     link_qr = db.Column(db.String(500), nullable=True)        # Link QR (HIDDEN)
     tanggal_datang = db.Column(db.Date, nullable=True)        # Tanggal Barang Datang
     keterangan = db.Column(db.Text, nullable=True)            # Keterangan

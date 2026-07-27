@@ -165,7 +165,7 @@
           </td>
           <td class="td font-mono text-[12px] text-slate-500 whitespace-nowrap">{{ a.kode_aset }}</td>
           <td class="td font-medium text-slate-800">{{ a.nama }}</td>
-          <td class="td whitespace-nowrap text-slate-500">{{ a.gedung }} / {{ a.ruangan }}</td>
+          <td class="td whitespace-nowrap text-slate-500">{{ (format_area_label(a.area) ~ ' - ') if a.area else '' }}{{ a.gedung }} / {{ a.ruangan }}</td>
           <td class="td">{{ m.pill(a.tipe_aset, 'violet' if a.tipe_aset == 'CAPEX' else 'sky') }}</td>
           <td class="td whitespace-nowrap text-slate-500">{{ a.kategori_ref.nama if a.kategori_ref else '—' }}</td>
           <td class="td">{{ m.pill(a.status_aset, m.aset_tone(a.status_aset)) }}</td>
@@ -194,17 +194,20 @@
               </svg>
               Edit
             </button>
-            <form method="POST" action="{{ url_for('aset_delete', aset_id=a.id) }}" class="inline"
-              onsubmit="return confirm('Hapus aset {{ a.nama }}?')">
+            <button onclick='confirmDeleteAset({{ a.id }}, {{ a.nama|tojson }})'
+              class="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-rose-50">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+              </svg>
+              Hapus
+            </button>
+
+            <!-- Form tersembunyi untuk submit -->
+            <form id="deleteForm_{{ a.id }}" method="POST" action="{{ url_for('aset_delete', aset_id=a.id) }}"
+              class="hidden">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit"
-                class="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-rose-50">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                </svg>
-                Hapus
-              </button>
+              <input type="hidden" name="delete_reason" id="deleteReason_{{ a.id }}">
             </form>
             {% endif %}
           </td>
@@ -428,21 +431,15 @@
           </svg>
           Export Excel
         </a>
-        <form method="POST" action="{{ url_for('aset_import') }}" enctype="multipart/form-data" id="formImportAset"
-          class="flex" onsubmit="showImportLoading()">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <label
-            class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer relative overflow-hidden whitespace-nowrap">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5" />
-            </svg>
-            Import Excel
-            <input type="file" name="file_import" accept=".xlsx" required
-              onchange="document.getElementById('formImportAset').submit()"
-              class="absolute inset-0 opacity-0 cursor-pointer">
-          </label>
-        </form>
+        <!-- TOMBOL IMPORT EXCEL (langsung ke halaman panduan) -->
+        <a href="{{ url_for('aset_import_guide') }}"
+          class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-xl border border-slate-200 whitespace-nowrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5" />
+          </svg>
+          Import Excel
+        </a>
       </div>
     </div>
   </div>
@@ -556,7 +553,7 @@
 
       <div>
         <label class="field-label">Tanggal Datang</label>
-        <input name="tanggal_datang" type="date" class="field-input">
+        <input name="tanggal_datang" type="date" class="field-input" id="tanggalDatangInput">
       </div>
 
       <div>
@@ -1269,5 +1266,54 @@
     openModal('modalEditAset');
   }
 
+  // Catatan: confirmDeleteAset (hapus 1 aset) sudah didefinisikan sekali di main.js,
+  // dipakai bersama di semua halaman -- tidak perlu didefinisikan ulang di sini.
+
+  // Di dalam event listener deleteSelectedBtn
+  deleteBtn.addEventListener('click', function (e) {
+    e.preventDefault();
+    const checked = document.querySelectorAll('.row-checkbox:checked');
+    if (checked.length === 0) {
+      alert('Pilih minimal satu aset untuk dihapus.');
+      return;
+    }
+
+    const namaAset = Array.from(checked).map(cb => {
+      const row = cb.closest('tr');
+      return row ? row.querySelector('.td:nth-child(2)')?.textContent?.trim() || 'Aset' : 'Aset';
+    }).join(', ');
+
+    openDeleteModal({
+      title: `Hapus ${checked.length} Aset`,
+      subtitle: 'Konfirmasi penghapusan massal',
+      message: `Yakin ingin menghapus <strong>${checked.length}</strong> aset?<br><span class="text-xs text-slate-500">${namaAset}</span>`,
+      onConfirm: function (reason) {
+        // Submit form bulk delete
+        const form = document.getElementById('deleteMultipleForm');
+        const container = document.getElementById('selectedIdsContainer');
+
+        // Kosongkan container
+        container.innerHTML = '';
+
+        // Tambah input hidden untuk setiap ID
+        checked.forEach(cb => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'ids[]';
+          input.value = cb.value;
+          container.appendChild(input);
+        });
+
+        // Tambah alasan
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'delete_reason';
+        reasonInput.value = reason;
+        container.appendChild(reasonInput);
+
+        form.submit();
+      }
+    });
+  });
 </script>
 {% endblock %}
