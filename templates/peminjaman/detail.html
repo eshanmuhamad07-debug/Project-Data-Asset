@@ -1,0 +1,179 @@
+{% import "_macros.html" as m %}
+{% extends "base.html" %}
+{% block title %}Peminjaman #{{ p.id }}{% endblock %}
+{% block header %}
+<a href="{{ url_for('peminjaman_list') }}" class="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-600 text-xs font-medium mb-0.5">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+  Peminjaman Aset
+</a>
+<div>Peminjaman #{{ p.id }}</div>
+{% endblock %}
+{% block content %}
+
+{% set terlambat = (p.status == 'Dipinjam' and p.tanggal_rencana_kembali and p.tanggal_rencana_kembali < today) %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+  <!-- Info Peminjaman -->
+  <div class="card p-5 sm:p-6 lg:col-span-2 space-y-5">
+    <div class="flex items-start justify-between flex-wrap gap-3">
+      <div>
+        <p class="text-xs text-slate-400 mb-1">
+          {% if terlambat %}
+          {{ m.pill('Terlambat', 'rose') }}
+          {% elif p.status == 'Dikembalikan' %}
+          {{ m.pill('Dikembalikan', 'emerald') }}
+          {% else %}
+          {{ m.pill('Dipinjam', 'amber') }}
+          {% endif %}
+          &bull; {{ p.created_at.strftime('%d %b %Y, %H:%M') }}
+        </p>
+        <h2 class="font-display font-bold text-lg text-slate-800">{{ p.nama_peminjam }}</h2>
+      </div>
+      {% if current_user.role == 'admin' and p.status == 'Dipinjam' %}
+      <form method="POST" action="{{ url_for('peminjaman_kembalikan', id=p.id) }}"
+        onsubmit="return confirm('Tandai barang ini sudah dikembalikan?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn"
+          style="background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;">
+          ✅ Tandai Dikembalikan
+        </button>
+      </form>
+      {% endif %}
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 text-sm border-t border-slate-100 pt-4">
+      <div>
+        <p class="text-xs text-slate-400 mb-0.5">Unit</p>
+        <p class="font-medium text-slate-700">{{ p.unit or '—' }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-slate-400 mb-0.5">Lokasi Kerja</p>
+        <p class="font-medium text-slate-700">{{ p.lokasi_kerja or '—' }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-slate-400 mb-0.5">Tanggal Pinjam</p>
+        <p class="font-medium text-slate-700">{{ p.tanggal_pinjam.strftime('%d-%m-%Y') if p.tanggal_pinjam else '—' }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-slate-400 mb-0.5">Rencana Kembali</p>
+        <p class="font-medium text-slate-700">{{ p.tanggal_rencana_kembali.strftime('%d-%m-%Y') if p.tanggal_rencana_kembali else '—' }}</p>
+      </div>
+      {% if p.tanggal_dikembalikan %}
+      <div>
+        <p class="text-xs text-slate-400 mb-0.5">Tanggal Dikembalikan</p>
+        <p class="font-medium text-emerald-600">{{ p.tanggal_dikembalikan.strftime('%d-%m-%Y') }}</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <div>
+      <p class="text-xs text-slate-400 mb-1">Keterangan</p>
+      <p class="text-sm text-slate-600 leading-relaxed">{{ p.keterangan or '—' }}</p>
+    </div>
+
+    {% if p.evidence %}
+    <div>
+      <p class="text-xs text-slate-400 mb-2">Evidence Lampiran (Berita Acara)</p>
+      {% set ext = p.evidence.rsplit('.', 1)[-1].lower() %}
+      {% if ext in ['pdf'] %}
+      <a href="{{ url_for('static', filename='uploads/' + p.evidence) }}" target="_blank"
+        class="inline-flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-indigo-600 hover:bg-indigo-50">
+        📄 Lihat Dokumen PDF
+      </a>
+      {% elif ext in ['doc', 'docx'] %}
+      <a href="{{ url_for('static', filename='uploads/' + p.evidence) }}" target="_blank"
+        class="inline-flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-indigo-600 hover:bg-indigo-50">
+        📄 Unduh Dokumen Word
+      </a>
+      {% else %}
+      <div class="bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center" style="min-height: 150px; max-height: 450px;">
+        <img src="{{ url_for('static', filename='uploads/' + p.evidence) }}"
+             style="width: 100%; height: auto; max-height: 450px; object-fit: contain; display: block;"
+             class="border border-slate-200 rounded-lg"
+             onerror="this.parentElement.innerHTML='<div class=\\'text-slate-400 text-sm p-4\\'>Foto tidak ditemukan</div>'">
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div>
+      <p class="text-xs text-slate-400 mb-2">Barang / Aset Dipinjam</p>
+      <div class="flex flex-wrap gap-1.5">
+        {% for pa in p.aset_terkait %}
+        {% if pa.aset %}
+        <a href="{{ url_for('aset_list') }}?q={{ pa.aset.nama }}" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-600 hover:bg-indigo-50 hover:border-indigo-200 transition-all">
+          <span class="font-mono text-[10px] text-slate-400">{{ pa.aset.kode_aset }}</span>{{ pa.aset.nama }}
+        </a>
+        {% endif %}
+        {% else %}
+        <p class="text-xs text-slate-400">Tidak ada barang tercatat.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Info Tambahan -->
+  <div class="card p-5 sm:p-6 space-y-5">
+    <div>
+      <p class="text-sm font-semibold text-slate-700 mb-3">Dibuat Oleh</p>
+      <p class="text-sm text-slate-600">{{ p.user_creator.name if p.user_creator else 'System' }}</p>
+      <p class="text-[11px] text-slate-400">{{ p.created_at.strftime('%d-%m-%Y %H:%M') }}</p>
+    </div>
+
+    <div class="border-t border-slate-100 pt-4">
+      <p class="text-sm font-semibold text-slate-700 mb-3">Histori Barang</p>
+      {% for pa in p.aset_terkait %}
+      {% if pa.aset %}
+        <div class="mb-3">
+          <p class="text-xs font-medium text-slate-600">{{ pa.aset.nama }}</p>
+          <div id="histori-{{ pa.aset.id }}" class="space-y-1 mt-1">
+            <p class="text-xs text-slate-400">Memuat histori...</p>
+          </div>
+        </div>
+      {% endif %}
+      {% else %}
+        <p class="text-xs text-slate-400">Tidak ada barang terkait.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  {% for pa in p.aset_terkait %}
+  {% if pa.aset %}
+  fetch('/aset/{{ pa.aset.id }}/histori')
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById('histori-{{ pa.aset.id }}');
+      if (data.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400">Belum ada histori.</p>';
+        return;
+      }
+      container.innerHTML = data.map(h => {
+        let label = '', color = '';
+        if (h.jenis === 'pindah') { label = '🔄 Pindah ke'; color = 'text-blue-600'; }
+        else if (h.jenis === 'rusak') { label = '⚠️ Rusak'; color = 'text-rose-600'; }
+        else if (h.jenis === 'perbaikan') { label = '✅ Diperbaiki'; color = 'text-emerald-600'; }
+        else if (h.jenis === 'pinjam') { label = '📦 Dipinjam'; color = 'text-amber-600'; }
+        else if (h.jenis === 'kembali') { label = '↩️ Dikembalikan'; color = 'text-emerald-600'; }
+        let lokasi = '';
+        if (h.gedung) {
+          lokasi = h.gedung;
+          if (h.lantai) lokasi += ` / Lantai ${h.lantai}`;
+          if (h.ruangan) lokasi += ` / ${h.ruangan}`;
+        }
+        return `<p class="text-xs ${color}">${label} ${lokasi || ''} <span class="text-slate-400">(${h.tanggal})</span></p>`;
+      }).join('');
+    })
+    .catch(() => {
+      document.getElementById('histori-{{ pa.aset.id }}').innerHTML = '<p class="text-xs text-slate-400">Gagal memuat histori.</p>';
+    });
+  {% endif %}
+  {% endfor %}
+});
+</script>
+{% endblock %}

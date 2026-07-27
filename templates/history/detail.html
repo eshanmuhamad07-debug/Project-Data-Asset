@@ -125,6 +125,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (h.jenis === 'pindah') { label = '🔄 Pindah ke'; color = 'text-blue-600'; }
         else if (h.jenis === 'rusak') { label = '⚠️ Rusak'; color = 'text-rose-600'; }
         else if (h.jenis === 'perbaikan') { label = '✅ Diperbaiki'; color = 'text-emerald-600'; }
+        else if (h.jenis === 'pinjam') { label = '📦 Dipinjam'; color = 'text-amber-600'; }
+        else if (h.jenis === 'kembali') { label = '↩️ Dikembalikan'; color = 'text-emerald-600'; }
         let lokasi = '';
         if (h.gedung) {
           lokasi = h.gedung;

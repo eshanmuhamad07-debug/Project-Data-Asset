@@ -158,6 +158,37 @@ class AktivitasLog(db.Model):
     created_at = db.Column(db.DateTime, default=get_wib_now)
     user = db.relationship("User")
 
+class Peminjaman(db.Model):
+    __tablename__ = "peminjaman"
+    id = db.Column(db.Integer, primary_key=True)
+
+    nama_peminjam = db.Column(db.String(120), nullable=False)
+    unit = db.Column(db.String(100), nullable=True)
+    lokasi_kerja = db.Column(db.String(100), nullable=True)
+
+    tanggal_pinjam = db.Column(db.Date, nullable=False)
+    tanggal_rencana_kembali = db.Column(db.Date, nullable=True)
+    tanggal_dikembalikan = db.Column(db.Date, nullable=True)
+
+    status = db.Column(db.String(20), default="Dipinjam", nullable=False)  # Dipinjam / Dikembalikan
+    keterangan = db.Column(db.Text, nullable=True)
+    evidence = db.Column(db.String(255), nullable=True)  # file BA Serah Terima (gambar/pdf)
+
+    created_at = db.Column(db.DateTime, default=get_wib_now)
+    created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    user_creator = db.relationship("User", foreign_keys=[created_by])
+
+    aset_terkait = db.relationship("PeminjamanAset", backref="peminjaman", cascade="all, delete-orphan")
+
+
+class PeminjamanAset(db.Model):
+    __tablename__ = "peminjaman_aset"
+    id = db.Column(db.Integer, primary_key=True)
+    id_peminjaman = db.Column(db.Integer, db.ForeignKey("peminjaman.id"), nullable=False)
+    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=False)
+    aset = db.relationship("Aset")
+
+
 class Maintenance(db.Model):
     __tablename__ = "maintenance"
 

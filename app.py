@@ -22,7 +22,8 @@ import re
 from extensions import db, login_manager, csrf, limiter
 from models import (
     User, Kategori, Aset, Tiket, TiketAset,
-    LogStatus, HistoriAset, AktivitasLog, Maintenance
+    LogStatus, HistoriAset, AktivitasLog, Maintenance,
+    Peminjaman, PeminjamanAset
 )
 from roles import ROLE_ADMIN
 
@@ -87,6 +88,37 @@ def save_upload(file_storage, prefix=""):
     if not allowed_file(file_storage.filename):
         return None, f"Ekstensi file tidak diizinkan. Gunakan: {', '.join(ALLOWED_EXT)}"
     if not is_valid_image(file_storage):
+        return None, "File yang diupload bukan gambar yang valid."
+    filename = secure_filename(file_storage.filename)
+    if not filename:
+        return None, "Nama file tidak valid."
+    unique_name = f"{prefix}{datetime.now(WIB).strftime('%Y%m%d%H%M%S%f')}_{filename}"
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
+    try:
+        file_storage.save(filepath)
+        return unique_name, None
+    except Exception as e:
+        return None, f"Gagal menyimpan file: {str(e)}"
+
+
+ALLOWED_EXT_DOKUMEN = ALLOWED_EXT | {"pdf", "doc", "docx"}
+
+
+def allowed_dokumen(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXT_DOKUMEN
+
+
+def save_dokumen(file_storage, prefix=""):
+    """Simpan file evidence/BA (Berita Acara). Boleh berupa gambar ATAU dokumen
+    (pdf/doc/docx) -- berbeda dari save_upload() yang khusus gambar saja,
+    karena Evidence Lampiran peminjaman aset biasanya berupa PDF hasil scan BA."""
+    if not file_storage or file_storage.filename == "":
+        return None, None
+    if not allowed_dokumen(file_storage.filename):
+        return None, f"Ekstensi file tidak diizinkan. Gunakan: {', '.join(sorted(ALLOWED_EXT_DOKUMEN))}"
+    ext = file_storage.filename.rsplit(".", 1)[1].lower()
+    # Kalau file gambar, tetap divalidasi isinya seperti save_upload biasa
+    if ext in ALLOWED_EXT and not is_valid_image(file_storage):
         return None, "File yang diupload bukan gambar yang valid."
     filename = secure_filename(file_storage.filename)
     if not filename:
@@ -1330,13 +1362,39 @@ def history_list():
                 "is_aktivitas": False,
             })
 
+    # === 1b. PEMINJAMAN ASET ===
+    if filter_jenis in ["", "Peminjaman"]:
+        for p in Peminjaman.query.order_by(Peminjaman.created_at.desc()).all():
+            creator_name = p.user_creator.name if p.user_creator else "System"
+            aset_list = ", ".join([pa.aset.nama for pa in p.aset_terkait[:3] if pa.aset])
+            if len(p.aset_terkait) > 3:
+                aset_list += f" dan {len(p.aset_terkait)-3} lainnya"
+
+            events.append({
+                "id": p.id,
+                "waktu": p.created_at,
+                "pelaku": creator_name,
+                "jenis": "Peminjaman",
+                "aksi": "Dikembalikan" if p.status == "Dikembalikan" else "Peminjaman",
+                "detail": f"{p.nama_peminjam} - {aset_list or 'Tidak ada aset'}",
+                "link": url_for("peminjaman_detail", id=p.id),
+                "warna": "bg-emerald-100 text-emerald-700 border-emerald-200" if p.status == "Dikembalikan" else "bg-amber-100 text-amber-700 border-amber-200",
+                "is_tiket": False,
+                "is_maintenance": False,
+                "is_aktivitas": False,
+            })
+
     # === 2. AKTIVITAS ADMIN (hanya untuk role admin) ===
     if current_user.role == ROLE_ADMIN and filter_jenis in ["", "Aktivitas"]:
         for a in AktivitasLog.query.order_by(AktivitasLog.created_at.desc()).all():
             user = User.query.get(a.id_user)
             pelaku = user.name if user else "Unknown"
             
-            label_aksi = {
+            label_map_by_model = {
+                "Peminjaman": {"CREATE": "Peminjaman Aset", "UPDATE": "Update Peminjaman", "DELETE": "Hapus Peminjaman"},
+                "Maintenance": {"CREATE": "Tambah Maintenance", "UPDATE": "Edit Maintenance", "DELETE": "Hapus Maintenance"},
+            }
+            label_aksi = label_map_by_model.get(a.target_model, {}).get(a.aksi) or {
                 "CREATE": "Tambah Aset",
                 "UPDATE": "Edit Aset",
                 "DELETE": "Hapus Aset",
@@ -1424,8 +1482,13 @@ def aktivitas_detail(log_id):
     """Detail aktivitas admin (tambah/edit/hapus aset)."""
     log = AktivitasLog.query.get_or_404(log_id)
     
-    # Ambil nama aksi
-    label_aksi = {
+    # Ambil nama aksi (sadar target_model supaya Peminjaman/Maintenance tidak
+    # ikut terlabel "Tambah Aset" dsb.)
+    label_map_by_model = {
+        "Peminjaman": {"CREATE": "Peminjaman Aset", "UPDATE": "Update Peminjaman", "DELETE": "Hapus Peminjaman"},
+        "Maintenance": {"CREATE": "Tambah Maintenance", "UPDATE": "Edit Maintenance", "DELETE": "Hapus Maintenance"},
+    }
+    label_aksi = label_map_by_model.get(log.target_model, {}).get(log.aksi) or {
         "CREATE": "Tambah Aset",
         "UPDATE": "Edit Aset", 
         "DELETE": "Hapus Aset",
@@ -1608,6 +1671,233 @@ def tiket_create_kerusakan():
     db.session.commit()
     flash(f"Laporan kerusakan berhasil dibuat. {len(aset_ids)} aset ditandai rusak.", "success")
     return redirect(url_for("history_list"))
+
+@app.route("/peminjaman")
+@login_required
+def peminjaman_list():
+    """Daftar peminjaman aset (gaya BA Transfer: Nama, Unit, Lokasi Kerja,
+    Jenis Barang, Tanggal Awal/Akhir, Keterangan, Evidence Lampiran)."""
+    search = request.args.get("search", "").strip()
+    status = request.args.get("status", "").strip()
+
+    query = Peminjaman.query
+
+    if status:
+        query = query.filter(Peminjaman.status == status)
+    if search:
+        query = query.join(PeminjamanAset, isouter=True).join(Aset, isouter=True).filter(
+            db.or_(
+                Peminjaman.nama_peminjam.ilike(f"%{search}%"),
+                Peminjaman.unit.ilike(f"%{search}%"),
+                Aset.nama.ilike(f"%{search}%"),
+                Aset.kode_aset.ilike(f"%{search}%"),
+            )
+        ).distinct()
+
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+    pagination = query.order_by(Peminjaman.tanggal_pinjam.desc(), Peminjaman.id.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    daftar_peminjaman = pagination.items
+
+    today = datetime.now(WIB).date()
+    total = Peminjaman.query.count()
+    total_dipinjam = Peminjaman.query.filter_by(status="Dipinjam").count()
+    total_dikembalikan = Peminjaman.query.filter_by(status="Dikembalikan").count()
+    total_terlambat = Peminjaman.query.filter(
+        Peminjaman.status == "Dipinjam",
+        Peminjaman.tanggal_rencana_kembali.isnot(None),
+        Peminjaman.tanggal_rencana_kembali < today,
+    ).count()
+
+    gedung_all = (
+        db.session.query(Aset.area, Aset.gedung)
+        .filter(Aset.gedung.isnot(None), Aset.gedung != "")
+        .distinct()
+        .order_by(Aset.area, Aset.gedung)
+        .all()
+    )
+    gedung_all_formatted = [
+        {"value": g.gedung, "label": f"{format_area_label(g.area)} - {g.gedung}" if g.area else g.gedung}
+        for g in gedung_all
+    ]
+
+    return render_template(
+        "peminjaman/list.html",
+        daftar_peminjaman=daftar_peminjaman,
+        pagination=pagination,
+        search=search,
+        status_terpilih=status,
+        gedung_all=gedung_all_formatted,
+        today=today,
+        total=total,
+        total_dipinjam=total_dipinjam,
+        total_dikembalikan=total_dikembalikan,
+        total_terlambat=total_terlambat,
+    )
+
+
+@app.route("/peminjaman/create", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def peminjaman_create():
+    """Buat data peminjaman aset baru, lengkap dengan input barang (multi-aset)."""
+    aset_ids = request.form.getlist("aset_ids[]")
+    if not aset_ids:
+        flash("Pilih minimal 1 barang/aset yang dipinjam.", "danger")
+        return redirect(url_for("peminjaman_list"))
+
+    nama_peminjam = request.form.get("nama_peminjam", "").strip()
+    unit = request.form.get("unit", "").strip()
+    lokasi_kerja = request.form.get("lokasi_kerja", "").strip()
+    keterangan = request.form.get("keterangan", "").strip()
+    tanggal_pinjam_str = request.form.get("tanggal_pinjam")
+    tanggal_rencana_str = request.form.get("tanggal_rencana_kembali")
+
+    if not nama_peminjam or not tanggal_pinjam_str:
+        flash("Nama peminjam dan tanggal pinjam wajib diisi.", "danger")
+        return redirect(url_for("peminjaman_list"))
+
+    try:
+        tanggal_pinjam = datetime.strptime(tanggal_pinjam_str, "%Y-%m-%d").date()
+    except ValueError:
+        flash("Format tanggal pinjam tidak valid.", "danger")
+        return redirect(url_for("peminjaman_list"))
+
+    tanggal_rencana_kembali = None
+    if tanggal_rencana_str:
+        try:
+            tanggal_rencana_kembali = datetime.strptime(tanggal_rencana_str, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    evidence, evidence_error = save_dokumen(request.files.get("evidence"), prefix="peminjaman_")
+
+    peminjaman = Peminjaman(
+        nama_peminjam=nama_peminjam,
+        unit=unit or None,
+        lokasi_kerja=lokasi_kerja or None,
+        tanggal_pinjam=tanggal_pinjam,
+        tanggal_rencana_kembali=tanggal_rencana_kembali,
+        status="Dipinjam",
+        keterangan=keterangan or None,
+        evidence=evidence,
+        created_by=current_user.id,
+    )
+    db.session.add(peminjaman)
+    db.session.flush()
+
+    nama_aset_list = []
+    for aid in aset_ids:
+        aset = db.session.get(Aset, int(aid))
+        if aset:
+            db.session.add(PeminjamanAset(id_peminjaman=peminjaman.id, id_aset=aset.id))
+            db.session.add(HistoriAset(
+                id_aset=aset.id,
+                jenis_event="pinjam",
+                gedung=aset.gedung,
+                lantai=aset.lantai,
+                ruangan=aset.ruangan,
+            ))
+            nama_aset_list.append(aset.nama)
+
+    catat_aktivitas(
+        aksi="CREATE",
+        target_model="Peminjaman",
+        target_id=peminjaman.id,
+        deskripsi=f"Peminjaman aset oleh {nama_peminjam}: {', '.join(nama_aset_list) or '-'}",
+        data_baru={
+            "nama_peminjam": nama_peminjam,
+            "unit": unit,
+            "lokasi_kerja": lokasi_kerja,
+            "barang": nama_aset_list,
+            "tanggal_pinjam": tanggal_pinjam.strftime("%Y-%m-%d"),
+            "tanggal_rencana_kembali": tanggal_rencana_kembali.strftime("%Y-%m-%d") if tanggal_rencana_kembali else None,
+        }
+    )
+
+    db.session.commit()
+
+    if evidence_error:
+        flash(f"Peminjaman berhasil dibuat, tetapi evidence gagal diupload: {evidence_error}", "warning")
+    else:
+        flash(f"Peminjaman berhasil dibuat. {len(aset_ids)} barang dipinjamkan kepada {nama_peminjam}.", "success")
+    return redirect(url_for("peminjaman_list"))
+
+
+@app.route("/peminjaman/<int:id>/kembalikan", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def peminjaman_kembalikan(id):
+    """Tandai peminjaman sebagai sudah dikembalikan."""
+    peminjaman = Peminjaman.query.get_or_404(id)
+
+    if peminjaman.status == "Dikembalikan":
+        flash("Peminjaman ini sudah ditandai dikembalikan sebelumnya.", "warning")
+        return redirect(url_for("peminjaman_list"))
+
+    tanggal_kembali_str = request.form.get("tanggal_dikembalikan")
+    if tanggal_kembali_str:
+        try:
+            peminjaman.tanggal_dikembalikan = datetime.strptime(tanggal_kembali_str, "%Y-%m-%d").date()
+        except ValueError:
+            peminjaman.tanggal_dikembalikan = datetime.now(WIB).date()
+    else:
+        peminjaman.tanggal_dikembalikan = datetime.now(WIB).date()
+
+    peminjaman.status = "Dikembalikan"
+
+    for pa in peminjaman.aset_terkait:
+        aset = pa.aset
+        if aset:
+            db.session.add(HistoriAset(
+                id_aset=aset.id,
+                jenis_event="kembali",
+                gedung=aset.gedung,
+                lantai=aset.lantai,
+                ruangan=aset.ruangan,
+            ))
+
+    catat_aktivitas(
+        aksi="UPDATE",
+        target_model="Peminjaman",
+        target_id=peminjaman.id,
+        deskripsi=f"Pengembalian aset dari peminjaman {peminjaman.nama_peminjam}",
+        data_baru={"status": "Dikembalikan", "tanggal_dikembalikan": peminjaman.tanggal_dikembalikan.strftime("%Y-%m-%d")}
+    )
+
+    db.session.commit()
+    flash("Aset berhasil ditandai sudah dikembalikan.", "success")
+    return redirect(url_for("peminjaman_list"))
+
+
+@app.route("/peminjaman/<int:id>/detail")
+@login_required
+def peminjaman_detail(id):
+    """Detail satu data peminjaman aset."""
+    peminjaman = Peminjaman.query.get_or_404(id)
+    today = datetime.now(WIB).date()
+    return render_template("peminjaman/detail.html", p=peminjaman, today=today)
+
+
+@app.route("/peminjaman/<int:id>/delete", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def peminjaman_delete(id):
+    """Hapus data peminjaman aset."""
+    peminjaman = Peminjaman.query.get_or_404(id)
+    catat_aktivitas(
+        aksi="DELETE",
+        target_model="Peminjaman",
+        target_id=peminjaman.id,
+        deskripsi=f"Menghapus data peminjaman {peminjaman.nama_peminjam}",
+    )
+    db.session.delete(peminjaman)
+    db.session.commit()
+    flash("Data peminjaman berhasil dihapus.", "success")
+    return redirect(url_for("peminjaman_list"))
+
 
 @app.route("/maintenance")
 @login_required

@@ -1101,6 +1101,22 @@
               if (h.lantai) lokasi += ` / Lantai ${h.lantai}`;
               if (h.ruangan) lokasi += ` / ${h.ruangan}`;
               detailLokasi = `📍 ${lokasi}`;
+            } else if (h.jenis === 'pinjam') {
+              label = '📦 Dipinjam';
+              color = 'text-amber-600';
+              icon = '📦';
+              let lokasi = `${h.gedung || '-'}`;
+              if (h.lantai) lokasi += ` / Lantai ${h.lantai}`;
+              if (h.ruangan) lokasi += ` / ${h.ruangan}`;
+              detailLokasi = `📍 ${lokasi}`;
+            } else if (h.jenis === 'kembali') {
+              label = '↩️ Dikembalikan';
+              color = 'text-emerald-600';
+              icon = '↩️';
+              let lokasi = `${h.gedung || '-'}`;
+              if (h.lantai) lokasi += ` / Lantai ${h.lantai}`;
+              if (h.ruangan) lokasi += ` / ${h.ruangan}`;
+              detailLokasi = `📍 ${lokasi}`;
             }
             return `<div class="flex items-start gap-2 py-1.5 border-b border-slate-50 last:border-0">
             <span class="text-sm">${icon}</span>
