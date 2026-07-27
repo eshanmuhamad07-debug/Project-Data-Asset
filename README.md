@@ -190,6 +190,36 @@ kombinasi Operasional/Pusat untuk uji coba fitur import.
 Dependency baru yang perlu di-install (sudah ada di `requirements.txt`):
 `Flask-WTF`, `Flask-Limiter`, `openpyxl`, `Pillow`.
 
+## 6b. Update: Halaman Detail Maintenance + Foto Dokumentasi (Before/Progress/After)
+
+- Setiap baris di **Data Maintenance** sekarang punya tombol **Detail** yang
+  membuka halaman tersendiri (`/maintenance/<id>/detail`), bukan modal.
+- Di halaman Detail ini ditampilkan seluruh info jadwal maintenance (aset,
+  lokasi, vendor, tipe, tanggal, biaya, status, deskripsi) **plus 3 slot foto
+  dokumentasi**: **Sebelum**, **Sedang Berlangsung**, **Sesudah**.
+- Foto dokumentasi **hanya bisa diupload/dilihat/dihapus dari halaman Detail
+  ini** — sengaja tidak ditaruh sebagai kolom terpisah di halaman list, supaya
+  semua dokumentasi menyatu dengan datanya, tidak tercecer di tempat lain.
+- Upload foto pakai validasi yang sama seperti foto Aset/Tiket (`Pillow`,
+  cek isi file bukan cuma ekstensi). File lama otomatis dihapus dari server
+  saat foto diganti atau saat jadwal maintenance dihapus.
+
+### Migrasi database (kolom baru di tabel `maintenance`)
+
+Tabel `maintenance` dapat 3 kolom baru: `foto_before`, `foto_progress`,
+`foto_after` (semua `VARCHAR(255)`, nullable). Sama seperti pembaruan
+sebelumnya, `db.create_all()` **tidak** menambah kolom ke tabel yang sudah
+ada, jadi pilih salah satu:
+
+- **Cara mudah (hapus data lama):** drop database, buat ulang, jalankan
+  `python seed.py` lagi.
+- **Cara jaga data lama:** jalankan SQL berikut di phpMyAdmin:
+  ```sql
+  ALTER TABLE `maintenance` ADD COLUMN `foto_before` VARCHAR(255) DEFAULT NULL;
+  ALTER TABLE `maintenance` ADD COLUMN `foto_progress` VARCHAR(255) DEFAULT NULL;
+  ALTER TABLE `maintenance` ADD COLUMN `foto_after` VARCHAR(255) DEFAULT NULL;
+  ```
+
 ## 6. Yang Perlu Anda Sesuaikan Sendiri
 
 Karena proyek ini butuh MySQL (XAMPP) yang berjalan di komputer lokal Anda,

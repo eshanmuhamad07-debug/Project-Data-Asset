@@ -1812,6 +1812,109 @@ def maintenance_edit(id):
     return redirect(url_for("maintenance_list"))
 
 
+@app.route("/maintenance/<int:id>/detail")
+@login_required
+@role_required(ROLE_ADMIN)
+def maintenance_detail(id):
+    """Halaman detail sebuah jadwal maintenance, termasuk foto dokumentasi
+    (before / on progress / after). Foto dokumentasi HANYA tampil & bisa
+    diupload dari halaman ini, tidak ada di halaman list."""
+    maintenance = Maintenance.query.get_or_404(id)
+    return render_template("maintenance/detail.html", m=maintenance)
+
+
+# Slot foto dokumentasi yang diizinkan + nama kolom di model Maintenance
+MAINTENANCE_FOTO_SLOTS = {
+    "before": "foto_before",
+    "progress": "foto_progress",
+    "after": "foto_after",
+}
+
+
+@app.route("/maintenance/<int:id>/foto/<slot>", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def maintenance_upload_foto(id, slot):
+    """Upload/ganti satu foto dokumentasi (before/progress/after) milik
+    sebuah jadwal maintenance. Selalu redirect balik ke halaman detail."""
+    maintenance = Maintenance.query.get_or_404(id)
+
+    if slot not in MAINTENANCE_FOTO_SLOTS:
+        flash("Jenis foto tidak dikenali.", "danger")
+        return redirect(url_for("maintenance_detail", id=id))
+
+    kolom = MAINTENANCE_FOTO_SLOTS[slot]
+    file_storage = request.files.get("foto")
+
+    if not file_storage or file_storage.filename == "":
+        flash("Pilih file foto terlebih dahulu.", "danger")
+        return redirect(url_for("maintenance_detail", id=id))
+
+    unique_name, error = save_upload(file_storage, prefix=f"maintenance_{slot}_")
+    if error:
+        flash(error, "danger")
+        return redirect(url_for("maintenance_detail", id=id))
+
+    # Hapus file foto lama (kalau ada) supaya tidak menumpuk di server
+    foto_lama = getattr(maintenance, kolom)
+    if foto_lama:
+        old_path = os.path.join(app.config["UPLOAD_FOLDER"], foto_lama)
+        if os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+            except OSError:
+                pass
+
+    setattr(maintenance, kolom, unique_name)
+
+    label_slot = {"before": "Sebelum", "progress": "Sedang Berlangsung", "after": "Sesudah"}[slot]
+    catat_aktivitas(
+        aksi="UPDATE",
+        target_model="Maintenance",
+        target_id=maintenance.id,
+        deskripsi=f"Mengunggah foto dokumentasi ({label_slot}) untuk maintenance: {maintenance.judul}",
+    )
+
+    db.session.commit()
+    flash(f"Foto dokumentasi ({label_slot}) berhasil disimpan.", "success")
+    return redirect(url_for("maintenance_detail", id=id))
+
+
+@app.route("/maintenance/<int:id>/foto/<slot>/delete", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def maintenance_delete_foto(id, slot):
+    """Hapus satu foto dokumentasi (before/progress/after)."""
+    maintenance = Maintenance.query.get_or_404(id)
+
+    if slot not in MAINTENANCE_FOTO_SLOTS:
+        flash("Jenis foto tidak dikenali.", "danger")
+        return redirect(url_for("maintenance_detail", id=id))
+
+    kolom = MAINTENANCE_FOTO_SLOTS[slot]
+    foto_lama = getattr(maintenance, kolom)
+    if foto_lama:
+        old_path = os.path.join(app.config["UPLOAD_FOLDER"], foto_lama)
+        if os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+            except OSError:
+                pass
+        setattr(maintenance, kolom, None)
+
+        label_slot = {"before": "Sebelum", "progress": "Sedang Berlangsung", "after": "Sesudah"}[slot]
+        catat_aktivitas(
+            aksi="UPDATE",
+            target_model="Maintenance",
+            target_id=maintenance.id,
+            deskripsi=f"Menghapus foto dokumentasi ({label_slot}) untuk maintenance: {maintenance.judul}",
+        )
+        db.session.commit()
+        flash("Foto dokumentasi berhasil dihapus.", "success")
+
+    return redirect(url_for("maintenance_detail", id=id))
+
+
 @app.route("/maintenance/<int:id>/delete", methods=["POST"])
 @login_required
 @role_required(ROLE_ADMIN)
@@ -1820,6 +1923,17 @@ def maintenance_delete(id):
     maintenance = Maintenance.query.get_or_404(id)
     judul = maintenance.judul
     nama_aset = maintenance.aset.nama if maintenance.aset else "-"
+
+    # Bersihkan file foto dokumentasi dari disk juga
+    for kolom in MAINTENANCE_FOTO_SLOTS.values():
+        foto = getattr(maintenance, kolom)
+        if foto:
+            path = os.path.join(app.config["UPLOAD_FOLDER"], foto)
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
 
     catat_aktivitas(
         aksi="DELETE",

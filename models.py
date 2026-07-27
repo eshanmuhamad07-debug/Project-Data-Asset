@@ -175,5 +175,10 @@ class Maintenance(db.Model):
     created_at = db.Column(db.DateTime, default=get_wib_now)
     created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
 
+    # --- Foto dokumentasi maintenance (hanya tampil di halaman Detail) ---
+    foto_before = db.Column(db.String(255), nullable=True)
+    foto_progress = db.Column(db.String(255), nullable=True)
+    foto_after = db.Column(db.String(255), nullable=True)
+
     aset = db.relationship("Aset")
     user = db.relationship("User")
