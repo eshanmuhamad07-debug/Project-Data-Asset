@@ -7,7 +7,7 @@
   {% if current_user.role == 'admin' %}
   Ringkasan aset dan history aktivitas
   {% else %}
-  Ringkasan data aset perusahaan
+  Ringkasan data aset perusahaan dan history
   {% endif %}
 </p>
 {% endblock %}
@@ -221,10 +221,10 @@
               <span class="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-700">{{ mt.tipe }}</span>
             </div>
             <p class="text-sm text-slate-700 truncate">
-              <a href="{{ url_for('maintenance_list') }}" class="text-indigo-600 hover:text-indigo-700 hover:underline">{{ mt.judul }}</a>
+              <a href="{{ url_for('maintenance_detail', id=mt.id) }}" class="text-indigo-600 hover:text-indigo-700 hover:underline">{{ mt.judul }}</a>
             </p>
           </div>
-          <a href="{{ url_for('maintenance_list') }}" class="shrink-0 text-slate-300 hover:text-indigo-600">
+          <a href="{{ url_for('maintenance_detail', id=mt.id) }}" class="shrink-0 text-slate-300 hover:text-indigo-600">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
           </a>
         </div>
@@ -286,6 +286,101 @@
   </div>
 
 </div>
+{% else %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+  <!-- 2. History Maintenance -->
+  <div class="card p-4 flex flex-col">
+    <div class="flex items-center justify-between mb-2">
+      <p class="text-sm font-semibold text-slate-700">🛠️ History Maintenance</p>
+      <div class="flex items-center gap-1">
+        <a href="{{ url_for('history_list', filter='Maintenance') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat semua →</a>
+        <button type="button" onclick="toggleCard('historyMaintenanceBody', 'historyMaintenanceIcon')"
+          class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+          <svg id="historyMaintenanceIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="transition-transform duration-300">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div id="historyMaintenanceBody" class="overflow-hidden transition-all duration-300 ease-in-out" style="max-height: 18rem; opacity: 1;">
+      <div class="space-y-1.5 max-h-[16rem] overflow-y-auto pr-1">
+        {% for mt in maintenance_terbaru %}
+        <div class="flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-slate-50 transition-all border border-slate-100/60">
+          <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-amber-100 text-amber-600">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L1.5 3l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"/></svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-1 text-xs">
+              <span class="font-medium text-slate-500">{{ mt.tanggal_mulai.strftime('%d-%m-%Y') if mt.tanggal_mulai else '-' }}</span>
+              <span class="text-slate-300">•</span>
+              <span class="font-medium text-slate-600">{{ mt.aset.nama if mt.aset else '-' }}</span>
+              <span class="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-700">{{ mt.tipe }}</span>
+            </div>
+            <p class="text-sm text-slate-700 truncate">
+              <a href="{{ url_for('maintenance_detail', id=mt.id) }}" class="text-indigo-600 hover:text-indigo-700 hover:underline">{{ mt.judul }}</a>
+            </p>
+          </div>
+          <a href="{{ url_for('maintenance_detail', id=mt.id) }}" class="shrink-0 text-slate-300 hover:text-indigo-600">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+          </a>
+        </div>
+        {% else %}
+        <div class="py-8 text-center">
+          <p class="text-sm text-slate-400">Belum ada maintenance.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. History Pemindahan -->
+  <div class="card p-4 flex flex-col">
+    <div class="flex items-center justify-between mb-2">
+      <p class="text-sm font-semibold text-slate-700">📦 History Pemindahan</p>
+      <div class="flex items-center gap-1">
+        <a href="{{ url_for('history_list', filter='Pemindahan') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">Lihat semua →</a>
+        <button type="button" onclick="toggleCard('historyPemindahanBody', 'historyPemindahanIcon')"
+          class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+          <svg id="historyPemindahanIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="transition-transform duration-300">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div id="historyPemindahanBody" class="overflow-hidden transition-all duration-300 ease-in-out" style="max-height: 18rem; opacity: 1;">
+      <div class="space-y-1.5 max-h-[16rem] overflow-y-auto pr-1">
+        {% for p in pemindahan_terbaru %}
+        <div class="flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-slate-50 transition-all border border-slate-100/60">
+          <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-blue-100 text-blue-600">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-1 text-xs">
+              <span class="font-medium text-slate-500">{{ p.created_at.strftime('%d-%m-%Y %H:%M') if p.created_at else '-' }}</span>
+              <span class="text-slate-300">•</span>
+              <span class="font-medium text-slate-600">{{ p.nama_pemohon or 'System' }}</span>
+            </div>
+            <p class="text-sm text-slate-700 truncate">
+              <a href="{{ url_for('history_detail', tiket_id=p.id) }}" class="text-indigo-600 hover:text-indigo-700 hover:underline">
+                {{ p.gedung_asal or '-' }}{% if p.lantai_asal %} / L{{ p.lantai_asal }}{% endif %}{% if p.ruangan_asal %} / {{ p.ruangan_asal }}{% endif %}
+                →
+                {{ p.gedung_tujuan or '-' }}{% if p.lantai_tujuan %} / L{{ p.lantai_tujuan }}{% endif %}{% if p.ruangan_tujuan %} / {{ p.ruangan_tujuan }}{% endif %}
+              </a>
+            </p>
+          </div>
+          <a href="{{ url_for('history_detail', tiket_id=p.id) }}" class="shrink-0 text-slate-300 hover:text-indigo-600">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+          </a>
+        </div>
+        {% else %}
+        <div class="py-8 text-center">
+          <p class="text-sm text-slate-400">Belum ada pemindahan.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
 {% endif %}
 
 {% endblock %}

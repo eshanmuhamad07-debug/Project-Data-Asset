@@ -2,12 +2,12 @@
 {% extends "base.html" %}
 {% block title %}Detail Maintenance — {{ m.judul }}{% endblock %}
 {% block header %}
-<a href="{{ url_for('maintenance_list') }}"
+<a href="{{ url_for('maintenance_list') if current_user.role == 'admin' else url_for('history_list', filter='Maintenance') }}"
     class="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-600 text-xs font-medium mb-0.5">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
     </svg>
-    Maintenance
+    {{ 'Maintenance' if current_user.role == 'admin' else 'History' }}
 </a>
 <div>Detail Maintenance</div>
 {% endblock %}
@@ -57,7 +57,8 @@
             <p class="font-medium text-slate-700">{{ m.aset.nama if m.aset else '-' }}</p>
             <p class="text-xs text-slate-400 font-mono mt-0.5">{{ m.aset.kode_aset if m.aset else '-' }}</p>
             {% if m.aset %}
-            <p class="text-xs text-slate-500 mt-1">📍 {{ m.aset.gedung }}{% if m.aset.lantai %} / Lantai {{ m.aset.lantai
+            <p class="text-xs text-slate-500 mt-1">📍 {{ m.aset.gedung }}{% if m.aset.lantai %} / Lantai {{
+                m.aset.lantai
                 }}{% endif %} / {{ m.aset.ruangan }}</p>
             {% endif %}
         </div>
@@ -81,10 +82,12 @@
                 <p class="font-medium text-slate-700">{{ m.tanggal_akhir.strftime('%d-%m-%Y') if m.tanggal_akhir else
                     '-' }}</p>
             </div>
+            {% if current_user.role == 'admin' %}
             <div>
                 <p class="text-xs text-slate-400 mb-0.5">Biaya</p>
                 <p class="font-medium text-slate-700">Rp {{ '{:,.0f}'.format(m.biaya) if m.biaya else 0 }}</p>
             </div>
+            {% endif %}
         </div>
 
         <div class="border-t border-slate-100 pt-4">
@@ -122,14 +125,15 @@
                     {% endif %}
                 </div>
 
+                {% if current_user.role == 'admin' %}
                 <div class="p-2.5 space-y-1.5">
                     <form method="POST" action="{{ url_for('maintenance_upload_foto', id=m.id, slot=slot) }}"
                         enctype="multipart/form-data" class="flex flex-col gap-1.5">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="file" name="foto" accept="image/*"
                             class="text-[11px] file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100">
-                        <button type="submit"
-                            class="btn btn-primary py-1.5 text-[11px]">{{ 'Ganti Foto' if foto else 'Upload Foto'
+                        <button type="submit" class="btn btn-primary py-1.5 text-[11px]">{{ 'Ganti Foto' if foto else
+                            'Upload Foto'
                             }}</button>
                     </form>
                     {% if foto %}
@@ -142,6 +146,7 @@
                     </form>
                     {% endif %}
                 </div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>

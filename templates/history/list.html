@@ -15,7 +15,9 @@
         <option value="Pemindahan" {{ 'selected' if filter_terpilih=='Pemindahan' }}>Pemindahan</option>
         <option value="Kerusakan" {{ 'selected' if filter_terpilih=='Kerusakan' }}>Kerusakan</option>
         <option value="Maintenance" {{ 'selected' if filter_terpilih=='Maintenance' }}>Maintenance</option>
+        {% if current_user.role == 'admin' %}
         <option value="Aktivitas" {{ 'selected' if filter_terpilih=='Aktivitas' }}>Aktivitas Admin</option>
+        {% endif %}
       </select>
       <input type="text" id="filterSearch" placeholder="Cari..." class="field-input w-full sm:w-48"
         onkeyup="applyFilter()">
@@ -45,7 +47,8 @@
   <div class="divide-y divide-slate-100">
     {% for h in daftar_history %}
     <div class="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50 transition-all event-item"
-      data-jenis="{{ h.jenis }}" data-aksi="{{ h.aksi }}" data-search="{{ h.detail|lower }} {{ h.pelaku|lower }} {{ h.aksi|lower }}">
+      data-jenis="{{ h.jenis }}" data-aksi="{{ h.aksi }}"
+      data-search="{{ h.detail|lower }} {{ h.pelaku|lower }} {{ h.aksi|lower }}">
       <!-- Icon / Warna -->
       <span class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 {{ h.warna }}">
         {% if h.jenis == 'Tiket' and h.aksi == 'Pemindahan' %}

@@ -1287,7 +1287,6 @@ def kategori_create():
 # ---------------------------------------------------------------------------
 @app.route("/history")
 @login_required
-@role_required(ROLE_ADMIN)
 def history_list():
     """Halaman history terpadu: tiket + aktivitas admin + maintenance."""
     filter_jenis = request.args.get("filter", "")
@@ -1331,8 +1330,8 @@ def history_list():
                 "is_aktivitas": False,
             })
 
-    # === 2. AKTIVITAS ADMIN ===
-    if filter_jenis in ["", "Aktivitas"]:
+    # === 2. AKTIVITAS ADMIN (hanya untuk role admin) ===
+    if current_user.role == ROLE_ADMIN and filter_jenis in ["", "Aktivitas"]:
         for a in AktivitasLog.query.order_by(AktivitasLog.created_at.desc()).all():
             user = User.query.get(a.id_user)
             pelaku = user.name if user else "Unknown"
@@ -1372,7 +1371,7 @@ def history_list():
                 "jenis": "Maintenance",
                 "aksi": "Jadwal Maintenance",
                 "detail": f"{aset.nama if aset else '-'} - {m.judul}",
-                "link": url_for("maintenance_list"),
+                "link": url_for("maintenance_detail", id=m.id),
                 "warna": "bg-emerald-100 text-emerald-700 border-emerald-200",
                 "is_tiket": False,
                 "is_maintenance": True,
@@ -1450,7 +1449,6 @@ def aktivitas_detail(log_id):
 
 @app.route("/history/<int:tiket_id>")
 @login_required
-@role_required(ROLE_ADMIN)
 def history_detail(tiket_id):
     """Detail history tiket (read-only)"""
     tiket = Tiket.query.get_or_404(tiket_id)
@@ -1814,7 +1812,6 @@ def maintenance_edit(id):
 
 @app.route("/maintenance/<int:id>/detail")
 @login_required
-@role_required(ROLE_ADMIN)
 def maintenance_detail(id):
     """Halaman detail sebuah jadwal maintenance, termasuk foto dokumentasi
     (before / on progress / after). Foto dokumentasi HANYA tampil & bisa
