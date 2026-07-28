@@ -397,9 +397,20 @@
       </svg>
     </span>
     <div class="flex-1 min-w-0">
-      <p class="text-sm font-semibold text-slate-800">⏰ Peminjaman perlu konfirmasi perpanjangan</p>
-      <p class="text-xs text-slate-500 mb-3">Rencana kembali sudah lewat atau tinggal 10 hari lagi — konfirmasi
-        apakah akan diperpanjang atau tidak.</p>
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-800">⏰ Peminjaman perlu konfirmasi perpanjangan</p>
+          <p class="text-xs text-slate-500 mb-3">Rencana kembali sudah lewat atau tinggal 10 hari lagi — konfirmasi
+            apakah akan diperpanjang atau tidak.</p>
+        </div>
+        <a href="{{ url_for('peminjaman_reminder_page') }}" title="Perbesar ke halaman penuh"
+          class="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-amber-500/70 hover:bg-amber-100 hover:text-amber-700 transition-colors">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9M20.25 20.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+          </svg>
+        </a>
+      </div>
       <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
         {% for p in peminjaman_reminder %}
         <div
@@ -545,6 +556,7 @@
     </div>
     <form id="formKonfirmasiPerpanjangan" method="POST" enctype="multipart/form-data" class="p-5 space-y-3.5">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
       <div class="p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm space-y-1">
         <p><span class="text-slate-400">Peminjam:</span> <span id="kpNamaPeminjam" class="font-medium text-slate-700"></span></p>
         <p><span class="text-slate-400">Aset:</span> <span id="kpAset" class="text-slate-700"></span></p>

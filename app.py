@@ -2208,6 +2208,14 @@ def peminjaman_delete(id):
     return redirect(url_for("peminjaman_list"))
 
 
+def _redirect_aman(next_url, default_endpoint="dashboard"):
+    """Redirect ke `next_url` kalau valid & lokal (mencegah open-redirect),
+    kalau tidak fallback ke `default_endpoint`."""
+    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+        return redirect(next_url)
+    return redirect(url_for(default_endpoint))
+
+
 @app.route("/peminjaman/<int:id>/konfirmasi-perpanjangan", methods=["POST"])
 @login_required
 @role_required(ROLE_ADMIN)
@@ -2215,21 +2223,22 @@ def peminjaman_konfirmasi_perpanjangan(id):
     """Konfirmasi dari notifikasi H-10: apakah peminjaman diperpanjang atau tidak."""
     peminjaman = Peminjaman.query.get_or_404(id)
     keputusan = request.form.get("keputusan")  # 'perpanjang' atau 'tidak'
+    next_url = request.form.get("next")  # kembali ke halaman asal (dashboard atau halaman reminder)
 
     if peminjaman.status != "Dipinjam":
         flash("Peminjaman ini sudah dikembalikan, tidak perlu konfirmasi perpanjangan.", "warning")
-        return redirect(url_for("dashboard"))
+        return _redirect_aman(next_url)
 
     if keputusan == "perpanjang":
         tanggal_baru_str = request.form.get("tanggal_baru")
         if not tanggal_baru_str:
             flash("Tanggal rencana kembali yang baru wajib diisi untuk perpanjangan.", "danger")
-            return redirect(url_for("dashboard"))
+            return _redirect_aman(next_url)
         try:
             tanggal_baru = datetime.strptime(tanggal_baru_str, "%Y-%m-%d").date()
         except ValueError:
             flash("Format tanggal tidak valid.", "danger")
-            return redirect(url_for("dashboard"))
+            return _redirect_aman(next_url)
 
         tanggal_lama = peminjaman.tanggal_rencana_kembali
         peminjaman.tanggal_rencana_kembali = tanggal_baru
@@ -2271,7 +2280,93 @@ def peminjaman_konfirmasi_perpanjangan(id):
     else:
         flash("Keputusan tidak valid.", "danger")
 
-    return redirect(url_for("dashboard"))
+    return _redirect_aman(next_url)
+
+
+@app.route("/peminjaman/reminder")
+@login_required
+@role_required(ROLE_ADMIN)
+def peminjaman_reminder_page():
+    """Halaman perbesar (fullscreen) dari widget notifikasi H-10 di dashboard.
+
+    Sengaja TIDAK didaftarkan di sidebar -- hanya bisa diakses lewat tombol
+    perbesar di widget dashboard. Menampilkan seluruh peminjaman yang rencana
+    kembalinya sudah lewat (Terlambat) sampai yang tinggal 10 hari lagi,
+    lengkap dengan filter & pagination.
+    """
+    today = datetime.now(WIB).date()
+    batas_notif = today + timedelta(days=10)
+
+    filter_waktu = request.args.get("filter", "").strip()  # '' / 'terlambat' / 'mendekati'
+    search = request.args.get("search", "").strip()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+    if per_page not in (10, 25, 50, 100):
+        per_page = 10
+
+    query = Peminjaman.query.filter(
+        Peminjaman.status == "Dipinjam",
+        Peminjaman.tanggal_rencana_kembali.isnot(None),
+        Peminjaman.tanggal_rencana_kembali <= batas_notif,
+        Peminjaman.status_perpanjangan.is_(None),
+    )
+
+    if filter_waktu == "terlambat":
+        query = query.filter(Peminjaman.tanggal_rencana_kembali < today)
+    elif filter_waktu == "mendekati":
+        query = query.filter(Peminjaman.tanggal_rencana_kembali >= today)
+
+    if search:
+        query = query.outerjoin(PeminjamanAset).outerjoin(Aset, PeminjamanAset.id_aset == Aset.id).filter(
+            db.or_(
+                Peminjaman.nama_peminjam.ilike(f"%{search}%"),
+                Peminjaman.unit.ilike(f"%{search}%"),
+                Peminjaman.lokasi_kerja.ilike(f"%{search}%"),
+                Aset.nama.ilike(f"%{search}%"),
+            )
+        ).distinct()
+
+    query = query.order_by(Peminjaman.tanggal_rencana_kembali.asc())
+
+    # Hitung total aset yang terlibat dari SELURUH hasil filter (bukan hanya 1 halaman)
+    id_peminjaman_terfilter = [p.id for p in query.with_entities(Peminjaman.id).all()]
+    total_aset_terfilter = 0
+    if id_peminjaman_terfilter:
+        total_aset_terfilter = (
+            db.session.query(db.func.count(PeminjamanAset.id))
+            .filter(PeminjamanAset.id_peminjaman.in_(id_peminjaman_terfilter))
+            .scalar()
+        ) or 0
+
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    daftar_reminder = pagination.items
+
+    total_terlambat = Peminjaman.query.filter(
+        Peminjaman.status == "Dipinjam",
+        Peminjaman.tanggal_rencana_kembali.isnot(None),
+        Peminjaman.tanggal_rencana_kembali < today,
+        Peminjaman.status_perpanjangan.is_(None),
+    ).count()
+    total_mendekati = Peminjaman.query.filter(
+        Peminjaman.status == "Dipinjam",
+        Peminjaman.tanggal_rencana_kembali.isnot(None),
+        Peminjaman.tanggal_rencana_kembali >= today,
+        Peminjaman.tanggal_rencana_kembali <= batas_notif,
+        Peminjaman.status_perpanjangan.is_(None),
+    ).count()
+
+    return render_template(
+        "peminjaman/reminder.html",
+        daftar_reminder=daftar_reminder,
+        pagination=pagination,
+        filter_waktu=filter_waktu,
+        search=search,
+        today=today,
+        total_terlambat=total_terlambat,
+        total_mendekati=total_mendekati,
+        total_semua=total_terlambat + total_mendekati,
+        total_aset_terfilter=total_aset_terfilter,
+    )
 
 
 @app.route("/peminjaman/import-guide")
