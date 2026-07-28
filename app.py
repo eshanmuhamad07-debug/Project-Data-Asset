@@ -24,7 +24,7 @@ from extensions import db, login_manager, csrf, limiter
 from models import (
     User, Kategori, Aset, Tiket, TiketAset,
     LogStatus, HistoriAset, AktivitasLog, Maintenance,
-    Peminjaman, PeminjamanAset, PeminjamanEvidence
+    Peminjaman, PeminjamanAset
 )
 from roles import ROLE_ADMIN
 
@@ -1432,7 +1432,11 @@ def aset_import():
                 total_kerusakan=0,
                 serial_number=serial_number or None,
                 spesifikasi=spesifikasi or None,
-                tipe_aset=tipe_valid or None,
+                # PERBAIKAN: default "OPEX" ditulis eksplisit di sini (bukan
+                # mengandalkan default kolom di models.py) supaya perilakunya
+                # jelas dan gampang ditelusuri -- ini HANYA berlaku untuk aset
+                # baru yang memang belum pernah ada tipe_aset-nya sama sekali.
+                tipe_aset=tipe_valid or "OPEX",
                 volume=volume or None,
                 satuan=satuan or None,
                 status_aset=status_valid,
@@ -1661,15 +1665,10 @@ def history_list():
     pagination = PaginationDummy(events_page, page, per_page, total, total_pages)
     daftar_history = events_page
 
-    gedung_all = [
-        g[0] for g in db.session.query(Aset.gedung).distinct().order_by(Aset.gedung).all() if g[0]
-    ]
-
     return render_template(
         "history/list.html",
         daftar_history=daftar_history,
         pagination=pagination,
-        gedung_all=gedung_all,
         filter_terpilih=filter_jenis,
     )
 
@@ -1726,6 +1725,84 @@ def history_detail(tiket_id):
     tiket = Tiket.query.get_or_404(tiket_id)
     return render_template("history/detail.html", tiket=tiket)
 
+@app.route("/pemindahan")
+@login_required
+@role_required(ROLE_ADMIN)
+def pemindahan_list():
+    """Halaman Pemindahan Aset: form pemindahan + daftar riwayatnya."""
+    status = request.args.get("status", "").strip()
+
+    query = Tiket.query.filter_by(jenis_tiket="Pemindahan")
+    if status:
+        query = query.filter(Tiket.status_tiket == status)
+
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+    pagination = query.order_by(Tiket.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    daftar_tiket = pagination.items
+
+    gedung_all = [
+        g[0] for g in db.session.query(Aset.gedung).distinct().order_by(Aset.gedung).all() if g[0]
+    ]
+
+    return render_template(
+        "pemindahan/list.html",
+        daftar_tiket=daftar_tiket,
+        pagination=pagination,
+        gedung_all=gedung_all,
+    )
+
+
+@app.route("/pemindahan/<int:tiket_id>")
+@login_required
+@role_required(ROLE_ADMIN)
+def pemindahan_detail(tiket_id):
+    """Detail pemindahan aset."""
+    tiket = Tiket.query.filter_by(id=tiket_id, jenis_tiket="Pemindahan").first_or_404()
+    return render_template("pemindahan/detail.html", tiket=tiket)
+
+
+@app.route("/kerusakan")
+@login_required
+@role_required(ROLE_ADMIN)
+def kerusakan_list():
+    """Halaman Kerusakan Aset: form lapor kerusakan + daftar riwayatnya."""
+    status = request.args.get("status", "").strip()
+
+    query = Tiket.query.filter_by(jenis_tiket="Kerusakan")
+    if status:
+        query = query.filter(Tiket.status_tiket == status)
+
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+    pagination = query.order_by(Tiket.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    daftar_tiket = pagination.items
+
+    gedung_all = [
+        g[0] for g in db.session.query(Aset.gedung).distinct().order_by(Aset.gedung).all() if g[0]
+    ]
+
+    return render_template(
+        "kerusakan/list.html",
+        daftar_tiket=daftar_tiket,
+        pagination=pagination,
+        gedung_all=gedung_all,
+    )
+
+
+@app.route("/kerusakan/<int:tiket_id>")
+@login_required
+@role_required(ROLE_ADMIN)
+def kerusakan_detail(tiket_id):
+    """Detail kerusakan aset."""
+    tiket = Tiket.query.filter_by(id=tiket_id, jenis_tiket="Kerusakan").first_or_404()
+    return render_template("kerusakan/detail.html", tiket=tiket)
+
+
 @app.route("/tiket/create/pemindahan", methods=["POST"])
 @login_required
 @role_required(ROLE_ADMIN)
@@ -1734,7 +1811,7 @@ def tiket_create_pemindahan():
     aset_ids = request.form.getlist("aset_ids[]")
     if not aset_ids:
         flash("Pilih minimal 1 aset.", "danger")
-        return redirect(url_for("history_list"))
+        return redirect(url_for("pemindahan_list"))
 
     gedung_asal = request.form.get("gedung_asal", "").strip()
     lantai_asal = request.form.get("lantai_asal", "").strip()
@@ -1823,7 +1900,7 @@ def tiket_create_pemindahan():
         flash(f"Pemindahan berhasil, tetapi foto gagal diupload: {foto_error}", "warning")
     else:
         flash(f"Pemindahan berhasil. {len(aset_ids)} aset dipindahkan.", "success")
-    return redirect(url_for("history_list"))
+    return redirect(url_for("pemindahan_list"))
 
 @app.route("/tiket/create/kerusakan", methods=["POST"])
 @login_required
@@ -1833,7 +1910,7 @@ def tiket_create_kerusakan():
     aset_ids = request.form.getlist("aset_ids[]")
     if not aset_ids:
         flash("Pilih minimal 1 aset.", "danger")
-        return redirect(url_for("history_list"))
+        return redirect(url_for("kerusakan_list"))
 
     gedung_asal = request.form.get("gedung_asal", "").strip()
     lantai_asal = request.form.get("lantai_asal", "").strip()
@@ -1879,7 +1956,7 @@ def tiket_create_kerusakan():
     catat_log(tiket, None, "Selesai")
     db.session.commit()
     flash(f"Laporan kerusakan berhasil dibuat. {len(aset_ids)} aset ditandai rusak.", "success")
-    return redirect(url_for("history_list"))
+    return redirect(url_for("kerusakan_list"))
 
 @app.route("/peminjaman")
 @login_required
@@ -1890,7 +1967,6 @@ def peminjaman_list():
     status = request.args.get("status", "").strip()
     jenis_transaksi = request.args.get("jenis_transaksi", "").strip()
     unit_filter = request.args.get("unit", "").strip()
-    area_options = AREA_LOKASI_MAP
 
     today = datetime.now(WIB).date()
 
@@ -1975,7 +2051,6 @@ def peminjaman_list():
         jenis_transaksi_options=JENIS_TRANSAKSI_OPTIONS,
         unit_terpilih=unit_filter,
         unit_all=unit_all,
-        area_options=area_options,
         kategori_all=kategori_all,
         gedung_all=gedung_all_formatted,
         today=today,
@@ -2143,51 +2218,6 @@ def peminjaman_detail(id):
     peminjaman = Peminjaman.query.get_or_404(id)
     today = datetime.now(WIB).date()
     return render_template("peminjaman/detail.html", p=peminjaman, today=today)
-
-
-@app.route("/peminjaman/<int:id>/evidence/upload", methods=["POST"])
-@login_required
-@role_required(ROLE_ADMIN)
-def peminjaman_evidence_upload(id):
-    """Upload evidence laporan (BA/PDF) baru untuk 1 peminjaman.
-
-    Tidak menghapus/menimpa evidence lama -- setiap upload disimpan sebagai
-    baris baru di tabel `peminjaman_evidence`, lengkap dengan tanggal upload
-    dan siapa yang mengupload.
-    """
-    peminjaman = Peminjaman.query.get_or_404(id)
-
-    file_storage = request.files.get("evidence_baru")
-    keterangan = request.form.get("keterangan_evidence", "").strip()
-
-    if not file_storage or file_storage.filename == "":
-        flash("Pilih file evidence terlebih dahulu.", "danger")
-        return redirect(url_for("peminjaman_detail", id=id))
-
-    filename, error = save_dokumen(file_storage, prefix="peminjaman_evidence_")
-    if error:
-        flash(f"Evidence gagal diupload: {error}", "danger")
-        return redirect(url_for("peminjaman_detail", id=id))
-
-    evidence = PeminjamanEvidence(
-        id_peminjaman=peminjaman.id,
-        filename=filename,
-        keterangan=keterangan or None,
-        id_user_uploader=current_user.id,
-    )
-    db.session.add(evidence)
-
-    catat_aktivitas(
-        aksi="UPDATE",
-        target_model="Peminjaman",
-        target_id=peminjaman.id,
-        deskripsi=f"Upload evidence laporan baru untuk peminjaman {peminjaman.nama_peminjam}",
-        data_baru={"evidence_baru": filename, "keterangan": keterangan or None},
-    )
-
-    db.session.commit()
-    flash("Evidence laporan berhasil diupload.", "success")
-    return redirect(url_for("peminjaman_detail", id=id))
 
 
 @app.route("/peminjaman/<int:id>/delete", methods=["POST"])
