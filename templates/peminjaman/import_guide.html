@@ -23,7 +23,7 @@
                     <li>Upload file Excel (.xlsx) — boleh file yang sama dengan data Aset, boleh punya banyak sheet</li>
                     <li>Sistem otomatis mencari sheet yang punya kolom sesuai format di bawah — <b>tidak harus sheet pertama atau baris header pertama</b></li>
                     <li>Setiap baris akan ditambahkan sebagai data Peminjaman baru</li>
-                    <li>Nilai kolom <b>Unit</b> otomatis tersimpan sebagai master data baru di halaman <a href="{{ url_for('kategori_list') }}" class="text-indigo-600 hover:underline">Kategori</a> (kalau belum ada)</li>
+                    <li>Nilai kolom <b>Unit</b> disimpan sebagai teks bebas pada data Peminjaman (tidak ada master data Unit terpisah)</li>
                 </ol>
             </div>
         </div>
@@ -53,7 +53,7 @@
                     </tr>
                     <tr>
                         <td class="py-2 px-3 font-mono text-xs">Unit</td>
-                        <td class="py-2 px-3 text-slate-600">Unit/bagian peminjam — otomatis dibuat sebagai master data</td>
+                        <td class="py-2 px-3 text-slate-600">Unit/bagian peminjam (teks bebas)</td>
                         <td class="py-2 px-3"><span class="pill bg-emerald-50 text-emerald-700 border-emerald-200">Opsional</span></td>
                     </tr>
                     <tr>
@@ -112,7 +112,7 @@
             <ul class="text-sm text-slate-600 space-y-1.5 mt-1">
                 <li>• File boleh sama dengan file import Aset — sheet-nya otomatis ditemukan berdasarkan nama kolom</li>
                 <li>• Link Evidence diambil dari hyperlink yang nempel di cell, bukan dari teks nama filenya</li>
-                <li>• Unit baru otomatis dibuat di halaman Kategori, tidak perlu ditambahkan manual dulu</li>
+                <li>• Nilai Unit di data hasil import langsung bisa dipakai untuk filter Unit di halaman Peminjaman, tidak perlu didaftarkan manual dulu</li>
                 <li>• Baris dengan Jenis Transaksi mengandung kata "Pengembalian" otomatis ditandai status "Dikembalikan"</li>
             </ul>
         </div>

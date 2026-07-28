@@ -52,14 +52,14 @@
                 <option value="{{ jt }}" {{ 'selected' if jenis_transaksi_terpilih==jt }}>{{ jt }}</option>
                 {% endfor %}
             </select>
-            <select name="kategori" class="field-input w-full sm:w-44 text-sm">
-                <option value="">Semua Jenis Barang</option>
-                {% for k in kategori_all %}
-                <option value="{{ k.id }}" {{ 'selected' if kategori_terpilih|string==k.id|string }}>{{ k.nama }}</option>
+            <select name="unit" class="field-input w-full sm:w-40 text-sm">
+                <option value="">Semua Unit</option>
+                {% for u in unit_all %}
+                <option value="{{ u }}" {{ 'selected' if unit_terpilih==u }}>{{ u }}</option>
                 {% endfor %}
             </select>
             <button type="submit" class="btn btn-secondary shrink-0 text-sm">Filter</button>
-            {% if search or status_terpilih or jenis_transaksi_terpilih or kategori_terpilih %}
+            {% if search or status_terpilih or jenis_transaksi_terpilih or unit_terpilih %}
             <a href="{{ url_for('peminjaman_list') }}" class="btn btn-secondary shrink-0 text-slate-400 text-sm">Reset</a>
             {% endif %}
         </form>
@@ -228,7 +228,7 @@
         <div class="flex items-center gap-1.5 flex-wrap justify-center">
             <!-- Tombol First -->
             {% if pagination.has_prev %}
-            <a href="{{ url_for('peminjaman_list', page=1, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+            <a href="{{ url_for('peminjaman_list', page=1, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', unit=unit_terpilih or '', per_page=pagination.per_page) }}"
                 class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all duration-200"
                 title="Halaman Pertama">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -245,7 +245,7 @@
 
             <!-- Tombol Previous -->
             {% if pagination.has_prev %}
-            <a href="{{ url_for('peminjaman_list', page=pagination.prev_num, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+            <a href="{{ url_for('peminjaman_list', page=pagination.prev_num, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', unit=unit_terpilih or '', per_page=pagination.per_page) }}"
                 class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-600 hover:text-indigo-600 transition-all duration-200"
                 title="Halaman Sebelumnya">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -266,7 +266,7 @@
                 {% set end = [pagination.page + 2, pagination.pages] | min %}
 
                 {% if start > 1 %}
-                <a href="{{ url_for('peminjaman_list', page=1, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+                <a href="{{ url_for('peminjaman_list', page=1, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', unit=unit_terpilih or '', per_page=pagination.per_page) }}"
                     class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-white hover:shadow-sm hover:text-indigo-600 transition-all duration-200">1</a>
                 {% if start > 2 %}
                 <span class="w-6 h-8 flex items-center justify-center text-slate-300 text-xs">…</span>
@@ -277,7 +277,7 @@
                 {% if p_num == pagination.page %}
                 <span class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold text-white bg-indigo-600 shadow-md shadow-indigo-200">{{ p_num }}</span>
                 {% else %}
-                <a href="{{ url_for('peminjaman_list', page=p_num, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+                <a href="{{ url_for('peminjaman_list', page=p_num, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', unit=unit_terpilih or '', per_page=pagination.per_page) }}"
                     class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-white hover:shadow-sm hover:text-indigo-600 transition-all duration-200">{{ p_num }}</a>
                 {% endif %}
                 {% endfor %}
@@ -286,14 +286,14 @@
                 {% if end < pagination.pages - 1 %}
                 <span class="w-6 h-8 flex items-center justify-center text-slate-300 text-xs">…</span>
                 {% endif %}
-                <a href="{{ url_for('peminjaman_list', page=pagination.pages, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+                <a href="{{ url_for('peminjaman_list', page=pagination.pages, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', unit=unit_terpilih or '', per_page=pagination.per_page) }}"
                     class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-white hover:shadow-sm hover:text-indigo-600 transition-all duration-200">{{ pagination.pages }}</a>
                 {% endif %}
             </div>
 
             <!-- Tombol Next -->
             {% if pagination.has_next %}
-            <a href="{{ url_for('peminjaman_list', page=pagination.next_num, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+            <a href="{{ url_for('peminjaman_list', page=pagination.next_num, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', unit=unit_terpilih or '', per_page=pagination.per_page) }}"
                 class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-600 hover:text-indigo-600 transition-all duration-200"
                 title="Halaman Berikutnya">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -310,7 +310,7 @@
 
             <!-- Tombol Last -->
             {% if pagination.has_next %}
-            <a href="{{ url_for('peminjaman_list', page=pagination.pages, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+            <a href="{{ url_for('peminjaman_list', page=pagination.pages, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', unit=unit_terpilih or '', per_page=pagination.per_page) }}"
                 class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all duration-200"
                 title="Halaman Terakhir">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">

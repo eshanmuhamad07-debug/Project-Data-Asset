@@ -22,9 +22,9 @@ import re
 
 from extensions import db, login_manager, csrf, limiter
 from models import (
-    User, Kategori, Unit, Aset, Tiket, TiketAset,
+    User, Kategori, Aset, Tiket, TiketAset,
     LogStatus, HistoriAset, AktivitasLog, Maintenance,
-    Peminjaman, PeminjamanAset, PeminjamanEvidence
+    Peminjaman, PeminjamanAset
 )
 from roles import ROLE_ADMIN
 
@@ -1487,8 +1487,7 @@ def aset_import_guide():
 @role_required(ROLE_ADMIN)
 def kategori_list():
     kategori_all = Kategori.query.all()
-    unit_all = Unit.query.order_by(Unit.nama).all()
-    return render_template("kategori/list.html", kategori_all=kategori_all, unit_all=unit_all)
+    return render_template("kategori/list.html", kategori_all=kategori_all)
 
 
 @app.route("/kategori/create", methods=["POST"])
@@ -1499,53 +1498,6 @@ def kategori_create():
     db.session.commit()
     flash("Kategori ditambahkan.", "success")
     return redirect(url_for("kategori_list"))
-
-
-@app.route("/unit/create", methods=["POST"])
-@login_required
-@role_required(ROLE_ADMIN)
-def unit_create():
-    """Tambah master Unit (bagian/departemen peminjam), dikelola di halaman
-    Kategori -- mirip Kategori Aset tapi dipakai untuk field Unit di
-    Peminjaman Aset."""
-    nama = (request.form.get("nama") or "").strip()
-    if not nama:
-        flash("Nama unit tidak boleh kosong.", "danger")
-        return redirect(url_for("kategori_list"))
-    existing = Unit.query.filter(db.func.lower(Unit.nama) == nama.lower()).first()
-    if existing:
-        flash("Unit dengan nama tersebut sudah ada.", "warning")
-        return redirect(url_for("kategori_list"))
-    db.session.add(Unit(nama=nama))
-    db.session.commit()
-    flash("Unit ditambahkan.", "success")
-    return redirect(url_for("kategori_list"))
-
-
-@app.route("/unit/<int:id>/delete", methods=["POST"])
-@login_required
-@role_required(ROLE_ADMIN)
-def unit_delete(id):
-    unit = Unit.query.get_or_404(id)
-    db.session.delete(unit)
-    db.session.commit()
-    flash("Unit dihapus.", "success")
-    return redirect(url_for("kategori_list"))
-
-
-def get_or_create_unit(nama):
-    """Cari Unit berdasarkan nama (case-insensitive), buat baru kalau belum
-    ada. Dipakai saat import Excel Peminjaman supaya tiap nilai kolom Unit
-    otomatis tersimpan sebagai master data di halaman Kategori."""
-    nama = (nama or "").strip()
-    if not nama:
-        return None
-    unit = Unit.query.filter(db.func.lower(Unit.nama) == nama.lower()).first()
-    if not unit:
-        unit = Unit(nama=nama)
-        db.session.add(unit)
-        db.session.flush()
-    return unit
 
 
 def get_or_create_kategori(nama):
@@ -1941,7 +1893,7 @@ def peminjaman_list():
     search = request.args.get("search", "").strip()
     status = request.args.get("status", "").strip()
     jenis_transaksi = request.args.get("jenis_transaksi", "").strip()
-    kategori_id = request.args.get("kategori", "").strip()
+    unit_filter = request.args.get("unit", "").strip()
 
     today = datetime.now(WIB).date()
 
@@ -1962,8 +1914,8 @@ def peminjaman_list():
     if jenis_transaksi:
         query = query.filter(Peminjaman.jenis_transaksi == jenis_transaksi)
 
-    if kategori_id:
-        query = query.filter(Peminjaman.id_kategori == kategori_id)
+    if unit_filter:
+        query = query.filter(Peminjaman.unit == unit_filter)
 
     if search:
         query = query.join(PeminjamanAset, isouter=True).join(Aset, isouter=True).filter(
@@ -2005,7 +1957,16 @@ def peminjaman_list():
         for g in gedung_all
     ]
 
-    kategori_all = Kategori.query.order_by(Kategori.nama).all()
+    kategori_all = Kategori.query.order_by(Kategori.nama).all()  # tetap dikirim untuk dropdown "Jenis Barang" di modal Tambah Peminjaman
+    # Pilihan filter Unit diambil dari nilai unik kolom Peminjaman.unit
+    # (teks bebas) -- TIDAK ada tabel master Unit terpisah di database.
+    unit_all = [
+        r[0] for r in db.session.query(Peminjaman.unit)
+        .filter(Peminjaman.unit.isnot(None), Peminjaman.unit != "")
+        .distinct()
+        .order_by(Peminjaman.unit)
+        .all()
+    ]
 
     return render_template(
         "peminjaman/list.html",
@@ -2015,7 +1976,8 @@ def peminjaman_list():
         status_terpilih=status,
         jenis_transaksi_terpilih=jenis_transaksi,
         jenis_transaksi_options=JENIS_TRANSAKSI_OPTIONS,
-        kategori_terpilih=kategori_id,
+        unit_terpilih=unit_filter,
+        unit_all=unit_all,
         kategori_all=kategori_all,
         gedung_all=gedung_all_formatted,
         today=today,
@@ -2185,46 +2147,6 @@ def peminjaman_detail(id):
     return render_template("peminjaman/detail.html", p=peminjaman, today=today)
 
 
-@app.route("/peminjaman/<int:id>/evidence/upload", methods=["POST"])
-@login_required
-@role_required(ROLE_ADMIN)
-def peminjaman_evidence_upload(id):
-    """Upload evidence/laporan (PDF/gambar) baru untuk sebuah peminjaman TANPA
-    menimpa evidence yang lama -- setiap upload disimpan sebagai baris histori
-    baru lengkap dengan tanggal upload-nya (lihat model PeminjamanEvidence)."""
-    peminjaman = Peminjaman.query.get_or_404(id)
-
-    file_storage = request.files.get("evidence_baru")
-    filename, error = save_dokumen(file_storage, prefix=f"peminjaman_{id}_evidence_")
-
-    if error:
-        flash(f"Gagal mengupload evidence: {error}", "danger")
-        return redirect(url_for("peminjaman_detail", id=id))
-    if not filename:
-        flash("Pilih file evidence (PDF/gambar) terlebih dahulu.", "danger")
-        return redirect(url_for("peminjaman_detail", id=id))
-
-    keterangan = request.form.get("keterangan_evidence", "").strip() or None
-
-    db.session.add(PeminjamanEvidence(
-        id_peminjaman=peminjaman.id,
-        filename=filename,
-        keterangan=keterangan,
-        uploaded_by=current_user.id,
-    ))
-
-    catat_aktivitas(
-        aksi="UPDATE",
-        target_model="Peminjaman",
-        target_id=peminjaman.id,
-        deskripsi=f"Upload evidence laporan baru untuk peminjaman {peminjaman.nama_peminjam}",
-        data_baru={"evidence": filename},
-    )
-    db.session.commit()
-    flash("Evidence laporan berhasil diupload dan ditambahkan ke histori.", "success")
-    return redirect(url_for("peminjaman_detail", id=id))
-
-
 @app.route("/peminjaman/<int:id>/delete", methods=["POST"])
 @login_required
 @role_required(ROLE_ADMIN)
@@ -2254,21 +2176,6 @@ def peminjaman_konfirmasi_perpanjangan(id):
     if peminjaman.status != "Dipinjam":
         flash("Peminjaman ini sudah dikembalikan, tidak perlu konfirmasi perpanjangan.", "warning")
         return redirect(url_for("dashboard"))
-
-    # Evidence PDF (opsional) yang diupload bareng saat konfirmasi -- ditambahkan
-    # sebagai baris histori baru, TIDAK menimpa evidence yang lama.
-    evidence_filename, evidence_error = save_dokumen(
-        request.files.get("evidence_baru"), prefix=f"peminjaman_{id}_evidence_"
-    )
-    if evidence_error:
-        flash(f"Konfirmasi tetap diproses, tetapi evidence gagal diupload: {evidence_error}", "warning")
-    elif evidence_filename:
-        db.session.add(PeminjamanEvidence(
-            id_peminjaman=peminjaman.id,
-            filename=evidence_filename,
-            keterangan=f"Evidence saat konfirmasi perpanjangan ({keputusan})",
-            uploaded_by=current_user.id,
-        ))
 
     if keputusan == "perpanjang":
         tanggal_baru_str = request.form.get("tanggal_baru")
@@ -2349,8 +2256,8 @@ def peminjaman_import():
       Aset utama.
     - Evidence Lampiran disimpan sebagai link Google Drive (evidence_link),
       bukan file yang didownload ke server.
-    - Unit otomatis dibuat sebagai master data baru (tabel Unit, dikelola
-      di halaman Kategori) kalau belum ada.
+    - Unit disimpan sebagai teks bebas di kolom Peminjaman.unit, TIDAK ada
+      tabel master Unit terpisah.
     """
     file = request.files.get("file_import")
     if not file or file.filename == "":
@@ -2436,10 +2343,10 @@ def peminjaman_import():
         if not evidence_link:
             tanpa_evidence_link += 1
 
-        # Unit otomatis tersimpan sebagai master data (halaman Kategori),
-        # tapi field `unit` di Peminjaman tetap teks bebas seperti sebelumnya.
-        if unit_nama:
-            get_or_create_unit(unit_nama)
+        # Catatan: Unit TIDAK disimpan sebagai tabel master terpisah -- cukup
+        # teks bebas di kolom Peminjaman.unit (nilai untuk dropdown filter
+        # Unit di halaman Peminjaman diambil otomatis dari nilai-nilai unik
+        # kolom ini, bukan dari tabel master).
 
         # Jenis Barang dari Excel dipetakan otomatis ke Kategori (dibuat baru
         # kalau belum ada) supaya konsisten dengan konsep Kategori di modul
