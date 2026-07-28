@@ -17,3 +17,5 @@
 {% macro jenis_aset_tone(jenis) %}{{ 'violet' if jenis=='Pusat' else 'sky' }}{% endmacro %}
 
 {% macro tiket_tone(status) %}{{ 'amber' if status=='Pending' else 'sky' if status=='Disetujui' else 'indigo' if status=='Proses' else 'emerald' if status=='Selesai' else 'rose' }}{% endmacro %}
+
+{% macro transaksi_tone(jenis) %}{{ 'amber' if jenis=='Peminjaman' else 'emerald' if jenis=='Pengembalian' else 'indigo' if jenis in ['Pelimpahan', 'Pelimpahan IN', 'Pelimpahan Out'] else 'sky' if jenis=='Pemindahan' else 'violet' if jenis in ['Penyerahan', 'Serah Terima'] else 'slate' }}{% endmacro %}

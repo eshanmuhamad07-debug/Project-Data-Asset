@@ -35,6 +35,21 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 ALLOWED_EXT = {"png", "jpg", "jpeg", "gif", "webp", "jpe", "jfif", "bmp", "tiff", "tif"}
 
+# Daftar Jenis Transaksi Peminjaman, disamakan dengan nilai yang ada di
+# sheet "BA Transfer" pada file Excel sumber, supaya data hasil import lama
+# dan data yang diinput manual lewat website konsisten.
+JENIS_TRANSAKSI_OPTIONS = [
+    "Peminjaman",
+    "Pengembalian",
+    "Pelimpahan",
+    "Pelimpahan IN",
+    "Pelimpahan Out",
+    "Pemindahan",
+    "Penyerahan",
+    "Serah Terima",
+    "Surat Jalan",
+]
+
 app = Flask(__name__)
 
 app.config["SECRET_KEY"] = os.environ.get(
@@ -1532,6 +1547,23 @@ def get_or_create_unit(nama):
         db.session.flush()
     return unit
 
+
+def get_or_create_kategori(nama):
+    """Cari Kategori berdasarkan nama (case-insensitive), buat baru kalau
+    belum ada. Dipakai supaya field 'Jenis Barang' pada Peminjaman konsisten
+    dengan konsep Kategori yang sudah dipakai di modul Data Aset -- baik saat
+    input manual (form Tambah Peminjaman) maupun saat import Excel (sheet
+    BA Transfer)."""
+    nama = (nama or "").strip()
+    if not nama:
+        return None
+    kategori = Kategori.query.filter(db.func.lower(Kategori.nama) == nama.lower()).first()
+    if not kategori:
+        kategori = Kategori(nama=nama)
+        db.session.add(kategori)
+        db.session.flush()
+    return kategori
+
 # ---------------------------------------------------------------------------
 # HISTORY (TIKET READ-ONLY)
 # ---------------------------------------------------------------------------
@@ -1908,11 +1940,31 @@ def peminjaman_list():
     Jenis Barang, Tanggal Awal/Akhir, Keterangan, Evidence Lampiran)."""
     search = request.args.get("search", "").strip()
     status = request.args.get("status", "").strip()
+    jenis_transaksi = request.args.get("jenis_transaksi", "").strip()
+    kategori_id = request.args.get("kategori", "").strip()
+
+    today = datetime.now(WIB).date()
 
     query = Peminjaman.query
 
-    if status:
+    if status == "Terlambat":
+        # "Terlambat" bukan nilai kolom status di database -- ini status
+        # turunan (Dipinjam + lewat tanggal rencana kembali), jadi difilter
+        # pakai kondisi tanggal, bukan Peminjaman.status langsung.
+        query = query.filter(
+            Peminjaman.status == "Dipinjam",
+            Peminjaman.tanggal_rencana_kembali.isnot(None),
+            Peminjaman.tanggal_rencana_kembali < today,
+        )
+    elif status:
         query = query.filter(Peminjaman.status == status)
+
+    if jenis_transaksi:
+        query = query.filter(Peminjaman.jenis_transaksi == jenis_transaksi)
+
+    if kategori_id:
+        query = query.filter(Peminjaman.id_kategori == kategori_id)
+
     if search:
         query = query.join(PeminjamanAset, isouter=True).join(Aset, isouter=True).filter(
             db.or_(
@@ -1925,12 +1977,13 @@ def peminjaman_list():
 
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 10, type=int)
+    if per_page not in [10, 25, 50, 100]:
+        per_page = 10
     pagination = query.order_by(Peminjaman.tanggal_pinjam.desc(), Peminjaman.id.desc()).paginate(
         page=page, per_page=per_page, error_out=False
     )
     daftar_peminjaman = pagination.items
 
-    today = datetime.now(WIB).date()
     total = Peminjaman.query.count()
     total_dipinjam = Peminjaman.query.filter_by(status="Dipinjam").count()
     total_dikembalikan = Peminjaman.query.filter_by(status="Dikembalikan").count()
@@ -1952,12 +2005,18 @@ def peminjaman_list():
         for g in gedung_all
     ]
 
+    kategori_all = Kategori.query.order_by(Kategori.nama).all()
+
     return render_template(
         "peminjaman/list.html",
         daftar_peminjaman=daftar_peminjaman,
         pagination=pagination,
         search=search,
         status_terpilih=status,
+        jenis_transaksi_terpilih=jenis_transaksi,
+        jenis_transaksi_options=JENIS_TRANSAKSI_OPTIONS,
+        kategori_terpilih=kategori_id,
+        kategori_all=kategori_all,
         gedung_all=gedung_all_formatted,
         today=today,
         total=total,
@@ -1983,6 +2042,19 @@ def peminjaman_create():
     keterangan = request.form.get("keterangan", "").strip()
     tanggal_pinjam_str = request.form.get("tanggal_pinjam")
     tanggal_rencana_str = request.form.get("tanggal_rencana_kembali")
+    jenis_transaksi = request.form.get("jenis_transaksi", "").strip() or "Peminjaman"
+
+    # Jenis Barang (Kategori) -- dropdown Kategori (sama seperti di Data Aset).
+    # Kalau user memilih "+ Kategori baru" lalu isi teks manual, buat Kategori
+    # baru otomatis (mengikuti pola get_or_create_kategori).
+    id_kategori_form = request.form.get("id_kategori", "").strip()
+    kategori_baru_nama = request.form.get("kategori_baru", "").strip()
+    id_kategori = None
+    if id_kategori_form and id_kategori_form != "__baru__" and id_kategori_form.isdigit():
+        id_kategori = int(id_kategori_form)
+    elif (id_kategori_form == "__baru__" or not id_kategori_form) and kategori_baru_nama:
+        kategori_obj = get_or_create_kategori(kategori_baru_nama)
+        id_kategori = kategori_obj.id if kategori_obj else None
 
     if not nama_peminjam or not tanggal_pinjam_str:
         flash("Nama peminjam dan tanggal pinjam wajib diisi.", "danger")
@@ -2007,6 +2079,8 @@ def peminjaman_create():
         nama_peminjam=nama_peminjam,
         unit=unit or None,
         lokasi_kerja=lokasi_kerja or None,
+        id_kategori=id_kategori,
+        jenis_transaksi=jenis_transaksi,
         tanggal_pinjam=tanggal_pinjam,
         tanggal_rencana_kembali=tanggal_rencana_kembali,
         status="Dipinjam",
@@ -2040,6 +2114,7 @@ def peminjaman_create():
             "nama_peminjam": nama_peminjam,
             "unit": unit,
             "lokasi_kerja": lokasi_kerja,
+            "jenis_transaksi": jenis_transaksi,
             "barang": nama_aset_list,
             "tanggal_pinjam": tanggal_pinjam.strftime("%Y-%m-%d"),
             "tanggal_rencana_kembali": tanggal_rencana_kembali.strftime("%Y-%m-%d") if tanggal_rencana_kembali else None,
@@ -2311,11 +2386,17 @@ def peminjaman_import():
         if unit_nama:
             get_or_create_unit(unit_nama)
 
+        # Jenis Barang dari Excel dipetakan otomatis ke Kategori (dibuat baru
+        # kalau belum ada) supaya konsisten dengan konsep Kategori di modul
+        # Data Aset. Teks aslinya tetap disimpan di jenis_barang (legacy).
+        kategori_obj = get_or_create_kategori(jenis_barang) if jenis_barang else None
+
         db.session.add(Peminjaman(
             nama_peminjam=nama,
             unit=unit_nama or None,
             lokasi_kerja=lokasi_kerja or None,
             jenis_barang=jenis_barang or None,
+            id_kategori=kategori_obj.id if kategori_obj else None,
             jenis_transaksi=jenis_transaksi or None,
             evidence_link=evidence_link,
             sumber_import=True,

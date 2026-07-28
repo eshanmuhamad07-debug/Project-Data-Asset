@@ -50,10 +50,10 @@
         <p class="text-xs text-slate-400 mb-0.5">Lokasi Kerja</p>
         <p class="font-medium text-slate-700">{{ p.lokasi_kerja or '—' }}</p>
       </div>
-      {% if p.jenis_barang %}
+      {% if p.kategori_ref or p.jenis_barang %}
       <div>
-        <p class="text-xs text-slate-400 mb-0.5">Jenis Barang</p>
-        <p class="font-medium text-slate-700">{{ p.jenis_barang }}</p>
+        <p class="text-xs text-slate-400 mb-0.5">Jenis Barang (Kategori)</p>
+        <p class="font-medium text-slate-700">{{ p.kategori_ref.nama if p.kategori_ref else p.jenis_barang }}</p>
       </div>
       {% endif %}
       {% if p.jenis_transaksi %}

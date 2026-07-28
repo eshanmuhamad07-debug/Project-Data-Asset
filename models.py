@@ -177,10 +177,13 @@ class Peminjaman(db.Model):
     lokasi_kerja = db.Column(db.String(100), nullable=True)
 
     # --- Field dari import Excel (sheet BA Transfer) ---
-    jenis_barang = db.Column(db.String(150), nullable=True)   # teks bebas, TIDAK relasi ke tabel Aset
+    jenis_barang = db.Column(db.String(150), nullable=True)   # LEGACY: teks bebas asli hasil import (dipertahankan untuk histori/audit)
+    id_kategori = db.Column(db.Integer, db.ForeignKey("kategori.id"), nullable=True)  # BARU: Jenis Barang sekarang mengacu ke tabel Kategori (sama seperti Aset)
     jenis_transaksi = db.Column(db.String(30), nullable=True)  # Peminjaman/Pengembalian/Pelimpahan IN/Pelimpahan OUT/dll (dari Excel)
     evidence_link = db.Column(db.String(500), nullable=True)   # link Google Drive PDF hasil import (bukan file upload)
     sumber_import = db.Column(db.Boolean, default=False, nullable=False)  # True = berasal dari import Excel
+
+    kategori_ref = db.relationship("Kategori")  # kategori/jenis barang (untuk peminjaman non-aset-terdaftar)
 
     tanggal_pinjam = db.Column(db.Date, nullable=False)
     tanggal_rencana_kembali = db.Column(db.Date, nullable=True)

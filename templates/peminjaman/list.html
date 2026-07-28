@@ -7,24 +7,24 @@
 {% endblock %}
 {% block content %}
 
-<!-- Statistik -->
+<!-- Statistik (klik kartu untuk filter cepat) -->
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-    <div class="card p-3 text-center">
+    <a href="{{ url_for('peminjaman_list') }}" class="card p-3 text-center hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
         <p class="text-xs text-slate-400">Total Peminjaman</p>
         <p class="text-xl font-bold text-slate-800">{{ total }}</p>
-    </div>
-    <div class="card p-3 text-center border-l-4 border-amber-500">
+    </a>
+    <a href="{{ url_for('peminjaman_list', status='Dipinjam') }}" class="card p-3 text-center border-l-4 border-amber-500 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
         <p class="text-xs text-slate-400">Sedang Dipinjam</p>
         <p class="text-xl font-bold text-amber-600">{{ total_dipinjam }}</p>
-    </div>
-    <div class="card p-3 text-center border-l-4 border-emerald-500">
+    </a>
+    <a href="{{ url_for('peminjaman_list', status='Dikembalikan') }}" class="card p-3 text-center border-l-4 border-emerald-500 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
         <p class="text-xs text-slate-400">Sudah Dikembalikan</p>
         <p class="text-xl font-bold text-emerald-600">{{ total_dikembalikan }}</p>
-    </div>
-    <div class="card p-3 text-center border-l-4 border-rose-500">
+    </a>
+    <a href="{{ url_for('peminjaman_list', status='Terlambat') }}" class="card p-3 text-center border-l-4 border-rose-500 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
         <p class="text-xs text-slate-400">Terlambat Kembali</p>
         <p class="text-xl font-bold text-rose-600">{{ total_terlambat }}</p>
-    </div>
+    </a>
 </div>
 
 <div class="card">
@@ -40,13 +40,26 @@
                 <input type="text" name="search" value="{{ search or '' }}" placeholder="Cari nama peminjam / barang..."
                     class="field-input pl-8 w-full sm:w-56 text-sm">
             </div>
-            <select name="status" class="field-input w-full sm:w-40 text-sm" onchange="this.form.submit()">
+            <select name="status" class="field-input w-full sm:w-40 text-sm">
                 <option value="">Semua Status</option>
                 <option value="Dipinjam" {{ 'selected' if status_terpilih=='Dipinjam' }}>Dipinjam</option>
                 <option value="Dikembalikan" {{ 'selected' if status_terpilih=='Dikembalikan' }}>Dikembalikan</option>
+                <option value="Terlambat" {{ 'selected' if status_terpilih=='Terlambat' }}>Terlambat</option>
+            </select>
+            <select name="jenis_transaksi" class="field-input w-full sm:w-44 text-sm">
+                <option value="">Semua Jenis Transaksi</option>
+                {% for jt in jenis_transaksi_options %}
+                <option value="{{ jt }}" {{ 'selected' if jenis_transaksi_terpilih==jt }}>{{ jt }}</option>
+                {% endfor %}
+            </select>
+            <select name="kategori" class="field-input w-full sm:w-44 text-sm">
+                <option value="">Semua Jenis Barang</option>
+                {% for k in kategori_all %}
+                <option value="{{ k.id }}" {{ 'selected' if kategori_terpilih|string==k.id|string }}>{{ k.nama }}</option>
+                {% endfor %}
             </select>
             <button type="submit" class="btn btn-secondary shrink-0 text-sm">Filter</button>
-            {% if search or status_terpilih %}
+            {% if search or status_terpilih or jenis_transaksi_terpilih or kategori_terpilih %}
             <a href="{{ url_for('peminjaman_list') }}" class="btn btn-secondary shrink-0 text-slate-400 text-sm">Reset</a>
             {% endif %}
         </form>
@@ -79,6 +92,7 @@
                     <th class="th">Unit</th>
                     <th class="th">Lokasi Kerja</th>
                     <th class="th">Barang Dipinjam</th>
+                    <th class="th">Jenis Transaksi</th>
                     <th class="th">Tanggal Pinjam</th>
                     <th class="th">Rencana Kembali</th>
                     <th class="th">Status</th>
@@ -97,11 +111,19 @@
                         {% set nama_aset = p.aset_terkait|selectattr('aset')|map(attribute='aset.nama')|list %}
                         {% if nama_aset %}
                             {{ nama_aset[:2]|join(', ') }}{% if nama_aset|length > 2 %} +{{ nama_aset|length - 2 }} lainnya{% endif %}
+                        {% elif p.kategori_ref %}
+                            {{ p.kategori_ref.nama }}
                         {% elif p.jenis_barang %}
                             {{ p.jenis_barang }}
-                            {% if p.jenis_transaksi %}<span class="text-[10px] text-slate-400 block">{{ p.jenis_transaksi }}</span>{% endif %}
                         {% else %}
                             -
+                        {% endif %}
+                    </td>
+                    <td class="td">
+                        {% if p.jenis_transaksi %}
+                        {{ m.pill(p.jenis_transaksi, m.transaksi_tone(p.jenis_transaksi)) }}
+                        {% else %}
+                        <span class="text-slate-300 text-xs">-</span>
                         {% endif %}
                     </td>
                     <td class="td text-slate-500 text-sm">{{ p.tanggal_pinjam.strftime('%d-%m-%Y') if p.tanggal_pinjam else '-' }}</td>
@@ -156,7 +178,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="9" class="py-14 text-center">
+                    <td colspan="10" class="py-14 text-center">
                         <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"
                             class="mx-auto text-slate-300 mb-2">
                             <path stroke-linecap="round" stroke-linejoin="round"
@@ -173,20 +195,153 @@
         </table>
     </div>
 
-    <!-- Pagination -->
+    <!-- ============================================================ -->
+    <!-- PAGINATION INTERAKTIF (gaya sama seperti halaman Data Aset) -->
+    <!-- ============================================================ -->
     {% if pagination and pagination.pages > 1 %}
-    <div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 text-xs text-slate-500">
-        <span>Menampilkan {{ ((pagination.page - 1) * pagination.per_page) + 1 }} - {{ [pagination.page * pagination.per_page, pagination.total] | min }} dari {{ pagination.total }}</span>
-        <div class="flex gap-1">
+    <div class="flex flex-col md:flex-row items-center justify-between gap-4 px-4 sm:px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
+
+        <!-- Info Data + Per Page -->
+        <div class="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
+            <span class="font-medium text-slate-700">{{ ((pagination.page - 1) * pagination.per_page) + 1 }}</span>
+            <span>-</span>
+            <span class="font-medium text-slate-700">{{ [pagination.page * pagination.per_page, pagination.total] | min }}</span>
+            <span>dari</span>
+            <span class="font-semibold text-slate-800">{{ pagination.total }}</span>
+            <span class="text-slate-400">data</span>
+
+            <span class="hidden sm:inline mx-2 text-slate-300">|</span>
+
+            <div class="flex items-center gap-2">
+                <span class="text-slate-400">Tampil</span>
+                <select id="perPageSelect"
+                    class="field-input py-1 px-2 w-16 text-xs font-medium border-slate-200 bg-white hover:border-indigo-300 focus:ring-2 focus:ring-indigo-200 transition-all">
+                    <option value="10" {{ 'selected' if pagination.per_page==10 }}>10</option>
+                    <option value="25" {{ 'selected' if pagination.per_page==25 }}>25</option>
+                    <option value="50" {{ 'selected' if pagination.per_page==50 }}>50</option>
+                    <option value="100" {{ 'selected' if pagination.per_page==100 }}>100</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Navigasi -->
+        <div class="flex items-center gap-1.5 flex-wrap justify-center">
+            <!-- Tombol First -->
             {% if pagination.has_prev %}
-            <a href="{{ url_for('peminjaman_list', page=pagination.prev_num, search=search or '', status=status_terpilih or '') }}"
-                class="px-3 py-1 rounded-lg hover:bg-slate-100">‹ Sebelumnya</a>
+            <a href="{{ url_for('peminjaman_list', page=1, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+                class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all duration-200"
+                title="Halaman Pertama">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5l-7.5-7.5 7.5-7.5m-6 15L5.25 12l7.5-7.5" />
+                </svg>
+            </a>
+            {% else %}
+            <span class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 cursor-not-allowed">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5l-7.5-7.5 7.5-7.5m-6 15L5.25 12l7.5-7.5" />
+                </svg>
+            </span>
             {% endif %}
+
+            <!-- Tombol Previous -->
+            {% if pagination.has_prev %}
+            <a href="{{ url_for('peminjaman_list', page=pagination.prev_num, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+                class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-600 hover:text-indigo-600 transition-all duration-200"
+                title="Halaman Sebelumnya">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
+            </a>
+            {% else %}
+            <span class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 cursor-not-allowed">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
+            </span>
+            {% endif %}
+
+            <!-- Nomor Halaman (dengan ellipsis) -->
+            <div class="flex items-center gap-0.5">
+                {% set start = [pagination.page - 2, 1] | max %}
+                {% set end = [pagination.page + 2, pagination.pages] | min %}
+
+                {% if start > 1 %}
+                <a href="{{ url_for('peminjaman_list', page=1, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-white hover:shadow-sm hover:text-indigo-600 transition-all duration-200">1</a>
+                {% if start > 2 %}
+                <span class="w-6 h-8 flex items-center justify-center text-slate-300 text-xs">…</span>
+                {% endif %}
+                {% endif %}
+
+                {% for p_num in range(start, end + 1) %}
+                {% if p_num == pagination.page %}
+                <span class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold text-white bg-indigo-600 shadow-md shadow-indigo-200">{{ p_num }}</span>
+                {% else %}
+                <a href="{{ url_for('peminjaman_list', page=p_num, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-white hover:shadow-sm hover:text-indigo-600 transition-all duration-200">{{ p_num }}</a>
+                {% endif %}
+                {% endfor %}
+
+                {% if end < pagination.pages %}
+                {% if end < pagination.pages - 1 %}
+                <span class="w-6 h-8 flex items-center justify-center text-slate-300 text-xs">…</span>
+                {% endif %}
+                <a href="{{ url_for('peminjaman_list', page=pagination.pages, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-white hover:shadow-sm hover:text-indigo-600 transition-all duration-200">{{ pagination.pages }}</a>
+                {% endif %}
+            </div>
+
+            <!-- Tombol Next -->
             {% if pagination.has_next %}
-            <a href="{{ url_for('peminjaman_list', page=pagination.next_num, search=search or '', status=status_terpilih or '') }}"
-                class="px-3 py-1 rounded-lg hover:bg-slate-100">Berikutnya ›</a>
+            <a href="{{ url_for('peminjaman_list', page=pagination.next_num, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+                class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-600 hover:text-indigo-600 transition-all duration-200"
+                title="Halaman Berikutnya">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+            </a>
+            {% else %}
+            <span class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 cursor-not-allowed">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+            </span>
+            {% endif %}
+
+            <!-- Tombol Last -->
+            {% if pagination.has_next %}
+            <a href="{{ url_for('peminjaman_list', page=pagination.pages, search=search or '', status=status_terpilih or '', jenis_transaksi=jenis_transaksi_terpilih or '', kategori=kategori_terpilih or '', per_page=pagination.per_page) }}"
+                class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all duration-200"
+                title="Halaman Terakhir">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 4.5l7.5 7.5-7.5 7.5m6-15l7.5 7.5-7.5 7.5" />
+                </svg>
+            </a>
+            {% else %}
+            <span class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 cursor-not-allowed">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 4.5l7.5 7.5-7.5 7.5m6-15l7.5 7.5-7.5 7.5" />
+                </svg>
+            </span>
             {% endif %}
         </div>
+    </div>
+
+    <!-- Go to Page -->
+    <div class="flex items-center justify-center sm:justify-start gap-2 px-4 sm:px-6 py-3 border-t border-slate-100 bg-white/50">
+        <span class="text-xs text-slate-500">Ke halaman</span>
+        <input type="number" id="goToPageInput" min="1" max="{{ pagination.pages }}"
+            class="field-input py-1.5 px-2 w-16 text-xs font-medium border-slate-200 bg-white hover:border-indigo-300 focus:ring-2 focus:ring-indigo-200 transition-all text-center"
+            value="{{ pagination.page }}" placeholder="1">
+        <button id="goToPageBtn" class="btn btn-secondary btn-sm">Go</button>
+        <span class="text-xs text-slate-300 hidden sm:inline">|</span>
+        <span class="text-xs text-slate-400">
+            Total <span class="font-semibold text-slate-700">{{ pagination.pages }}</span> halaman
+        </span>
+    </div>
+    {% elif pagination and pagination.total > 0 %}
+    <div class="px-4 sm:px-6 py-3 border-t border-slate-100 text-xs text-slate-500">
+        Menampilkan seluruh <span class="font-semibold text-slate-700">{{ pagination.total }}</span> data
     </div>
     {% endif %}
 </div>
@@ -222,6 +377,32 @@
             <div>
                 <label class="field-label">Lokasi Kerja</label>
                 <input name="lokasi_kerja" placeholder="Mis: Jakarta / Bandung" class="field-input">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Jenis Transaksi</label>
+                    <select name="jenis_transaksi" class="field-input text-sm">
+                        {% for jt in jenis_transaksi_options %}
+                        <option value="{{ jt }}" {{ 'selected' if jt=='Peminjaman' }}>{{ jt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label">Jenis Barang (Kategori)</label>
+                    <select name="id_kategori" id="pinjam_kategori" class="field-input text-sm"
+                        onchange="document.getElementById('pinjam_kategori_baru_wrap').classList.toggle('hidden', this.value !== '__baru__')">
+                        <option value="">- Opsional -</option>
+                        {% for k in kategori_all %}
+                        <option value="{{ k.id }}">{{ k.nama }}</option>
+                        {% endfor %}
+                        <option value="__baru__">+ Kategori baru...</option>
+                    </select>
+                    <div id="pinjam_kategori_baru_wrap" class="hidden mt-1.5">
+                        <input name="kategori_baru" placeholder="Nama kategori baru, mis: Handphone"
+                            class="field-input text-sm">
+                    </div>
+                </div>
             </div>
 
             <!-- Lokasi Barang -->
@@ -294,6 +475,41 @@
 
 {% block scripts %}
 <script>
+    // =============================================================
+    // PAGINATION INTERAKTIF - Per Page & Go to Page
+    // =============================================================
+    document.addEventListener('DOMContentLoaded', function () {
+        const perPageSelect = document.getElementById('perPageSelect');
+        if (perPageSelect) {
+            perPageSelect.addEventListener('change', function () {
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set('per_page', this.value);
+                currentUrl.searchParams.set('page', 1); // reset ke halaman 1
+                window.location.href = currentUrl.toString();
+            });
+        }
+
+        const goToPageInput = document.getElementById('goToPageInput');
+        const goToPageBtn = document.getElementById('goToPageBtn');
+        if (goToPageBtn && goToPageInput) {
+            function goToPage() {
+                const page = parseInt(goToPageInput.value);
+                const maxPage = parseInt(goToPageInput.max);
+                if (isNaN(page) || page < 1 || page > maxPage) {
+                    alert(`Masukkan halaman antara 1 - ${maxPage}`);
+                    return;
+                }
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set('page', page);
+                window.location.href = currentUrl.toString();
+            }
+            goToPageBtn.addEventListener('click', goToPage);
+            goToPageInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') goToPage();
+            });
+        }
+    });
+
     // =============================================================
     // OVERRIDE loadAsetByLokasi - checkbox multi-select khusus form Peminjaman
     // (dipakai bersama beberapa modal di halaman lain, makanya di-override
