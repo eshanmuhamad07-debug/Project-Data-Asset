@@ -543,7 +543,8 @@
         </svg>
       </button>
     </div>
-    <form id="formKonfirmasiPerpanjangan" method="POST" class="p-5 space-y-3.5">
+    <form id="formKonfirmasiPerpanjangan" method="POST" enctype="multipart/form-data" class="p-5 space-y-3.5">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm space-y-1">
         <p><span class="text-slate-400">Peminjam:</span> <span id="kpNamaPeminjam" class="font-medium text-slate-700"></span></p>
         <p><span class="text-slate-400">Aset:</span> <span id="kpAset" class="text-slate-700"></span></p>
@@ -568,6 +569,12 @@
       <div id="wrapperTanggalBaru">
         <label class="field-label">Tanggal Rencana Kembali Baru</label>
         <input type="date" name="tanggal_baru" id="kpTanggalBaruInput" class="field-input" required>
+      </div>
+
+      <div>
+        <label class="field-label">Evidence Laporan (PDF) — opsional</label>
+        <input type="file" name="evidence_baru" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" class="field-input">
+        <p class="text-[11px] text-slate-400 mt-1">Kalau diisi, file akan ditambahkan ke histori evidence peminjaman ini (evidence lama tidak akan terhapus/tertimpa).</p>
       </div>
 
       <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Konfirmasi</button>
@@ -820,6 +827,10 @@ function openKonfirmasiPerpanjangan(id, nama, aset, tglPinjam, tglKembali, tglKe
   // Reset ke pilihan default "Perpanjang"
   form.querySelector('input[value="perpanjang"]').checked = true;
   toggleTanggalBaru(true);
+
+  // Kosongkan pilihan file evidence dari sesi sebelumnya (kalau ada)
+  const fileInput = form.querySelector('input[type="file"]');
+  if (fileInput) fileInput.value = '';
 
   openModal('modalKonfirmasiPerpanjangan');
 }

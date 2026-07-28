@@ -200,6 +200,16 @@ class Peminjaman(db.Model):
 
     aset_terkait = db.relationship("PeminjamanAset", backref="peminjaman", cascade="all, delete-orphan")
 
+    # Histori evidence: tiap kali admin upload evidence/laporan (PDF/gambar) baru,
+    # dicatat sebagai baris baru di sini (TIDAK menimpa evidence lama), lengkap
+    # dengan tanggal upload-nya. Diurutkan dari yang terbaru.
+    evidence_list = db.relationship(
+        "PeminjamanEvidence",
+        backref="peminjaman",
+        cascade="all, delete-orphan",
+        order_by="desc(PeminjamanEvidence.tanggal_upload)",
+    )
+
 
 class PeminjamanAset(db.Model):
     __tablename__ = "peminjaman_aset"
@@ -207,6 +217,20 @@ class PeminjamanAset(db.Model):
     id_peminjaman = db.Column(db.Integer, db.ForeignKey("peminjaman.id"), nullable=False)
     id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=False)
     aset = db.relationship("Aset")
+
+
+class PeminjamanEvidence(db.Model):
+    """Histori lampiran evidence/laporan (PDF/gambar) untuk satu peminjaman.
+    Setiap upload baru menambah baris baru -- file lama TIDAK dihapus/ditimpa,
+    sehingga seluruh riwayat evidence beserta tanggal upload-nya tetap tersimpan."""
+    __tablename__ = "peminjaman_evidence"
+    id = db.Column(db.Integer, primary_key=True)
+    id_peminjaman = db.Column(db.Integer, db.ForeignKey("peminjaman.id"), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    keterangan = db.Column(db.String(255), nullable=True)
+    tanggal_upload = db.Column(db.DateTime, default=get_wib_now, nullable=False)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    user_uploader = db.relationship("User")
 
 
 class Maintenance(db.Model):
