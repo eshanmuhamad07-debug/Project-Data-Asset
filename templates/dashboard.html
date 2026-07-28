@@ -380,8 +380,188 @@
       </div>
     </div>
   </div>
+</div>
 
 {% endif %}
+
+<!-- ============================================================ -->
+<!-- NOTIFIKASI H-10 PERPANJANGAN PEMINJAMAN (khusus Admin) -->
+<!-- ============================================================ -->
+{% if current_user.role == 'admin' and peminjaman_reminder %}
+<div class="card p-4 mt-4 border-amber-200 bg-amber-50/50">
+  <div class="flex items-start gap-3">
+    <span class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+      </svg>
+    </span>
+    <div class="flex-1 min-w-0">
+      <p class="text-sm font-semibold text-slate-800">⏰ Peminjaman perlu konfirmasi perpanjangan</p>
+      <p class="text-xs text-slate-500 mb-3">Rencana kembali sudah lewat atau tinggal 10 hari lagi — konfirmasi
+        apakah akan diperpanjang atau tidak.</p>
+      <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
+        {% for p in peminjaman_reminder %}
+        <div
+          class="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white border {{ 'border-rose-200' if p.tanggal_rencana_kembali < today else 'border-amber-200' }}">
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-slate-700 truncate">{{ p.nama_peminjam }}
+              <span class="text-slate-400 font-normal">— {{ p.unit or '-' }}</span>
+            </p>
+            <p class="text-xs text-slate-500 truncate">
+              {% for pa in p.aset_terkait %}{{ pa.aset.nama if pa.aset else '-' }}{% if not loop.last %}, {% endif %}{% endfor %}
+            </p>
+            <p class="text-xs mt-0.5 {{ 'text-rose-600 font-semibold' if p.tanggal_rencana_kembali < today else 'text-amber-600 font-medium' }}">
+              Rencana kembali: {{ p.tanggal_rencana_kembali.strftime('%d-%m-%Y') }}
+              {% if p.tanggal_rencana_kembali < today %} (Terlambat){% endif %}
+            </p>
+          </div>
+          <button type="button" onclick="openKonfirmasiPerpanjangan(
+              {{ p.id }}, '{{ p.nama_peminjam|e }}',
+              '{% for pa in p.aset_terkait %}{{ pa.aset.nama if pa.aset else "-" }}{% if not loop.last %}, {% endif %}{% endfor %}',
+              '{{ p.tanggal_pinjam.strftime('%d-%m-%Y') if p.tanggal_pinjam else '-' }}',
+              '{{ p.tanggal_rencana_kembali.strftime('%d-%m-%Y') if p.tanggal_rencana_kembali else '-' }}',
+              '{{ p.tanggal_rencana_kembali.strftime('%Y-%m-%d') if p.tanggal_rencana_kembali else '' }}'
+            )"
+            class="shrink-0 btn btn-primary text-xs px-3 py-1.5">Konfirmasi</button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ============================================================ -->
+<!-- KALENDER PEMINJAMAN TAHUNAN (khusus Admin) -->
+<!-- ============================================================ -->
+{% if current_user.role == 'admin' %}
+<div class="card p-4 mt-4">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <p class="text-sm font-semibold text-slate-700">📅 Kalender Peminjaman {{ calendar_year }}</p>
+      <p class="text-xs text-slate-400">Tanggal rencana kembali peminjaman aset & hari libur nasional</p>
+    </div>
+    <div class="flex items-center gap-3 text-[11px] text-slate-500">
+      <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Akan
+        jatuh tempo</span>
+      <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+        Terlambat</span>
+      <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-rose-100 border border-rose-300 inline-block"></span>
+        Libur nasional</span>
+    </div>
+  </div>
+  <div id="yearCalendarGrid" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+
+  <!-- Panel detail tanggal terklik -->
+  <div id="calendarDayDetail" class="hidden mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200"></div>
+</div>
+{% endif %}
+
+<!-- ============================================================ -->
+<!-- MODAL: LIHAT DETAIL PEMINJAMAN (dari Kalender, read-only) -->
+<!-- ============================================================ -->
+<div id="modalViewPeminjaman" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+      <h2 class="font-display font-bold text-slate-800">Detail Peminjaman</h2>
+      <button onclick="closeModal('modalViewPeminjaman')" class="text-slate-400 hover:text-slate-600">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div class="p-5 space-y-3.5">
+      <div>
+        <label class="field-label">Nama Peminjam</label>
+        <input type="text" id="vpNama" class="field-input bg-slate-50 text-slate-600" readonly disabled>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="field-label">Unit</label>
+          <input type="text" id="vpUnit" class="field-input bg-slate-50 text-slate-600" readonly disabled>
+        </div>
+        <div>
+          <label class="field-label">Lokasi Kerja</label>
+          <input type="text" id="vpLokasi" class="field-input bg-slate-50 text-slate-600" readonly disabled>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="field-label">Tanggal Pinjam</label>
+          <input type="text" id="vpTglPinjam" class="field-input bg-slate-50 text-slate-600" readonly disabled>
+        </div>
+        <div>
+          <label class="field-label">Rencana Kembali</label>
+          <input type="text" id="vpTglKembali" class="field-input bg-slate-50 text-slate-600" readonly disabled>
+        </div>
+      </div>
+      <div>
+        <label class="field-label">Aset yang Dipinjam</label>
+        <textarea id="vpAset" rows="2" class="field-input bg-slate-50 text-slate-600 resize-none" readonly disabled></textarea>
+      </div>
+      <div>
+        <label class="field-label">Keterangan</label>
+        <textarea id="vpKeterangan" rows="2" class="field-input bg-slate-50 text-slate-600 resize-none" readonly disabled></textarea>
+      </div>
+      <div>
+        <label class="field-label">Status</label>
+        <input type="text" id="vpStatus" class="field-input bg-slate-50 text-slate-600" readonly disabled>
+      </div>
+
+      <p class="text-[11px] text-slate-400 italic">*Tampilan ini hanya untuk melihat detail sementara — bukan form
+        untuk mengubah data.</p>
+
+      <button type="button" id="vpKonfirmasiBtn" onclick="lanjutKeKonfirmasi()"
+        class="hidden btn btn-primary w-full py-2.5">Lanjut Konfirmasi Perpanjangan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL: KONFIRMASI PERPANJANGAN PEMINJAMAN -->
+<!-- ============================================================ -->
+<div id="modalKonfirmasiPerpanjangan" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md shadow-xl">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <h2 class="font-display font-bold text-slate-800">Konfirmasi Perpanjangan</h2>
+      <button onclick="closeModal('modalKonfirmasiPerpanjangan')" class="text-slate-400 hover:text-slate-600">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <form id="formKonfirmasiPerpanjangan" method="POST" class="p-5 space-y-3.5">
+      <div class="p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm space-y-1">
+        <p><span class="text-slate-400">Peminjam:</span> <span id="kpNamaPeminjam" class="font-medium text-slate-700"></span></p>
+        <p><span class="text-slate-400">Aset:</span> <span id="kpAset" class="text-slate-700"></span></p>
+        <p><span class="text-slate-400">Tanggal Pinjam:</span> <span id="kpTanggalPinjam" class="text-slate-700"></span></p>
+        <p><span class="text-slate-400">Rencana Kembali (saat ini):</span> <span id="kpTanggalKembali" class="text-slate-700 font-medium"></span></p>
+      </div>
+
+      <div>
+        <label class="field-label">Keputusan</label>
+        <div class="flex gap-2">
+          <label class="flex-1 flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 cursor-pointer has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50">
+            <input type="radio" name="keputusan" value="perpanjang" onchange="toggleTanggalBaru(true)" checked>
+            <span class="text-sm">Perpanjang</span>
+          </label>
+          <label class="flex-1 flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 cursor-pointer has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50">
+            <input type="radio" name="keputusan" value="tidak" onchange="toggleTanggalBaru(false)">
+            <span class="text-sm">Tidak Diperpanjang</span>
+          </label>
+        </div>
+      </div>
+
+      <div id="wrapperTanggalBaru">
+        <label class="field-label">Tanggal Rencana Kembali Baru</label>
+        <input type="date" name="tanggal_baru" id="kpTanggalBaruInput" class="field-input" required>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Konfirmasi</button>
+    </form>
+  </div>
+</div>
 
 {% endblock %}
 
@@ -412,6 +592,223 @@ function toggleCard(bodyId, iconId) {
     body.classList.add('is-collapsed');
     if (icon) icon.style.transform = 'rotate(-90deg)';
   }
+}
+</script>
+
+<script>
+// ============================================================
+// KALENDER PEMINJAMAN TAHUNAN
+// ============================================================
+const PEMINJAMAN_CALENDAR = {{ peminjaman_calendar_json|safe }};
+const HARI_LIBUR = {{ hari_libur_json|safe }};
+const CALENDAR_YEAR = {{ calendar_year }};
+const TODAY_STR = "{{ today_str }}";
+
+const NAMA_BULAN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+const NAMA_HARI = ["M", "S", "S", "R", "K", "J", "S"];
+
+function pad2(n) { return n.toString().padStart(2, '0'); }
+
+function renderYearCalendar() {
+  const container = document.getElementById('yearCalendarGrid');
+  if (!container) return;
+  let html = '';
+
+  for (let m = 0; m < 12; m++) {
+    const firstDay = new Date(CALENDAR_YEAR, m, 1).getDay(); // 0=Minggu
+    const totalDays = new Date(CALENDAR_YEAR, m + 1, 0).getDate();
+
+    let cells = '';
+    for (let i = 0; i < firstDay; i++) {
+      cells += `<div class="min-h-9"></div>`;
+    }
+    for (let d = 1; d <= totalDays; d++) {
+      const dateStr = `${CALENDAR_YEAR}-${pad2(m + 1)}-${pad2(d)}`;
+      const dow = new Date(CALENDAR_YEAR, m, d).getDay();
+      const isSunday = dow === 0;
+      const holidayName = HARI_LIBUR[dateStr];
+      const loans = PEMINJAMAN_CALENDAR[dateStr] || [];
+      const isToday = dateStr === TODAY_STR;
+
+      let textColor = isSunday || holidayName ? 'text-rose-500' : 'text-slate-600';
+      let bg = isToday ? 'bg-indigo-600 text-white rounded-md' : (holidayName ? 'bg-rose-50 rounded-md' : '');
+
+      let nameLabelHtml = '';
+      let hoverTitle = holidayName || '';
+      if (loans.length > 0) {
+        const anyOverdue = loans.some(l => l.overdue);
+        const firstName = (loans[0].nama_peminjam || '').split(' ')[0];
+        const extra = loans.length > 1 ? `+${loans.length - 1}` : '';
+        const labelColor = anyOverdue ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700';
+        nameLabelHtml = `<span class="mt-0.5 max-w-[38px] truncate leading-none text-[7.5px] font-semibold px-1 py-[1px] rounded-sm ${labelColor}">${firstName}${extra}</span>`;
+        hoverTitle = loans.map(l => `${l.nama_peminjam} (${l.aset})`).join(' | ');
+        if (holidayName) hoverTitle = `${holidayName} — ${hoverTitle}`;
+      }
+
+      const clickable = `onclick="selectCalendarDay('${dateStr}')" style="cursor:pointer;"`;
+
+      cells += `<div id="cal-${dateStr}" class="relative flex flex-col items-center justify-start min-h-9 pt-0.5 pb-1 text-[10.5px] ${textColor} ${isToday ? '' : 'hover:bg-slate-100 rounded-md'}" ${clickable} title="${hoverTitle}">
+                  <span class="${bg} w-5 h-5 flex items-center justify-center">${d}</span>
+                  ${nameLabelHtml}
+                </div>`;
+    }
+
+    html += `
+      <div class="border border-slate-100 rounded-xl p-2.5">
+        <p class="text-xs font-semibold text-slate-700 mb-1.5">${NAMA_BULAN[m]}</p>
+        <div class="grid grid-cols-7 gap-y-1 text-center">
+          ${NAMA_HARI.map((h, i) => `<div class="text-[9px] font-semibold ${i === 0 ? 'text-rose-400' : 'text-slate-400'}">${h}</div>`).join('')}
+          ${cells}
+        </div>
+      </div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function showCalendarDayDetail(dateStr) {
+  const panel = document.getElementById('calendarDayDetail');
+  const loans = PEMINJAMAN_CALENDAR[dateStr] || [];
+  const holidayName = HARI_LIBUR[dateStr];
+  if (!panel) return;
+
+  const [y, mo, d] = dateStr.split('-');
+  const tanggalDisplay = `${d}-${mo}-${y}`;
+  const dow = new Date(parseInt(y), parseInt(mo) - 1, parseInt(d)).getDay();
+  const namaHariLengkap = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"][dow];
+
+  let holidayHtml = holidayName
+    ? `<div class="p-2 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium mb-1.5">🎌 Hari Libur Nasional: ${holidayName}</div>`
+    : '';
+
+  let rows = loans.map(l => `
+    <div class="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border ${l.overdue ? 'border-rose-200' : 'border-slate-200'}">
+      <div class="min-w-0">
+        <p class="text-xs font-medium text-slate-700 truncate">${l.nama_peminjam} <span class="text-slate-400 font-normal">— ${l.unit}</span></p>
+        <p class="text-[11px] text-slate-500 truncate">${l.aset}</p>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button type="button" class="text-slate-500 hover:text-slate-700 text-[11px] font-medium px-2 py-1 rounded-lg hover:bg-slate-100"
+            onclick="openViewPeminjaman('${dateStr}', ${l.id})">Detail</button>
+        ${l.butuh_konfirmasi ? `<button type="button" class="btn btn-primary text-[11px] px-2.5 py-1"
+            onclick="openKonfirmasiPerpanjangan(${l.id}, '${l.nama_peminjam.replace(/'/g, "\\'")}', '${l.aset.replace(/'/g, "\\'")}', '${l.tanggal_pinjam}', '${tanggalDisplay}', '${dateStr}')">Konfirmasi</button>`
+          : `<span class="text-[10px] text-slate-400">Sudah dikonfirmasi</span>`}
+      </div>
+    </div>`).join('');
+
+  if (!holidayName && loans.length === 0) {
+    rows = `<div class="py-4 text-center"><p class="text-xs text-slate-400">Tidak ada peminjaman yang jatuh tempo pada tanggal ini.</p></div>`;
+  } else if (loans.length > 0) {
+    rows = `<p class="text-[11px] font-medium text-slate-500 mb-1">Peminjaman jatuh tempo:</p><div class="space-y-1.5">${rows}</div>`;
+  }
+
+  panel.innerHTML = `<div class="flex items-center justify-between mb-2">
+                        <p class="text-xs font-semibold text-slate-600">📌 ${namaHariLengkap}, ${tanggalDisplay}</p>
+                        <button type="button" onclick="closeCalendarDayDetail()" class="text-slate-400 hover:text-slate-600">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                      ${holidayHtml}
+                      ${rows}`;
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ============================================================
+// MODAL LIHAT DETAIL PEMINJAMAN (read-only, dari kalender)
+// ============================================================
+let _vpCurrentLoan = null; // simpan sementara data peminjaman yang sedang dilihat
+
+function openViewPeminjaman(dateStr, loanId) {
+  const loans = PEMINJAMAN_CALENDAR[dateStr] || [];
+  const l = loans.find(x => x.id === loanId);
+  if (!l) return;
+  _vpCurrentLoan = { ...l, dateStr };
+
+  document.getElementById('vpNama').value = l.nama_peminjam || '-';
+  document.getElementById('vpUnit').value = l.unit || '-';
+  document.getElementById('vpLokasi').value = l.lokasi_kerja || '-';
+  document.getElementById('vpTglPinjam').value = l.tanggal_pinjam || '-';
+  document.getElementById('vpTglKembali').value = l.tanggal_rencana_kembali || '-';
+  document.getElementById('vpAset').value = l.aset || '-';
+  document.getElementById('vpKeterangan').value = l.keterangan || '-';
+  document.getElementById('vpStatus').value = l.overdue ? `${l.status} (Terlambat)` : l.status;
+
+  const btn = document.getElementById('vpKonfirmasiBtn');
+  if (l.butuh_konfirmasi) {
+    btn.classList.remove('hidden');
+  } else {
+    btn.classList.add('hidden');
+  }
+
+  openModal('modalViewPeminjaman');
+}
+
+function lanjutKeKonfirmasi() {
+  if (!_vpCurrentLoan) return;
+  const l = _vpCurrentLoan;
+  closeModal('modalViewPeminjaman');
+  openKonfirmasiPerpanjangan(l.id, l.nama_peminjam, l.aset, l.tanggal_pinjam, l.tanggal_rencana_kembali, l.dateStr);
+}
+
+document.addEventListener('DOMContentLoaded', renderYearCalendar);
+
+let _selectedCalendarCell = null;
+
+function selectCalendarDay(dateStr) {
+  // Hapus highlight dari tanggal yang sebelumnya dipilih
+  if (_selectedCalendarCell) {
+    _selectedCalendarCell.classList.remove('ring-2', 'ring-indigo-400', 'bg-indigo-50');
+  }
+  // Tandai tanggal yang baru diklik
+  const cell = document.getElementById(`cal-${dateStr}`);
+  if (cell) {
+    cell.classList.add('ring-2', 'ring-indigo-400', 'bg-indigo-50');
+    _selectedCalendarCell = cell;
+  }
+  showCalendarDayDetail(dateStr);
+}
+
+function closeCalendarDayDetail() {
+  document.getElementById('calendarDayDetail').classList.add('hidden');
+  if (_selectedCalendarCell) {
+    _selectedCalendarCell.classList.remove('ring-2', 'ring-indigo-400', 'bg-indigo-50');
+    _selectedCalendarCell = null;
+  }
+}
+
+// ============================================================
+// MODAL KONFIRMASI PERPANJANGAN PEMINJAMAN
+// ============================================================
+function toggleTanggalBaru(show) {
+  const wrapper = document.getElementById('wrapperTanggalBaru');
+  const input = document.getElementById('kpTanggalBaruInput');
+  if (!wrapper || !input) return;
+  wrapper.style.display = show ? 'block' : 'none';
+  input.required = show;
+}
+
+function openKonfirmasiPerpanjangan(id, nama, aset, tglPinjam, tglKembali, tglKembaliIso) {
+  document.getElementById('kpNamaPeminjam').textContent = nama;
+  document.getElementById('kpAset').textContent = aset || '-';
+  document.getElementById('kpTanggalPinjam').textContent = tglPinjam || '-';
+  document.getElementById('kpTanggalKembali').textContent = tglKembali || '-';
+
+  const form = document.getElementById('formKonfirmasiPerpanjangan');
+  form.action = `/peminjaman/${id}/konfirmasi-perpanjangan`;
+
+  // Default tanggal baru: 7 hari setelah tanggal rencana kembali saat ini
+  if (tglKembaliIso) {
+    const d = new Date(tglKembaliIso);
+    d.setDate(d.getDate() + 7);
+    document.getElementById('kpTanggalBaruInput').value = d.toISOString().slice(0, 10);
+  }
+
+  // Reset ke pilihan default "Perpanjang"
+  form.querySelector('input[value="perpanjang"]').checked = true;
+  toggleTanggalBaru(true);
+
+  openModal('modalKonfirmasiPerpanjangan');
 }
 </script>
 {% endblock %}
