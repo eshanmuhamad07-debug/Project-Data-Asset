@@ -171,6 +171,7 @@ class Peminjaman(db.Model):
     tanggal_dikembalikan = db.Column(db.Date, nullable=True)
 
     status = db.Column(db.String(20), default="Dipinjam", nullable=False)  # Dipinjam / Dikembalikan
+    status_perpanjangan = db.Column(db.String(30), nullable=True)  # None / 'Diperpanjang' / 'Tidak Diperpanjang'
     keterangan = db.Column(db.Text, nullable=True)
     evidence = db.Column(db.String(255), nullable=True)  # file BA Serah Terima (gambar/pdf)
 
