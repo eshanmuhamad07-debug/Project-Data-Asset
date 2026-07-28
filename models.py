@@ -43,27 +43,36 @@ class Kategori(db.Model):
 
 
 # ============================================================
+# UNIT (master data unit/bagian peminjam, mirip Kategori)
+# ============================================================
+class Unit(db.Model):
+    __tablename__ = "unit"
+    id = db.Column(db.Integer, primary_key=True)
+    nama = db.Column(db.String(100), nullable=False, unique=True)
+
+
+# ============================================================
 # ASET (DENGAN FIELD BARU DARI EXCEL)
 # ============================================================
 class Aset(db.Model):
     __tablename__ = "aset"
 
     id = db.Column(db.Integer, primary_key=True)
-    
+
     # --- Field lama ---
     kode_aset = db.Column(db.String(50), unique=True, nullable=False)
     nama = db.Column(db.String(150), nullable=False)
     merek = db.Column(db.String(100), nullable=True)
     foto = db.Column(db.String(255), nullable=True)          # upload file
     foto_url = db.Column(db.String(500), nullable=True)      # link gambar
-    
+
     gedung = db.Column(db.String(100), nullable=False)
     lantai = db.Column(db.String(50), nullable=True)
     ruangan = db.Column(db.String(100), nullable=False)
-    
+
     status_aset = db.Column(db.String(20), default="Baik")   # Baik / Rusak
     total_kerusakan = db.Column(db.Integer, default=0, nullable=False)
-    
+
     # --- Field BARU dari Excel ---
     area = db.Column(db.String(100), nullable=True)           # Area
     fungsi = db.Column(db.String(255), nullable=True)         # Fungsi Barang
@@ -74,7 +83,7 @@ class Aset(db.Model):
     link_qr = db.Column(db.String(500), nullable=True)        # Link QR (HIDDEN)
     tanggal_datang = db.Column(db.Date, nullable=True)        # Tanggal Barang Datang
     keterangan = db.Column(db.Text, nullable=True)            # Keterangan
-    
+
     # --- Relasi Kategori (HAPUS SubKategori) ---
     id_kategori = db.Column(db.Integer, db.ForeignKey("kategori.id"), nullable=True)
     # kategori_ref sudah didefinisikan di Kategori
@@ -158,6 +167,7 @@ class AktivitasLog(db.Model):
     created_at = db.Column(db.DateTime, default=get_wib_now)
     user = db.relationship("User")
 
+
 class Peminjaman(db.Model):
     __tablename__ = "peminjaman"
     id = db.Column(db.Integer, primary_key=True)
@@ -166,6 +176,12 @@ class Peminjaman(db.Model):
     unit = db.Column(db.String(100), nullable=True)
     lokasi_kerja = db.Column(db.String(100), nullable=True)
 
+    # --- Field dari import Excel (sheet BA Transfer) ---
+    jenis_barang = db.Column(db.String(150), nullable=True)   # teks bebas, TIDAK relasi ke tabel Aset
+    jenis_transaksi = db.Column(db.String(30), nullable=True)  # Peminjaman/Pengembalian/Pelimpahan IN/Pelimpahan OUT/dll (dari Excel)
+    evidence_link = db.Column(db.String(500), nullable=True)   # link Google Drive PDF hasil import (bukan file upload)
+    sumber_import = db.Column(db.Boolean, default=False, nullable=False)  # True = berasal dari import Excel
+
     tanggal_pinjam = db.Column(db.Date, nullable=False)
     tanggal_rencana_kembali = db.Column(db.Date, nullable=True)
     tanggal_dikembalikan = db.Column(db.Date, nullable=True)
@@ -173,7 +189,7 @@ class Peminjaman(db.Model):
     status = db.Column(db.String(20), default="Dipinjam", nullable=False)  # Dipinjam / Dikembalikan
     status_perpanjangan = db.Column(db.String(30), nullable=True)  # None / 'Diperpanjang' / 'Tidak Diperpanjang'
     keterangan = db.Column(db.Text, nullable=True)
-    evidence = db.Column(db.String(255), nullable=True)  # file BA Serah Terima (gambar/pdf)
+    evidence = db.Column(db.String(255), nullable=True)  # file BA Serah Terima (gambar/pdf) -- upload manual
 
     created_at = db.Column(db.DateTime, default=get_wib_now)
     created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)

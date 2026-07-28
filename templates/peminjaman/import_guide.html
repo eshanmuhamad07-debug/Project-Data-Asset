@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Import Excel Peminjaman{% endblock %}
+{% block header %}📥 Import Excel Peminjaman{% endblock %}
+{% block subheader %}
+<p class="text-xs text-slate-400">Panduan dan form upload untuk mengimpor data peminjaman aset (gaya sheet "BA Transfer")</p>
+{% endblock %}
+{% block content %}
+
+<div class="space-y-4 max-w-5xl mx-auto">
+
+    <!-- 1. Ringkasan Cepat -->
+    <div class="card p-6">
+        <div class="flex items-start gap-4">
+            <span class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+            </span>
+            <div>
+                <h2 class="font-display font-bold text-lg text-slate-800">Cara Import Excel Peminjaman</h2>
+                <ol class="list-decimal list-inside text-sm text-slate-600 space-y-1 mt-1">
+                    <li>Upload file Excel (.xlsx) — boleh file yang sama dengan data Aset, boleh punya banyak sheet</li>
+                    <li>Sistem otomatis mencari sheet yang punya kolom sesuai format di bawah — <b>tidak harus sheet pertama atau baris header pertama</b></li>
+                    <li>Setiap baris akan ditambahkan sebagai data Peminjaman baru</li>
+                    <li>Nilai kolom <b>Unit</b> otomatis tersimpan sebagai master data baru di halaman <a href="{{ url_for('kategori_list') }}" class="text-indigo-600 hover:underline">Kategori</a> (kalau belum ada)</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Tabel Kolom Excel -->
+    <div class="card p-6">
+        <h3 class="font-display font-semibold text-slate-800 text-base mb-4">📋 Format Kolom yang Dicari</h3>
+        <p class="text-sm text-slate-500 mb-4">
+            Sistem mendeteksi sheet & baris header berdasarkan <b>nama kolom</b> (bukan posisi), jadi urutan kolom
+            di Excel bebas — yang penting nama headernya cocok:
+        </p>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-200 bg-slate-50">
+                        <th class="text-left py-2 px-3 font-semibold text-slate-600 text-xs uppercase tracking-wider">Nama Kolom Excel</th>
+                        <th class="text-left py-2 px-3 font-semibold text-slate-600 text-xs uppercase tracking-wider">Disimpan Sebagai</th>
+                        <th class="text-left py-2 px-3 font-semibold text-slate-600 text-xs uppercase tracking-wider">Wajib</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    <tr class="bg-indigo-50/30">
+                        <td class="py-2 px-3 font-mono text-xs font-semibold text-indigo-700">Nama</td>
+                        <td class="py-2 px-3 text-slate-600">Nama peminjam</td>
+                        <td class="py-2 px-3"><span class="pill bg-amber-50 text-amber-700 border-amber-200">Dipakai untuk deteksi sheet</span></td>
+                    </tr>
+                    <tr>
+                        <td class="py-2 px-3 font-mono text-xs">Unit</td>
+                        <td class="py-2 px-3 text-slate-600">Unit/bagian peminjam — otomatis dibuat sebagai master data</td>
+                        <td class="py-2 px-3"><span class="pill bg-emerald-50 text-emerald-700 border-emerald-200">Opsional</span></td>
+                    </tr>
+                    <tr>
+                        <td class="py-2 px-3 font-mono text-xs">Lokasi Kerja</td>
+                        <td class="py-2 px-3 text-slate-600">Lokasi kerja peminjam</td>
+                        <td class="py-2 px-3"><span class="pill bg-emerald-50 text-emerald-700 border-emerald-200">Opsional</span></td>
+                    </tr>
+                    <tr>
+                        <td class="py-2 px-3 font-mono text-xs">Jenis Barang</td>
+                        <td class="py-2 px-3 text-slate-600">Teks bebas (mis. Laptop, Handphone) — <b>tidak</b> dihubungkan ke data Aset utama</td>
+                        <td class="py-2 px-3"><span class="pill bg-emerald-50 text-emerald-700 border-emerald-200">Opsional</span></td>
+                    </tr>
+                    <tr class="bg-indigo-50/30">
+                        <td class="py-2 px-3 font-mono text-xs font-semibold text-indigo-700">Jenis Transaksi</td>
+                        <td class="py-2 px-3 text-slate-600">Peminjaman / Pengembalian / Pelimpahan IN / Pelimpahan OUT / dll</td>
+                        <td class="py-2 px-3"><span class="pill bg-amber-50 text-amber-700 border-amber-200">Dipakai untuk deteksi sheet</span></td>
+                    </tr>
+                    <tr>
+                        <td class="py-2 px-3 font-mono text-xs">Tanggal Awal</td>
+                        <td class="py-2 px-3 text-slate-600">Tanggal mulai pinjam</td>
+                        <td class="py-2 px-3"><span class="pill bg-emerald-50 text-emerald-700 border-emerald-200">Opsional*</span></td>
+                    </tr>
+                    <tr>
+                        <td class="py-2 px-3 font-mono text-xs">Tanggal Akhir</td>
+                        <td class="py-2 px-3 text-slate-600">Rencana kembali / tanggal dikembalikan</td>
+                        <td class="py-2 px-3"><span class="pill bg-emerald-50 text-emerald-700 border-emerald-200">Opsional*</span></td>
+                    </tr>
+                    <tr>
+                        <td class="py-2 px-3 font-mono text-xs">Keterangan</td>
+                        <td class="py-2 px-3 text-slate-600">Deskripsi bebas</td>
+                        <td class="py-2 px-3"><span class="pill bg-emerald-50 text-emerald-700 border-emerald-200">Opsional</span></td>
+                    </tr>
+                    <tr class="bg-indigo-50/30">
+                        <td class="py-2 px-3 font-mono text-xs font-semibold text-indigo-700">Evidence Lampiran</td>
+                        <td class="py-2 px-3 text-slate-600">Link Google Drive (diambil dari hyperlink cell) — ditampilkan sebagai tombol "Lihat PDF"</td>
+                        <td class="py-2 px-3"><span class="pill bg-amber-50 text-amber-700 border-amber-200">Dipakai untuk deteksi sheet</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-amber-600 mt-3">
+            * Minimal salah satu dari <b>Tanggal Awal</b>/<b>Tanggal Akhir</b> harus terisi — baris yang dua-duanya kosong akan dilewati.
+        </p>
+    </div>
+
+    <!-- 3. Tips & Peringatan -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="card p-5 border-l-4 border-emerald-500">
+            <h4 class="font-semibold text-sm text-slate-700 flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Tips
+            </h4>
+            <ul class="text-sm text-slate-600 space-y-1.5 mt-1">
+                <li>• File boleh sama dengan file import Aset — sheet-nya otomatis ditemukan berdasarkan nama kolom</li>
+                <li>• Link Evidence diambil dari hyperlink yang nempel di cell, bukan dari teks nama filenya</li>
+                <li>• Unit baru otomatis dibuat di halaman Kategori, tidak perlu ditambahkan manual dulu</li>
+                <li>• Baris dengan Jenis Transaksi mengandung kata "Pengembalian" otomatis ditandai status "Dikembalikan"</li>
+            </ul>
+        </div>
+        <div class="card p-5 border-l-4 border-amber-500">
+            <h4 class="font-semibold text-sm text-slate-700 flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                Peringatan
+            </h4>
+            <ul class="text-sm text-slate-600 space-y-1.5 mt-1">
+                <li>• Jenis Barang <b>tidak</b> dihubungkan ke data Aset — cuma teks catatan</li>
+                <li>• Kalau Tanggal Awal kosong, sistem pakai Tanggal Akhir sebagai tanggal pinjam (perkiraan)</li>
+                <li>• Import ini selalu <b>menambahkan baris baru</b> — belum ada deteksi duplikat, cek data dulu sebelum import ulang</li>
+                <li>• File harus berformat <b>.xlsx</b> (Excel 2007+)</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 4. FORM UPLOAD -->
+    <div class="card p-6 border-2 border-indigo-200 bg-indigo-50/30">
+        <h3 class="font-display font-semibold text-slate-800 text-base mb-2">📤 Upload File Excel</h3>
+        <p class="text-sm text-slate-500 mb-4">Upload file Excel yang berisi sheet data peminjaman:</p>
+
+        <form method="POST" action="{{ url_for('peminjaman_import') }}" enctype="multipart/form-data" id="formImportPeminjaman"
+            onsubmit="showImportLoading()">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div class="flex-1 w-full">
+                    <label class="field-label">Pilih File Excel <span class="text-rose-500">*</span></label>
+                    <div class="relative">
+                        <input type="file" name="file_import" accept=".xlsx,.xlsm" required
+                            class="w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-1">Format yang didukung: <b>.xlsx, .xlsm</b> (Excel 2007+)</p>
+                </div>
+                <button type="submit" class="btn btn-primary shrink-0 mt-2 sm:mt-5 w-full sm:w-auto py-2.5">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5" />
+                    </svg>
+                    Import Sekarang
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 5. Tombol Kembali -->
+    <div class="flex justify-end pt-2 border-t border-slate-100">
+        <a href="{{ url_for('peminjaman_list') }}" class="btn btn-secondary">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+            </svg>
+            Kembali ke Peminjaman Aset
+        </a>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function showImportLoading() {
+        const overlay = document.getElementById("importLoadingOverlay");
+        if (overlay) {
+            overlay.classList.remove("hidden");
+            overlay.classList.add("flex");
+        }
+    }
+</script>
+<div id="importLoadingOverlay"
+    class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl p-6 shadow-xl text-center max-w-xs w-full mx-4">
+        <div class="w-10 h-10 mx-auto mb-3 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        <p class="text-sm font-semibold text-slate-700">Mengimpor data...</p>
+        <p id="importProgressText" class="text-xs text-slate-400 mt-0.5">Mohon tunggu, proses ini bisa memakan waktu
+            beberapa saat untuk file besar.</p>
+    </div>
+</div>
+{% endblock %}

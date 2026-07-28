@@ -22,7 +22,7 @@ import re
 
 from extensions import db, login_manager, csrf, limiter
 from models import (
-    User, Kategori, Aset, Tiket, TiketAset,
+    User, Kategori, Unit, Aset, Tiket, TiketAset,
     LogStatus, HistoriAset, AktivitasLog, Maintenance,
     Peminjaman, PeminjamanAset
 )
@@ -50,7 +50,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = (
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 db.init_app(app)
 login_manager.init_app(app)
@@ -147,6 +147,103 @@ def convert_gdrive_to_thumbnail(url):
         file_id = match.group(1)
         return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
     return url
+
+def extract_link_from_cell(cell):
+    """Ambil link Google Drive dari sebuah cell Excel.
+    Prioritas: hyperlink yang nempel di cell (paling umum dipakai di file BA
+    Transfer -- teks cell cuma nama file, link Drive-nya ada di hyperlink),
+    baru kalau tidak ada, cek apakah teks cell itu sendiri sudah berupa URL."""
+    if cell is None:
+        return None
+    if getattr(cell, "hyperlink", None) and cell.hyperlink.target:
+        return cell.hyperlink.target
+    value = cell.value
+    if isinstance(value, str) and value.strip().lower().startswith(("http://", "https://")):
+        return value.strip()
+    return None
+
+
+# Header yang dicari untuk sheet import Peminjaman (gaya "BA Transfer").
+# key = versi ternormalisasi (lower, spasi/enter dirapikan) dari header Excel,
+# value = nama field internal yang dipakai proses import.
+PEMINJAMAN_HEADER_ALIASES = {
+    "no": "no",
+    "nama": "nama",
+    "unit": "unit",
+    "lokasi kerja": "lokasi_kerja",
+    "jenis barang": "jenis_barang",
+    "jenis transaksi": "jenis_transaksi",
+    "tanggal awal": "tanggal_awal",
+    "tanggal akhir": "tanggal_akhir",
+    "keterangan": "keterangan",
+    "evidence lampiran": "evidence_lampiran",
+}
+
+
+def _normalize_header(text):
+    if text is None:
+        return ""
+    return " ".join(str(text).strip().lower().replace("\n", " ").split())
+
+
+def find_peminjaman_sheet(wb):
+    """Cari sheet + baris header yang paling cocok dengan format import
+    Peminjaman (kolom: No, Nama, Unit, Lokasi Kerja, Jenis Barang,
+    Jenis Transaksi, Tanggal Awal, Tanggal Akhir, Keterangan, Evidence
+    Lampiran), berapa pun urutan kolomnya dan di sheet mana pun letaknya --
+    tidak asumsi header selalu di baris 1 atau di sheet pertama.
+
+    Return: (worksheet, header_row_index, {field: col_index}) atau
+    (None, None, None) kalau tidak ketemu sheet yang cocok."""
+    best = (None, None, None, 0)  # ws, header_row, col_map, jumlah_match
+
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        max_row_scan = min(ws.max_row or 1, 15)
+        for row_idx in range(1, max_row_scan + 1):
+            col_map = {}
+            for col_idx in range(1, (ws.max_column or 1) + 1):
+                header_text = _normalize_header(ws.cell(row=row_idx, column=col_idx).value)
+                field = PEMINJAMAN_HEADER_ALIASES.get(header_text)
+                if field and field not in col_map:
+                    col_map[field] = col_idx
+            # butuh minimal kolom-kolom inti supaya dianggap baris header yang valid
+            wajib = {"nama", "jenis_transaksi", "evidence_lampiran"}
+            if wajib.issubset(col_map.keys()) and len(col_map) > best[3]:
+                best = (ws, row_idx, col_map, len(col_map))
+
+    return best[0], best[1], best[2]
+
+
+def parse_excel_date(value):
+    """Parse nilai tanggal dari cell Excel yang bisa berupa datetime asli
+    (kalau cell sudah diformat sebagai tanggal), angka serial Excel (kalau
+    cell TIDAK diformat sebagai tanggal walau isinya tanggal -- ini terjadi
+    di beberapa baris file BA Transfer), atau string tanggal biasa."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, (int, float)):
+        try:
+            base = datetime(1899, 12, 30)
+            return (base + timedelta(days=float(value))).date()
+        except Exception:
+            return None
+    if isinstance(value, str):
+        v = value.strip()
+        if not v:
+            return None
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(v, fmt).date()
+            except ValueError:
+                continue
+        return None
+    return None
+
 
 def catat_aktivitas(aksi, target_model, target_id, deskripsi=None, data_lama=None, data_baru=None):
     """Catat aktivitas admin ke tabel aktivitas_log."""
@@ -1375,7 +1472,8 @@ def aset_import_guide():
 @role_required(ROLE_ADMIN)
 def kategori_list():
     kategori_all = Kategori.query.all()
-    return render_template("kategori/list.html", kategori_all=kategori_all)
+    unit_all = Unit.query.order_by(Unit.nama).all()
+    return render_template("kategori/list.html", kategori_all=kategori_all, unit_all=unit_all)
 
 
 @app.route("/kategori/create", methods=["POST"])
@@ -1386,6 +1484,53 @@ def kategori_create():
     db.session.commit()
     flash("Kategori ditambahkan.", "success")
     return redirect(url_for("kategori_list"))
+
+
+@app.route("/unit/create", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def unit_create():
+    """Tambah master Unit (bagian/departemen peminjam), dikelola di halaman
+    Kategori -- mirip Kategori Aset tapi dipakai untuk field Unit di
+    Peminjaman Aset."""
+    nama = (request.form.get("nama") or "").strip()
+    if not nama:
+        flash("Nama unit tidak boleh kosong.", "danger")
+        return redirect(url_for("kategori_list"))
+    existing = Unit.query.filter(db.func.lower(Unit.nama) == nama.lower()).first()
+    if existing:
+        flash("Unit dengan nama tersebut sudah ada.", "warning")
+        return redirect(url_for("kategori_list"))
+    db.session.add(Unit(nama=nama))
+    db.session.commit()
+    flash("Unit ditambahkan.", "success")
+    return redirect(url_for("kategori_list"))
+
+
+@app.route("/unit/<int:id>/delete", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def unit_delete(id):
+    unit = Unit.query.get_or_404(id)
+    db.session.delete(unit)
+    db.session.commit()
+    flash("Unit dihapus.", "success")
+    return redirect(url_for("kategori_list"))
+
+
+def get_or_create_unit(nama):
+    """Cari Unit berdasarkan nama (case-insensitive), buat baru kalau belum
+    ada. Dipakai saat import Excel Peminjaman supaya tiap nilai kolom Unit
+    otomatis tersimpan sebagai master data di halaman Kategori."""
+    nama = (nama or "").strip()
+    if not nama:
+        return None
+    unit = Unit.query.filter(db.func.lower(Unit.nama) == nama.lower()).first()
+    if not unit:
+        unit = Unit(nama=nama)
+        db.session.add(unit)
+        db.session.flush()
+    return unit
 
 # ---------------------------------------------------------------------------
 # HISTORY (TIKET READ-ONLY)
@@ -1572,15 +1717,26 @@ def aktivitas_detail(log_id):
     pelaku = user.name if user else "Unknown"
 
     field_diff = []
+    foto_aktivitas = None  # <-- TAMBAH
+    foto_label = None      # <-- TAMBAH
+
     if log.target_model == "Aset" and log.aksi in ("CREATE", "UPDATE", "DELETE"):
         field_diff = build_field_diff(log.data_lama, log.data_baru)
+    
+    # +++ TAMBAH: Jika aktivitas adalah upload foto maintenance +++
+    if log.target_model == "Maintenance" and log.aksi == "UPDATE" and log.data_baru:
+        if log.data_baru.get("foto"):
+            foto_aktivitas = log.data_baru.get("foto")
+            foto_label = log.data_baru.get("label", "Foto")
 
     return render_template(
         "history/aktivitas_detail.html",
         log=log,
         label_aksi=label_aksi,
         pelaku=pelaku,
-        field_diff=field_diff
+        field_diff=field_diff,
+        foto_aktivitas=foto_aktivitas,  # <-- KIRIM KE TEMPLATE
+        foto_label=foto_label,          # <-- KIRIM KE TEMPLATE
     )
 
 @app.route("/history/<int:tiket_id>")
@@ -2036,6 +2192,166 @@ def peminjaman_konfirmasi_perpanjangan(id):
         flash("Keputusan tidak valid.", "danger")
 
     return redirect(url_for("dashboard"))
+
+
+@app.route("/peminjaman/import-guide")
+@login_required
+@role_required(ROLE_ADMIN)
+def peminjaman_import_guide():
+    """Halaman panduan + form upload import Excel Peminjaman."""
+    return render_template("peminjaman/import_guide.html")
+
+
+@app.route("/peminjaman/import", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def peminjaman_import():
+    """Import data Peminjaman dari file Excel (gaya sheet 'BA Transfer').
+
+    Sheet & baris header dideteksi otomatis berdasarkan nama kolom (Nama,
+    Unit, Lokasi Kerja, Jenis Barang, Jenis Transaksi, Tanggal Awal,
+    Tanggal Akhir, Keterangan, Evidence Lampiran) -- bukan posisi tetap --
+    supaya file yang punya banyak sheet lain (mis. data Aset) tetap bisa
+    dipakai, sheet Peminjaman-nya otomatis ketemu.
+
+    Catatan desain (hasil konfirmasi dengan user):
+    - Jenis Barang disimpan sebagai teks bebas, TIDAK ditambahkan ke tabel
+      Aset utama.
+    - Evidence Lampiran disimpan sebagai link Google Drive (evidence_link),
+      bukan file yang didownload ke server.
+    - Unit otomatis dibuat sebagai master data baru (tabel Unit, dikelola
+      di halaman Kategori) kalau belum ada.
+    """
+    file = request.files.get("file_import")
+    if not file or file.filename == "":
+        flash("Pilih file Excel (.xlsx) terlebih dahulu.", "danger")
+        return redirect(url_for("peminjaman_import_guide"))
+    if not file.filename.lower().endswith((".xlsx", ".xlsm")):
+        flash("Format file harus .xlsx.", "danger")
+        return redirect(url_for("peminjaman_import_guide"))
+
+    try:
+        wb = openpyxl.load_workbook(file.stream, data_only=True)
+    except Exception:
+        flash("File Excel tidak valid atau rusak.", "danger")
+        return redirect(url_for("peminjaman_import_guide"))
+
+    ws, header_row, col_map = find_peminjaman_sheet(wb)
+    if not ws:
+        flash(
+            "Tidak ditemukan sheet dengan format kolom Peminjaman (Nama, "
+            "Jenis Transaksi, Evidence Lampiran, dst) di file ini. Pastikan "
+            "ada sheet dengan header kolom yang sesuai (lihat panduan).",
+            "danger",
+        )
+        return redirect(url_for("peminjaman_import_guide"))
+
+    def col(field, row):
+        idx = col_map.get(field)
+        return ws.cell(row=row, column=idx) if idx else None
+
+    ditambahkan, dilewati, tanpa_evidence_link = 0, 0, 0
+    error_baris = []
+
+    for row_idx in range(header_row + 1, (ws.max_row or header_row) + 1):
+        cells_in_row = [ws.cell(row=row_idx, column=idx) for idx in col_map.values()]
+        if not any(c.value not in (None, "") for c in cells_in_row):
+            continue  # baris kosong total, lewati diam-diam
+
+        nama_cell = col("nama", row_idx)
+        unit_cell = col("unit", row_idx)
+        lokasi_cell = col("lokasi_kerja", row_idx)
+        jenis_barang_cell = col("jenis_barang", row_idx)
+        jenis_transaksi_cell = col("jenis_transaksi", row_idx)
+        tanggal_awal_cell = col("tanggal_awal", row_idx)
+        tanggal_akhir_cell = col("tanggal_akhir", row_idx)
+        keterangan_cell = col("keterangan", row_idx)
+        evidence_cell = col("evidence_lampiran", row_idx)
+
+        def txt(cell):
+            if cell is None or cell.value in (None, ""):
+                return ""
+            return str(cell.value).strip()
+
+        nama = txt(nama_cell) or "-"  # beberapa baris (mis. Pelimpahan IN) tidak punya nama
+        unit_nama = txt(unit_cell)
+        lokasi_kerja = txt(lokasi_cell)
+        jenis_barang = txt(jenis_barang_cell)
+        jenis_transaksi = txt(jenis_transaksi_cell)
+        keterangan = txt(keterangan_cell)
+
+        tanggal_awal = parse_excel_date(tanggal_awal_cell.value if tanggal_awal_cell else None)
+        tanggal_akhir = parse_excel_date(tanggal_akhir_cell.value if tanggal_akhir_cell else None)
+
+        # tanggal_pinjam wajib diisi di database. Kalau Tanggal Awal kosong
+        # (umum terjadi pada baris "Pengembalian" di data sumber), pakai
+        # Tanggal Akhir sebagai fallback.
+        tanggal_pinjam = tanggal_awal or tanggal_akhir
+        if not tanggal_pinjam:
+            dilewati += 1
+            error_baris.append(f"Baris {row_idx}: Tanggal Awal & Tanggal Akhir kosong, dilewati")
+            continue
+
+        is_pengembalian = "pengembalian" in jenis_transaksi.lower()
+        if is_pengembalian:
+            status = "Dikembalikan"
+            tanggal_rencana_kembali = None
+            tanggal_dikembalikan = tanggal_akhir or tanggal_awal
+        else:
+            status = "Dipinjam"
+            tanggal_rencana_kembali = tanggal_akhir if tanggal_awal else None
+            tanggal_dikembalikan = None
+
+        evidence_link = extract_link_from_cell(evidence_cell)
+        if not evidence_link:
+            tanpa_evidence_link += 1
+
+        # Unit otomatis tersimpan sebagai master data (halaman Kategori),
+        # tapi field `unit` di Peminjaman tetap teks bebas seperti sebelumnya.
+        if unit_nama:
+            get_or_create_unit(unit_nama)
+
+        db.session.add(Peminjaman(
+            nama_peminjam=nama,
+            unit=unit_nama or None,
+            lokasi_kerja=lokasi_kerja or None,
+            jenis_barang=jenis_barang or None,
+            jenis_transaksi=jenis_transaksi or None,
+            evidence_link=evidence_link,
+            sumber_import=True,
+            tanggal_pinjam=tanggal_pinjam,
+            tanggal_rencana_kembali=tanggal_rencana_kembali,
+            tanggal_dikembalikan=tanggal_dikembalikan,
+            status=status,
+            keterangan=keterangan or None,
+            created_by=current_user.id,
+        ))
+        ditambahkan += 1
+
+    if ditambahkan:
+        catat_aktivitas(
+            aksi="IMPORT",
+            target_model="Peminjaman",
+            target_id=0,
+            deskripsi=f"Import Excel peminjaman dari sheet '{ws.title}': {ditambahkan} baris ditambahkan",
+        )
+
+    db.session.commit()
+
+    pesan = f"Import selesai dari sheet '{ws.title}': {ditambahkan} data peminjaman ditambahkan."
+    if dilewati:
+        pesan += f" {dilewati} baris dilewati (tanggal kosong)."
+    flash(pesan, "warning" if dilewati else "success")
+    if tanpa_evidence_link:
+        flash(
+            f"Perhatian: {tanpa_evidence_link} baris tidak punya link evidence yang "
+            f"terdeteksi (cell tidak ada hyperlink Google Drive maupun teks link).",
+            "warning",
+        )
+    if error_baris:
+        flash(" | ".join(error_baris[:5]), "warning")
+
+    return redirect(url_for("peminjaman_list"))
 
 
 @app.route("/maintenance")

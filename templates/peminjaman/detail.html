@@ -50,6 +50,18 @@
         <p class="text-xs text-slate-400 mb-0.5">Lokasi Kerja</p>
         <p class="font-medium text-slate-700">{{ p.lokasi_kerja or '—' }}</p>
       </div>
+      {% if p.jenis_barang %}
+      <div>
+        <p class="text-xs text-slate-400 mb-0.5">Jenis Barang</p>
+        <p class="font-medium text-slate-700">{{ p.jenis_barang }}</p>
+      </div>
+      {% endif %}
+      {% if p.jenis_transaksi %}
+      <div>
+        <p class="text-xs text-slate-400 mb-0.5">Jenis Transaksi</p>
+        <p class="font-medium text-slate-700">{{ p.jenis_transaksi }}</p>
+      </div>
+      {% endif %}
       <div>
         <p class="text-xs text-slate-400 mb-0.5">Tanggal Pinjam</p>
         <p class="font-medium text-slate-700">{{ p.tanggal_pinjam.strftime('%d-%m-%Y') if p.tanggal_pinjam else '—' }}</p>
@@ -70,6 +82,16 @@
       <p class="text-xs text-slate-400 mb-1">Keterangan</p>
       <p class="text-sm text-slate-600 leading-relaxed">{{ p.keterangan or '—' }}</p>
     </div>
+
+    {% if p.evidence_link %}
+    <div>
+      <p class="text-xs text-slate-400 mb-2">Evidence Lampiran (dari import Excel)</p>
+      <a href="{{ p.evidence_link }}" target="_blank" rel="noopener"
+        class="inline-flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-indigo-600 hover:bg-indigo-50">
+        📄 Lihat PDF
+      </a>
+    </div>
+    {% endif %}
 
     {% if p.evidence %}
     <div>
