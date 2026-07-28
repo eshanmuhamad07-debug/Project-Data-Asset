@@ -1,0 +1,251 @@
+{% import "_macros.html" as m %}
+{% extends "base.html" %}
+{% block title %}Kerusakan Aset{% endblock %}
+{% block header %}Kerusakan Aset{% endblock %}
+{% block subheader %}<p class="text-xs text-slate-400">{{ pagination.total if pagination else 0 }} laporan kerusakan</p>{% endblock %}
+{% block content %}
+
+<div class="card">
+  <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+    <form method="GET" class="flex flex-wrap gap-2">
+      <select name="status" onchange="this.form.submit()" class="field-input w-full sm:w-48">
+        <option value="">Semua Status</option>
+        <option value="Pending" {{ 'selected' if request.args.get('status')=='Pending' }}>Pending</option>
+        <option value="Selesai" {{ 'selected' if request.args.get('status')=='Selesai' }}>Selesai</option>
+      </select>
+      {% if request.args.get('status') %}
+      <a href="{{ url_for('kerusakan_list') }}" class="btn btn-secondary shrink-0 text-slate-400">Reset</a>
+      {% endif %}
+    </form>
+
+    <div class="flex flex-wrap gap-2">
+      <button onclick="openModal('modalKerusakan')" class="btn" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        Kerusakan
+      </button>
+    </div>
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="border-b border-slate-100 bg-slate-50/60">
+          <th class="th">#</th>
+          <th class="th">Pemohon</th>
+          <th class="th">Lokasi</th>
+          <th class="th">Status</th>
+          <th class="th">Dibuat</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in daftar_tiket %}
+        <tr class="table-row cursor-pointer hover:bg-slate-50" onclick="window.location='{{ url_for('kerusakan_detail', tiket_id=t.id) }}'">
+          <td class="td font-semibold text-slate-800">#{{ t.id }}</td>
+          <td class="td">{{ t.nama_pemohon }}</td>
+          <td class="td whitespace-nowrap text-slate-500">{{ t.gedung_asal or '—' }} / {{ t.ruangan_asal or '—' }}</td>
+          <td class="td">{{ m.pill(t.status_tiket, m.tiket_tone(t.status_tiket)) }}</td>
+          <td class="td whitespace-nowrap text-slate-500">{{ t.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="py-14 text-center">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" class="mx-auto text-slate-300 mb-2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+            <p class="text-sm text-slate-400">Belum ada laporan kerusakan.</p>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagination and pagination.pages > 1 %}
+  <div class="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-slate-100 text-xs text-slate-500">
+    <span>Halaman {{ pagination.page }} dari {{ pagination.pages }}</span>
+    <div class="flex gap-2">
+      {% if pagination.has_prev %}
+        <a href="{{ url_for('kerusakan_list', page=pagination.prev_num, status=request.args.get('status','')) }}" class="btn btn-secondary btn-sm">&lsaquo; Sebelumnya</a>
+      {% endif %}
+      {% if pagination.has_next %}
+        <a href="{{ url_for('kerusakan_list', page=pagination.next_num, status=request.args.get('status','')) }}" class="btn btn-secondary btn-sm">Berikutnya &rsaquo;</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL KERUSAKAN -->
+<!-- ============================================================ -->
+<div id="modalKerusakan" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+      <h2 class="font-display font-bold text-slate-800">Buat Laporan Kerusakan</h2>
+      <button onclick="closeModal('modalKerusakan')" class="text-slate-400 hover:text-slate-600">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form method="POST" action="{{ url_for('tiket_create_kerusakan') }}" enctype="multipart/form-data" class="p-5 space-y-3.5">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div>
+        <label class="field-label">Nama Pemohon</label>
+        <input name="nama_pemohon" required placeholder="Nama pengaju" class="field-input">
+      </div>
+
+      <p class="text-xs font-semibold text-slate-500 pt-1">📍 Lokasi Aset</p>
+      <div class="grid grid-cols-3 gap-2">
+        <div>
+          <label class="field-label text-[10px]">Gedung</label>
+          <select name="gedung_asal" id="rusak_gedung_asal" required class="field-input text-sm" onchange="loadLantai(this.value, 'rusak_lantai_asal', 'rusak_ruangan_asal', 'rusak_aset_list')">
+            <option value="">Pilih</option>
+            {% for g in gedung_all %}
+            <option value="{{ g }}">{{ g }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="field-label text-[10px]">Lantai</label>
+          <select name="lantai_asal" id="rusak_lantai_asal" class="field-input text-sm" onchange="loadRuanganByGedungLantai('rusak_gedung_asal', 'rusak_lantai_asal', 'rusak_ruangan_asal', 'rusak_aset_list')">
+            <option value="">Pilih</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label text-[10px]">Ruangan</label>
+          <select name="ruangan_asal" id="rusak_ruangan_asal" class="field-input text-sm" onchange="loadAsetByLokasi('rusak_gedung_asal', 'rusak_lantai_asal', 'rusak_ruangan_asal', 'rusak_aset_list')">
+            <option value="">Pilih</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="field-label">Pilih Aset</label>
+        <div id="rusak_aset_list" class="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2.5 space-y-1.5">
+          <p class="text-xs text-slate-400">Pilih lokasi aset terlebih dahulu</p>
+        </div>
+      </div>
+
+      <div>
+        <label class="field-label">Catatan</label>
+        <textarea name="catatan" rows="2" class="field-input"></textarea>
+      </div>
+
+      <div>
+        <label class="field-label">Upload Foto</label>
+        <input type="file" name="foto" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
+      </div>
+
+      <button type="submit" class="btn w-full py-2.5" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Kirim Laporan Kerusakan</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Fungsi-fungsi untuk dropdown dinamis
+function loadLantai(gedung, lantaiTargetId, ruanganTargetId, asetTargetId) {
+  const lantaiEl = document.getElementById(lantaiTargetId);
+  if (!lantaiEl) return;
+
+  if (!gedung) {
+    lantaiEl.innerHTML = '<option value="">Pilih Gedung</option>';
+    return;
+  }
+
+  fetch(`/api/lantai?gedung=${encodeURIComponent(gedung)}`)
+    .then(res => res.json())
+    .then(data => {
+      lantaiEl.innerHTML = '<option value="">Pilih Lantai</option>';
+      data.forEach(lt => {
+        const opt = document.createElement('option');
+        opt.value = lt;
+        opt.textContent = `Lantai ${lt}`;
+        lantaiEl.appendChild(opt);
+      });
+      if (ruanganTargetId) {
+        const ruanganEl = document.getElementById(ruanganTargetId);
+        if (ruanganEl) ruanganEl.innerHTML = '<option value="">Pilih Lantai dulu</option>';
+      }
+      if (asetTargetId) {
+        const asetEl = document.getElementById(asetTargetId);
+        if (asetEl) asetEl.innerHTML = '<p class="text-xs text-slate-400">Pilih lokasi terlebih dahulu</p>';
+      }
+    });
+}
+
+function loadRuanganByGedungLantai(gedungId, lantaiId, ruanganTargetId, asetTargetId) {
+  const gedungEl = document.getElementById(gedungId);
+  const lantaiEl = document.getElementById(lantaiId);
+  const ruanganEl = document.getElementById(ruanganTargetId);
+  if (!ruanganEl || !gedungEl) return;
+
+  const gedung = gedungEl.value;
+  const lantai = lantaiEl ? lantaiEl.value : '';
+
+  if (!gedung) {
+    ruanganEl.innerHTML = '<option value="">Pilih Gedung</option>';
+    return;
+  }
+
+  let url = `/api/ruangan?gedung=${encodeURIComponent(gedung)}`;
+  if (lantai) url += `&lantai=${encodeURIComponent(lantai)}`;
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      ruanganEl.innerHTML = '<option value="">Pilih Ruangan</option>';
+      data.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = r;
+        ruanganEl.appendChild(opt);
+      });
+      if (asetTargetId) {
+        const asetEl = document.getElementById(asetTargetId);
+        if (asetEl) asetEl.innerHTML = '<p class="text-xs text-slate-400">Pilih ruangan terlebih dahulu</p>';
+      }
+    });
+}
+
+function loadAsetByLokasi(gedungId, lantaiId, ruanganId, asetTargetId) {
+  const gedungEl = document.getElementById(gedungId);
+  const lantaiEl = document.getElementById(lantaiId);
+  const ruanganEl = document.getElementById(ruanganId);
+  const asetEl = document.getElementById(asetTargetId);
+  if (!asetEl || !gedungEl) return;
+
+  const gedung = gedungEl.value;
+  const lantai = lantaiEl ? lantaiEl.value : '';
+  const ruangan = ruanganEl ? ruanganEl.value : '';
+
+  if (!gedung || !ruangan) {
+    asetEl.innerHTML = '<p class="text-xs text-slate-400">Pilih ruangan terlebih dahulu</p>';
+    return;
+  }
+
+  let url = `/api/aset-by-lokasi?gedung=${encodeURIComponent(gedung)}`;
+  if (lantai) url += `&lantai=${encodeURIComponent(lantai)}`;
+  if (ruangan) url += `&ruangan=${encodeURIComponent(ruangan)}`;
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (data.length === 0) {
+        asetEl.innerHTML = '<p class="text-xs text-slate-400">Tidak ada aset di lokasi ini</p>';
+        return;
+      }
+      asetEl.innerHTML = '';
+      data.forEach(a => {
+        const label = document.createElement('label');
+        label.className = 'flex items-center gap-2 text-sm text-slate-600 px-1.5 py-1 rounded-lg hover:bg-slate-50';
+        label.innerHTML = `
+          <input type="checkbox" name="aset_ids[]" value="${a.id}" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+          <span class="font-mono text-[11px] text-slate-400">${a.kode}</span> ${a.nama}
+        `;
+        asetEl.appendChild(label);
+      });
+    });
+}
+</script>
+{% endblock %}
