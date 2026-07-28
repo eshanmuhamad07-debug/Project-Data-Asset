@@ -190,6 +190,29 @@ class Peminjaman(db.Model):
     user_creator = db.relationship("User", foreign_keys=[created_by])
 
     aset_terkait = db.relationship("PeminjamanAset", backref="peminjaman", cascade="all, delete-orphan")
+    evidence_list = db.relationship(
+        "PeminjamanEvidence",
+        backref="peminjaman",
+        cascade="all, delete-orphan",
+        order_by="PeminjamanEvidence.tanggal_upload.desc()",
+    )
+
+
+class PeminjamanEvidence(db.Model):
+    """Histori evidence laporan (BA/PDF) untuk 1 peminjaman.
+
+    Dibuat supaya evidence baru bisa ditambahkan tanpa menghapus/menimpa
+    evidence lama (kolom `Peminjaman.evidence` hanya menyimpan evidence
+    awal saat data peminjaman pertama kali dibuat).
+    """
+    __tablename__ = "peminjaman_evidence"
+    id = db.Column(db.Integer, primary_key=True)
+    id_peminjaman = db.Column(db.Integer, db.ForeignKey("peminjaman.id"), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    keterangan = db.Column(db.String(255), nullable=True)
+    tanggal_upload = db.Column(db.DateTime, default=get_wib_now, nullable=False)
+    id_user_uploader = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    user_uploader = db.relationship("User")
 
 
 class PeminjamanAset(db.Model):

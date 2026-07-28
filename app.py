@@ -24,7 +24,7 @@ from extensions import db, login_manager, csrf, limiter
 from models import (
     User, Kategori, Aset, Tiket, TiketAset,
     LogStatus, HistoriAset, AktivitasLog, Maintenance,
-    Peminjaman, PeminjamanAset
+    Peminjaman, PeminjamanAset, PeminjamanEvidence
 )
 from roles import ROLE_ADMIN
 
@@ -2218,6 +2218,41 @@ def peminjaman_detail(id):
     peminjaman = Peminjaman.query.get_or_404(id)
     today = datetime.now(WIB).date()
     return render_template("peminjaman/detail.html", p=peminjaman, today=today)
+
+
+@app.route("/peminjaman/<int:id>/evidence/upload", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def peminjaman_evidence_upload(id):
+    """Upload evidence laporan (BA/PDF) tambahan untuk 1 peminjaman.
+    Tidak menimpa evidence lama -- ditambahkan ke histori evidence_list."""
+    peminjaman = Peminjaman.query.get_or_404(id)
+
+    filename, error = save_dokumen(request.files.get("evidence_baru"), prefix="peminjaman_evidence_")
+    if error:
+        flash(f"Gagal upload evidence: {error}", "danger")
+        return redirect(url_for("peminjaman_detail", id=id))
+    if not filename:
+        flash("Pilih file evidence terlebih dahulu.", "danger")
+        return redirect(url_for("peminjaman_detail", id=id))
+
+    ev = PeminjamanEvidence(
+        id_peminjaman=peminjaman.id,
+        filename=filename,
+        keterangan=request.form.get("keterangan_evidence") or None,
+        id_user_uploader=current_user.id,
+    )
+    db.session.add(ev)
+
+    catat_aktivitas(
+        aksi="UPDATE",
+        target_model="Peminjaman",
+        target_id=peminjaman.id,
+        deskripsi=f"Upload evidence laporan baru untuk peminjaman oleh {peminjaman.nama_peminjam}",
+    )
+    db.session.commit()
+    flash("Evidence laporan berhasil diupload.", "success")
+    return redirect(url_for("peminjaman_detail", id=id))
 
 
 @app.route("/peminjaman/<int:id>/delete", methods=["POST"])
