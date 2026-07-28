@@ -24,7 +24,7 @@ from extensions import db, login_manager, csrf, limiter
 from models import (
     User, Kategori, Unit, Aset, Tiket, TiketAset,
     LogStatus, HistoriAset, AktivitasLog, Maintenance,
-    Peminjaman, PeminjamanAset
+    Peminjaman, PeminjamanAset, PeminjamanEvidence
 )
 from roles import ROLE_ADMIN
 
@@ -2110,6 +2110,46 @@ def peminjaman_detail(id):
     return render_template("peminjaman/detail.html", p=peminjaman, today=today)
 
 
+@app.route("/peminjaman/<int:id>/evidence/upload", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def peminjaman_evidence_upload(id):
+    """Upload evidence/laporan (PDF/gambar) baru untuk sebuah peminjaman TANPA
+    menimpa evidence yang lama -- setiap upload disimpan sebagai baris histori
+    baru lengkap dengan tanggal upload-nya (lihat model PeminjamanEvidence)."""
+    peminjaman = Peminjaman.query.get_or_404(id)
+
+    file_storage = request.files.get("evidence_baru")
+    filename, error = save_dokumen(file_storage, prefix=f"peminjaman_{id}_evidence_")
+
+    if error:
+        flash(f"Gagal mengupload evidence: {error}", "danger")
+        return redirect(url_for("peminjaman_detail", id=id))
+    if not filename:
+        flash("Pilih file evidence (PDF/gambar) terlebih dahulu.", "danger")
+        return redirect(url_for("peminjaman_detail", id=id))
+
+    keterangan = request.form.get("keterangan_evidence", "").strip() or None
+
+    db.session.add(PeminjamanEvidence(
+        id_peminjaman=peminjaman.id,
+        filename=filename,
+        keterangan=keterangan,
+        uploaded_by=current_user.id,
+    ))
+
+    catat_aktivitas(
+        aksi="UPDATE",
+        target_model="Peminjaman",
+        target_id=peminjaman.id,
+        deskripsi=f"Upload evidence laporan baru untuk peminjaman {peminjaman.nama_peminjam}",
+        data_baru={"evidence": filename},
+    )
+    db.session.commit()
+    flash("Evidence laporan berhasil diupload dan ditambahkan ke histori.", "success")
+    return redirect(url_for("peminjaman_detail", id=id))
+
+
 @app.route("/peminjaman/<int:id>/delete", methods=["POST"])
 @login_required
 @role_required(ROLE_ADMIN)
@@ -2139,6 +2179,21 @@ def peminjaman_konfirmasi_perpanjangan(id):
     if peminjaman.status != "Dipinjam":
         flash("Peminjaman ini sudah dikembalikan, tidak perlu konfirmasi perpanjangan.", "warning")
         return redirect(url_for("dashboard"))
+
+    # Evidence PDF (opsional) yang diupload bareng saat konfirmasi -- ditambahkan
+    # sebagai baris histori baru, TIDAK menimpa evidence yang lama.
+    evidence_filename, evidence_error = save_dokumen(
+        request.files.get("evidence_baru"), prefix=f"peminjaman_{id}_evidence_"
+    )
+    if evidence_error:
+        flash(f"Konfirmasi tetap diproses, tetapi evidence gagal diupload: {evidence_error}", "warning")
+    elif evidence_filename:
+        db.session.add(PeminjamanEvidence(
+            id_peminjaman=peminjaman.id,
+            filename=evidence_filename,
+            keterangan=f"Evidence saat konfirmasi perpanjangan ({keputusan})",
+            uploaded_by=current_user.id,
+        ))
 
     if keputusan == "perpanjang":
         tanggal_baru_str = request.form.get("tanggal_baru")

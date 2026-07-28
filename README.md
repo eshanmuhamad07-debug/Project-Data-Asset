@@ -220,6 +220,41 @@ ada, jadi pilih salah satu:
   ALTER TABLE `maintenance` ADD COLUMN `foto_after` VARCHAR(255) DEFAULT NULL;
   ```
 
+## 6c. Update: Fix "Bad Request" di Konfirmasi Perpanjangan + Histori Evidence
+
+### Bug fix: Modal "Konfirmasi Perpanjangan" di Dashboard error Bad Request
+
+**Penyebab:** form `#formKonfirmasiPerpanjangan` di `templates/dashboard.html`
+tidak menyertakan input `csrf_token`. Karena `CSRFProtect` aktif untuk semua
+POST (lihat `extensions.py`), Flask-WTF menolak submit form ini dengan
+`400 Bad Request`. **Perbaikan:** tambahkan
+`<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">` di
+dalam form tersebut. Tidak ada perubahan lain yang diperlukan — route
+`/peminjaman/<id>/konfirmasi-perpanjangan` di `app.py` sudah benar.
+
+### Fitur baru: Histori Evidence Laporan (PDF) di halaman Detail Peminjaman
+
+- Sebelumnya kolom `evidence` di tabel `peminjaman` hanya bisa diisi **sekali**
+  saat data peminjaman dibuat, dan tidak ada cara untuk menambah evidence baru
+  tanpa menimpa yang lama.
+- Sekarang di halaman **Detail Peminjaman**, tersedia form **"Upload Evidence
+  Laporan Baru (PDF)"** di bawah info Rencana Kembali. Setiap upload baru
+  disimpan sebagai baris baru di tabel `peminjaman_evidence` (model
+  `PeminjamanEvidence`) — **evidence lama tidak dihapus/ditimpa** — lengkap
+  dengan tanggal upload dan siapa yang mengupload. Seluruh histori evidence
+  (termasuk evidence awal saat peminjaman dibuat) ditampilkan urut dari yang
+  terbaru.
+- Endpoint baru: `POST /peminjaman/<id>/evidence/upload`.
+
+### Migrasi database (tabel baru untuk fitur histori evidence)
+
+Tabel baru `peminjaman_evidence` akan **otomatis dibuat** oleh
+`db.create_all()` (lewat `seed.py`, atau otomatis kalau app.py memanggilnya
+saat start) karena ini tabel baru, bukan kolom tambahan di tabel lama — jadi
+**tidak perlu ALTER TABLE manual** untuk fitur ini. Cukup jalankan ulang
+`python seed.py` (aman, tidak menghapus data lama) atau restart aplikasi
+kalau `db.create_all()` sudah dipanggil otomatis saat start.
+
 ## 6. Yang Perlu Anda Sesuaikan Sendiri
 
 Karena proyek ini butuh MySQL (XAMPP) yang berjalan di komputer lokal Anda,
