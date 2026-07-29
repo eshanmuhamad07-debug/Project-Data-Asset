@@ -19,3 +19,22 @@
 {% macro tiket_tone(status) %}{{ 'amber' if status=='Pending' else 'sky' if status=='Disetujui' else 'indigo' if status=='Proses' else 'emerald' if status=='Selesai' else 'rose' }}{% endmacro %}
 
 {% macro transaksi_tone(jenis) %}{{ 'amber' if jenis=='Peminjaman' else 'emerald' if jenis=='Pengembalian' else 'indigo' if jenis in ['Pelimpahan', 'Pelimpahan IN', 'Pelimpahan Out'] else 'sky' if jenis=='Pemindahan' else 'violet' if jenis in ['Penyerahan', 'Serah Terima'] else 'slate' }}{% endmacro %}
+
+{# Preview generik untuk file hasil upload (evidence/foto), dipakai di halaman
+   detail history: gambar ditampilkan sebagai thumbnail, PDF/Word sebagai link. #}
+{% macro file_preview(filename, css='w-16 h-16 object-cover rounded-lg border border-slate-200') %}
+{% if filename %}
+  {% if is_file_gambar(filename) %}
+  <a href="{{ url_for('static', filename='uploads/' + filename) }}" target="_blank" rel="noopener">
+    <img src="{{ url_for('static', filename='uploads/' + filename) }}" alt="Foto" class="{{ css }}">
+  </a>
+  {% else %}
+  <a href="{{ url_for('static', filename='uploads/' + filename) }}" target="_blank" rel="noopener"
+    class="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-indigo-600 hover:bg-indigo-50">
+    📄 Lihat Dokumen PDF
+  </a>
+  {% endif %}
+{% else %}
+<span class="text-xs text-slate-400">-</span>
+{% endif %}
+{% endmacro %}

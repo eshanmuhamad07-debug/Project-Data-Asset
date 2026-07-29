@@ -326,15 +326,41 @@ def snapshot_aset(aset, kategori_nama=None):
     }
 
 
-def build_field_diff(data_lama, data_baru):
-    """Bandingkan dua snapshot aset field-per-field, hasilkan daftar siap-tampil
-    (dipakai di halaman Detail Aktivitas / History) mengikuti urutan FIELD_LABELS_ASET,
-    plus field lain yang mungkin ada di data tapi belum terdaftar di label map."""
+# Urutan & label field peminjaman yang ditampilkan di detail histori
+# (perpanjangan, pengembalian, upload evidence, dsb). Field "evidence" &
+# "foto_url" otomatis dikenali sebagai file (gambar/PDF) -- lihat FILE_FIELD_KEYS.
+FIELD_LABELS_PEMINJAMAN = [
+    ("nama_peminjam", "Nama Peminjam"),
+    ("unit", "Unit"),
+    ("lokasi_kerja", "Lokasi Kerja"),
+    ("jenis_transaksi", "Jenis Transaksi"),
+    ("barang", "Barang / Aset Dipinjam"),
+    ("tanggal_pinjam", "Tanggal Pinjam"),
+    ("tanggal_rencana_kembali", "Rencana Tanggal Kembali"),
+    ("tanggal_dikembalikan", "Tanggal Dikembalikan"),
+    ("status", "Status"),
+    ("status_perpanjangan", "Status Perpanjangan"),
+    ("evidence", "Evidence / Bukti (BA Serah Terima)"),
+    ("keterangan_evidence", "Keterangan Evidence"),
+]
+
+# Field yang isinya nama file (gambar atau dokumen/PDF) hasil upload --
+# ditampilkan sebagai preview foto (kalau gambar) atau link "Lihat PDF"
+# (kalau dokumen), bukan sekadar teks nama file.
+FILE_FIELD_KEYS = {"foto_url", "evidence", "foto"}
+
+
+def build_field_diff(data_lama, data_baru, field_labels=None):
+    """Bandingkan dua snapshot (aset/peminjaman/dll) field-per-field, hasilkan
+    daftar siap-tampil (dipakai di halaman Detail Aktivitas / History) mengikuti
+    urutan `field_labels` (default FIELD_LABELS_ASET), plus field lain yang
+    mungkin ada di data tapi belum terdaftar di label map."""
+    field_labels = field_labels or FIELD_LABELS_ASET
     data_lama = data_lama or {}
     data_baru = data_baru or {}
-    known_keys = [k for k, _ in FIELD_LABELS_ASET]
+    known_keys = [k for k, _ in field_labels]
     extra_keys = [k for k in {**data_lama, **data_baru}.keys() if k not in known_keys]
-    all_fields = FIELD_LABELS_ASET + [(k, k.replace("_", " ").title()) for k in extra_keys]
+    all_fields = field_labels + [(k, k.replace("_", " ").title()) for k in extra_keys]
 
     diff = []
     for key, label in all_fields:
@@ -348,6 +374,7 @@ def build_field_diff(data_lama, data_baru):
             "old": old_val,
             "new": new_val,
             "changed": old_val != new_val,
+            "is_file": key in FILE_FIELD_KEYS,
         })
     return diff
 
@@ -711,6 +738,20 @@ def format_area_label(area):
 # tabel Data Aset supaya nama kota TCU juga tampil di sana, bukan cuma di
 # dropdown filter.
 app.jinja_env.globals["format_area_label"] = format_area_label
+
+
+def is_file_gambar(filename):
+    """True kalau nama file yang disimpan (mis. hasil upload evidence/foto)
+    berekstensi gambar. Dipakai di template history/detail supaya file
+    gambar ditampilkan sebagai preview <img>, sedangkan PDF/Word ditampilkan
+    sebagai link/tombol unduh biasa."""
+    if not filename or "." not in filename:
+        return False
+    return filename.rsplit(".", 1)[1].lower() in ALLOWED_EXT
+
+
+# Dipakai dari template, mis. {% if is_file_gambar(d.new) %}
+app.jinja_env.globals["is_file_gambar"] = is_file_gambar
 
 
 def parse_gedung_value(value):
@@ -1783,17 +1824,27 @@ def aktivitas_detail(log_id):
     pelaku = user.name if user else "Unknown"
 
     field_diff = []
-    foto_aktivitas = None  # <-- TAMBAH
+    foto_aktivitas = None       # <-- TAMBAH (foto baru/sekarang)
+    foto_lama_aktivitas = None  # foto yang digantikan/dihapus (kalau ada)
     foto_label = None      # <-- TAMBAH
 
     if log.target_model == "Aset" and log.aksi in ("CREATE", "UPDATE", "DELETE"):
         field_diff = build_field_diff(log.data_lama, log.data_baru)
-    
-    # +++ TAMBAH: Jika aktivitas adalah upload foto maintenance +++
-    if log.target_model == "Maintenance" and log.aksi == "UPDATE" and log.data_baru:
-        if log.data_baru.get("foto"):
+
+    # Detail data Peminjaman (CREATE/UPDATE/DELETE) -- perpanjangan, pengembalian,
+    # upload evidence, dll semuanya lewat AktivitasLog target_model="Peminjaman"
+    # dengan data_lama/data_baru, jadi bisa dipakai ulang build_field_diff yang sama.
+    if log.target_model == "Peminjaman" and log.aksi in ("CREATE", "UPDATE", "DELETE"):
+        field_diff = build_field_diff(log.data_lama, log.data_baru, FIELD_LABELS_PEMINJAMAN)
+
+    # +++ TAMBAH: Jika aktivitas adalah upload/hapus foto maintenance +++
+    if log.target_model == "Maintenance" and log.aksi == "UPDATE":
+        if log.data_baru and log.data_baru.get("foto"):
             foto_aktivitas = log.data_baru.get("foto")
             foto_label = log.data_baru.get("label", "Foto")
+        if log.data_lama and log.data_lama.get("foto"):
+            foto_lama_aktivitas = log.data_lama.get("foto")
+            foto_label = foto_label or log.data_lama.get("label", "Foto")
 
     return render_template(
         "history/aktivitas_detail.html",
@@ -1801,8 +1852,9 @@ def aktivitas_detail(log_id):
         label_aksi=label_aksi,
         pelaku=pelaku,
         field_diff=field_diff,
-        foto_aktivitas=foto_aktivitas,  # <-- KIRIM KE TEMPLATE
-        foto_label=foto_label,          # <-- KIRIM KE TEMPLATE
+        foto_aktivitas=foto_aktivitas,          # <-- KIRIM KE TEMPLATE
+        foto_lama_aktivitas=foto_lama_aktivitas,
+        foto_label=foto_label,                  # <-- KIRIM KE TEMPLATE
     )
 
 @app.route("/history/<int:tiket_id>")
@@ -2394,6 +2446,7 @@ def peminjaman_create():
             "barang": nama_aset_list,
             "tanggal_pinjam": tanggal_pinjam.strftime("%Y-%m-%d"),
             "tanggal_rencana_kembali": tanggal_rencana_kembali.strftime("%Y-%m-%d") if tanggal_rencana_kembali else None,
+            "evidence": evidence,
         }
     )
 
@@ -2490,6 +2543,7 @@ def peminjaman_evidence_upload(id):
         target_model="Peminjaman",
         target_id=peminjaman.id,
         deskripsi=f"Upload evidence laporan baru untuk peminjaman oleh {peminjaman.nama_peminjam}",
+        data_baru={"evidence": filename, "keterangan_evidence": ev.keterangan},
     )
     db.session.commit()
     flash("Evidence laporan berhasil diupload.", "success")
@@ -2535,6 +2589,17 @@ def peminjaman_konfirmasi_perpanjangan(id):
         flash("Peminjaman ini sudah dikembalikan, tidak perlu konfirmasi perpanjangan.", "warning")
         return _redirect_aman(next_url)
 
+    # --- Evidence laporan (opsional, berlaku untuk kedua keputusan) ---------
+    # File ini sebelumnya sudah ada di form (reminder.html/dashboard.html)
+    # tapi belum pernah diproses di backend -- ditambahkan supaya bukti
+    # perpanjangan/tidak diperpanjang bisa tersimpan & tampil di History.
+    evidence_filename, evidence_error = save_dokumen(
+        request.files.get("evidence_baru"), prefix="peminjaman_evidence_"
+    )
+    if evidence_error:
+        flash(f"Gagal upload evidence: {evidence_error}", "danger")
+        return _redirect_aman(next_url)
+
     if keputusan == "perpanjang":
         tanggal_baru_str = request.form.get("tanggal_baru")
         if not tanggal_baru_str:
@@ -2551,6 +2616,23 @@ def peminjaman_konfirmasi_perpanjangan(id):
         # Reset supaya notifikasi bisa muncul lagi kalau tanggal baru juga mendekati H-10
         peminjaman.status_perpanjangan = None
 
+        keterangan_evidence = None
+        if evidence_filename:
+            keterangan_evidence = (
+                f"Evidence perpanjangan s.d. {tanggal_baru.strftime('%d-%m-%Y')}"
+            )
+            db.session.add(PeminjamanEvidence(
+                id_peminjaman=peminjaman.id,
+                filename=evidence_filename,
+                keterangan=keterangan_evidence,
+                id_user_uploader=current_user.id,
+            ))
+
+        data_baru = {"tanggal_rencana_kembali": tanggal_baru.strftime("%Y-%m-%d")}
+        if evidence_filename:
+            data_baru["evidence"] = evidence_filename
+            data_baru["keterangan_evidence"] = keterangan_evidence
+
         catat_aktivitas(
             aksi="UPDATE",
             target_model="Peminjaman",
@@ -2560,7 +2642,7 @@ def peminjaman_konfirmasi_perpanjangan(id):
                 f"{tanggal_lama.strftime('%d-%m-%Y') if tanggal_lama else '-'} → {tanggal_baru.strftime('%d-%m-%Y')}"
             ),
             data_lama={"tanggal_rencana_kembali": tanggal_lama.strftime("%Y-%m-%d") if tanggal_lama else None},
-            data_baru={"tanggal_rencana_kembali": tanggal_baru.strftime("%Y-%m-%d")},
+            data_baru=data_baru,
         )
         db.session.commit()
         flash(
@@ -2571,6 +2653,22 @@ def peminjaman_konfirmasi_perpanjangan(id):
 
     elif keputusan == "tidak":
         peminjaman.status_perpanjangan = "Tidak Diperpanjang"
+
+        keterangan_evidence = None
+        if evidence_filename:
+            keterangan_evidence = "Evidence konfirmasi tidak diperpanjang"
+            db.session.add(PeminjamanEvidence(
+                id_peminjaman=peminjaman.id,
+                filename=evidence_filename,
+                keterangan=keterangan_evidence,
+                id_user_uploader=current_user.id,
+            ))
+
+        data_baru = {"status_perpanjangan": "Tidak Diperpanjang"}
+        if evidence_filename:
+            data_baru["evidence"] = evidence_filename
+            data_baru["keterangan_evidence"] = keterangan_evidence
+
         catat_aktivitas(
             aksi="UPDATE",
             target_model="Peminjaman",
@@ -2579,6 +2677,7 @@ def peminjaman_konfirmasi_perpanjangan(id):
                 f"Konfirmasi TIDAK diperpanjang untuk peminjaman oleh {peminjaman.nama_peminjam} "
                 f"— aset wajib dikembalikan sesuai jadwal."
             ),
+            data_baru=data_baru,
         )
         db.session.commit()
         flash(f"Dikonfirmasi: peminjaman oleh {peminjaman.nama_peminjam} tidak diperpanjang.", "success")
@@ -3156,6 +3255,8 @@ def maintenance_upload_foto(id, slot):
         target_model="Maintenance",
         target_id=maintenance.id,
         deskripsi=f"Mengunggah foto dokumentasi ({label_slot}) untuk maintenance: {maintenance.judul}",
+        data_lama={"foto": foto_lama, "label": label_slot} if foto_lama else None,
+        data_baru={"foto": unique_name, "label": label_slot},
     )
 
     db.session.commit()
@@ -3191,6 +3292,7 @@ def maintenance_delete_foto(id, slot):
             target_model="Maintenance",
             target_id=maintenance.id,
             deskripsi=f"Menghapus foto dokumentasi ({label_slot}) untuk maintenance: {maintenance.judul}",
+            data_lama={"foto": foto_lama, "label": label_slot},
         )
         db.session.commit()
         flash("Foto dokumentasi berhasil dihapus.", "success")

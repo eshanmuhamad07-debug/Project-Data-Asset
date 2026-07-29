@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 {% block title %}Detail Aktivitas{% endblock %}
 {% block header %}
 <a href="{{ url_for('history_list') }}" class="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-600 text-xs font-medium mb-0.5">
@@ -52,7 +53,7 @@
           {% for d in field_diff %}
           <div>
             <p class="text-xs text-slate-400">{{ d.label }}</p>
-            {% if d.key == 'foto_url' and d.new %}
+            {% if d.is_file and d.new %}
             <img src="{{ d.new }}" alt="Foto aset" class="mt-1 w-20 h-20 object-cover rounded-lg border border-emerald-200">
             {% else %}
             <p class="font-medium text-slate-700 break-words">{{ d.new or '-' }}</p>
@@ -70,7 +71,7 @@
           {% for d in field_diff if d.changed %}
           <div class="text-sm">
             <span class="text-slate-500 text-xs block mb-1">{{ d.label }}</span>
-            {% if d.key == 'foto_url' %}
+            {% if d.is_file %}
               <div class="flex items-center gap-2 flex-wrap">
                 {% if d.old %}
                 <img src="{{ d.old }}" alt="Foto lama" class="w-16 h-16 object-cover rounded-lg border border-rose-200">
@@ -106,7 +107,7 @@
           {% for d in field_diff %}
           <div>
             <p class="text-xs text-slate-400">{{ d.label }}</p>
-            {% if d.key == 'foto_url' and d.old %}
+            {% if d.is_file and d.old %}
             <img src="{{ d.old }}" alt="Foto aset" class="mt-1 w-20 h-20 object-cover rounded-lg border border-rose-200">
             {% else %}
             <p class="font-medium text-slate-700 break-words">{{ d.old or '-' }}</p>
@@ -140,6 +141,109 @@
         </div>
       </div>
     {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Detail Data Peminjaman (perpanjangan, tidak diperpanjang, pengembalian, upload evidence, dll) -->
+  {% if log.target_model == 'Peminjaman' %}
+  <div class="border-t border-slate-100 pt-4">
+    <p class="text-xs text-slate-400 mb-3">Detail Data Peminjaman</p>
+
+    {% if log.aksi == 'CREATE' %}
+      <!-- Peminjaman baru dibuat -->
+      <div class="bg-emerald-50 rounded-xl p-4 space-y-2">
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          {% for d in field_diff %}
+          <div class="{{ 'col-span-2' if d.key in ['barang', 'evidence'] else '' }}">
+            <p class="text-xs text-slate-400">{{ d.label }}</p>
+            {% if d.is_file %}
+              {{ m.file_preview(d.new) }}
+            {% elif d.new is sequence and d.new is not string %}
+              <p class="font-medium text-slate-700 break-words">{{ d.new|join(', ') if d.new else '-' }}</p>
+            {% else %}
+              <p class="font-medium text-slate-700 break-words">{{ d.new or '-' }}</p>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    {% elif log.aksi == 'UPDATE' %}
+      <!-- Perpanjangan / tidak diperpanjang / pengembalian / upload evidence -->
+      <div class="bg-amber-50 rounded-xl p-4 space-y-3">
+        <p class="text-xs font-medium text-amber-700">Perubahan yang dilakukan:</p>
+        <div class="space-y-3">
+          {% for d in field_diff if d.changed %}
+          <div class="text-sm">
+            <span class="text-slate-500 text-xs block mb-1">{{ d.label }}</span>
+            {% if d.is_file %}
+              <div class="flex items-center gap-2 flex-wrap">
+                {% if d.old %}{{ m.file_preview(d.old, 'w-16 h-16 object-cover rounded-lg border border-rose-200') }}
+                {% else %}<span class="text-rose-600 line-through text-xs">-</span>{% endif %}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-400 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                {% if d.new %}{{ m.file_preview(d.new, 'w-16 h-16 object-cover rounded-lg border border-emerald-300') }}
+                {% else %}<span class="text-emerald-600 text-xs">-</span>{% endif %}
+              </div>
+            {% elif d.new is sequence and d.new is not string %}
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-rose-600 line-through break-words">{{ d.old|join(', ') if d.old else '-' }}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-400 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                <span class="text-emerald-600 break-words">{{ d.new|join(', ') if d.new else '-' }}</span>
+              </div>
+            {% else %}
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-rose-600 line-through break-words">{{ d.old or '-' }}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-400 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                <span class="text-emerald-600 break-words">{{ d.new or '-' }}</span>
+              </div>
+            {% endif %}
+          </div>
+          {% else %}
+          <p class="text-xs text-slate-400">Tidak ada perubahan data yang terdeteksi.</p>
+          {% endfor %}
+        </div>
+      </div>
+
+    {% elif log.aksi == 'DELETE' %}
+      <!-- Peminjaman dihapus -->
+      <div class="bg-rose-50 rounded-xl p-4 space-y-2">
+        <p class="text-xs font-medium text-rose-700">Data peminjaman yang dihapus:</p>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          {% for d in field_diff %}
+          <div class="{{ 'col-span-2' if d.key in ['barang', 'evidence'] else '' }}">
+            <p class="text-xs text-slate-400">{{ d.label }}</p>
+            {% if d.is_file %}
+              {{ m.file_preview(d.old) }}
+            {% elif d.old is sequence and d.old is not string %}
+              <p class="font-medium text-slate-700 break-words">{{ d.old|join(', ') if d.old else '-' }}</p>
+            {% else %}
+              <p class="font-medium text-slate-700 break-words">{{ d.old or '-' }}</p>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Detail Foto Dokumentasi Maintenance (upload/hapus foto before/progress/after) -->
+  {% if log.target_model == 'Maintenance' and (foto_aktivitas or foto_lama_aktivitas) %}
+  <div class="border-t border-slate-100 pt-4">
+    <p class="text-xs text-slate-400 mb-3">Foto Dokumentasi ({{ foto_label or 'Foto' }})</p>
+    <div class="bg-amber-50 rounded-xl p-4">
+      <div class="flex items-center gap-3 flex-wrap">
+        {% if foto_lama_aktivitas %}
+          {{ m.file_preview(foto_lama_aktivitas, 'w-20 h-20 object-cover rounded-lg border border-rose-200') }}
+        {% else %}
+          <span class="text-xs text-slate-400">Belum ada foto sebelumnya</span>
+        {% endif %}
+        {% if foto_aktivitas %}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-400 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+          {{ m.file_preview(foto_aktivitas, 'w-20 h-20 object-cover rounded-lg border border-emerald-300') }}
+        {% endif %}
+      </div>
+    </div>
   </div>
   {% endif %}
 
