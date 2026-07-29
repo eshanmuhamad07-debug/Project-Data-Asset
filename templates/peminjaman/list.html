@@ -396,51 +396,14 @@
                     </select>
                 </div>
                 <div>
-                    <label class="field-label">Jenis Barang (Kategori)</label>
-                    <select name="id_kategori" id="pinjam_kategori" class="field-input text-sm">
-                        <option value="">- Opsional -</option>
+                    <label class="field-label">Jenis Barang (Kategori) <span class="text-rose-500">*</span></label>
+                    <select name="id_kategori" id="pinjam_kategori" required class="field-input text-sm">
+                        <option value="">- Pilih Jenis Barang -</option>
                         {% for k in kategori_all %}
                         <option value="{{ k.id }}">{{ k.nama }}</option>
                         {% endfor %}
                     </select>
                     <p class="text-[11px] text-slate-400 mt-1">Kategori baru hanya bisa ditambahkan lewat halaman Data Aset.</p>
-                </div>
-            </div>
-
-            <!-- Lokasi Barang -->
-            <p class="text-xs font-semibold text-slate-500 pt-1">📍 Lokasi Barang</p>
-            <div class="grid grid-cols-3 gap-2">
-                <div>
-                    <label class="field-label text-[10px]">Gedung</label>
-                    <select name="gedung_asal" id="pinjam_gedung" required class="field-input text-sm"
-                        onchange="loadLantaiTiket(this.value, 'pinjam_lantai', 'pinjam_ruangan', 'pinjam_aset_list')">
-                        <option value="">Pilih</option>
-                        {% for g in gedung_all %}
-                        <option value="{{ g.value }}">{{ g.label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label class="field-label text-[10px]">Lantai</label>
-                    <select name="lantai_asal" id="pinjam_lantai" class="field-input text-sm"
-                        onchange="loadRuanganByGedungLantai('pinjam_gedung', 'pinjam_lantai', 'pinjam_ruangan', 'pinjam_aset_list')">
-                        <option value="">Pilih</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="field-label text-[10px]">Ruangan</label>
-                    <select name="ruangan_asal" id="pinjam_ruangan" class="field-input text-sm"
-                        onchange="loadAsetByLokasi('pinjam_gedung', 'pinjam_lantai', 'pinjam_ruangan', 'pinjam_aset_list')">
-                        <option value="">Pilih</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Input Barang (multi-select, checkbox) -->
-            <div>
-                <label class="field-label">Barang / Aset yang Dipinjam <span class="text-rose-500">*</span></label>
-                <div id="pinjam_aset_list" class="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2.5 space-y-1.5">
-                    <p class="text-xs text-slate-400">Pilih lokasi terlebih dahulu</p>
                 </div>
             </div>
 
@@ -452,6 +415,7 @@
                 <div>
                     <label class="field-label">Rencana Kembali</label>
                     <input name="tanggal_rencana_kembali" type="date" class="field-input">
+                    <p class="text-[10px] text-slate-400 mt-0.5">Tidak boleh lebih awal dari tanggal pinjam.</p>
                 </div>
             </div>
 
@@ -461,10 +425,10 @@
             </div>
 
             <div>
-                <label class="field-label">Evidence Lampiran (Berita Acara)</label>
-                <input type="file" name="evidence" accept="image/*,.pdf,.doc,.docx"
+                <label class="field-label">Evidence Lampiran (Berita Acara) <span class="text-rose-500">*</span></label>
+                <input type="file" name="evidence" accept="application/pdf,.pdf" required
                     class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
-                <p class="text-[10px] text-slate-400 mt-0.5">Boleh berupa foto atau dokumen (PDF/DOC) Berita Acara Serah Terima.</p>
+                <p class="text-[10px] text-slate-400 mt-0.5">Wajib diisi. Hanya menerima file PDF (.pdf) Berita Acara Serah Terima.</p>
             </div>
 
             <button type="submit" class="btn btn-primary w-full py-2.5">Simpan Peminjaman</button>
@@ -512,50 +476,21 @@
         }
     });
 
-    // =============================================================
-    // OVERRIDE loadAsetByLokasi - checkbox multi-select khusus form Peminjaman
-    // (dipakai bersama beberapa modal di halaman lain, makanya di-override
-    // per-halaman seperti pada modul Tiket / Maintenance)
-    // =============================================================
-    window.loadAsetByLokasi = function (gedungId, lantaiId, ruanganId, asetTargetId) {
-        const gedungEl = document.getElementById(gedungId);
-        const lantaiEl = document.getElementById(lantaiId);
-        const ruanganEl = document.getElementById(ruanganId);
-        const asetEl = document.getElementById(asetTargetId);
-        if (!asetEl || !gedungEl) return;
-
-        const gedung = gedungEl.value;
-        const lantai = lantaiEl ? lantaiEl.value : '';
-        const ruangan = ruanganEl ? ruanganEl.value : '';
-
-        if (!gedung || !ruangan) {
-            asetEl.innerHTML = '<p class="text-xs text-slate-400">Pilih ruangan terlebih dahulu</p>';
-            return;
-        }
-
-        let url = `/api/aset-by-lokasi?gedung=${encodeURIComponent(gedung)}`;
-        if (lantai) url += `&lantai=${encodeURIComponent(lantai)}`;
-        if (ruangan) url += `&ruangan=${encodeURIComponent(ruangan)}`;
-
-        fetch(url)
-            .then(res => res.json())
-            .then(data => {
-                if (data.length === 0) {
-                    asetEl.innerHTML = '<p class="text-xs text-slate-400">Tidak ada aset di lokasi ini</p>';
-                    return;
-                }
-                asetEl.innerHTML = '';
-                data.forEach(a => {
-                    const label = document.createElement('label');
-                    label.className = 'flex items-center gap-2 text-sm text-slate-600 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer';
-                    label.innerHTML = `
-                        <input type="checkbox" name="aset_ids[]" value="${a.id}"
-                               class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-                        <span class="font-mono text-[11px] text-slate-400">${a.kode}</span> ${a.nama}
-                    `;
-                    asetEl.appendChild(label);
-                });
+    {% if repop and repop.target == 'tambah_peminjaman' %}
+    // Validasi backend gagal saat Tambah Peminjaman -- buka lagi modalnya dan
+    // isi ulang field yang sudah diketik user (kecuali file evidence, tidak
+    // bisa diisi ulang otomatis oleh browser karena alasan keamanan).
+    document.addEventListener('DOMContentLoaded', function () {
+        var data = {{ repop.form | tojson }};
+        var form = document.querySelector('#modalTambahPeminjaman form');
+        if (form) {
+            Object.keys(data).forEach(function (key) {
+                var el = form.querySelector('[name="' + key + '"]');
+                if (el && el.type !== 'file') el.value = data[key];
             });
-    };
+        }
+        openModal('modalTambahPeminjaman');
+    });
+    {% endif %}
 </script>
 {% endblock %}

@@ -522,8 +522,8 @@
       </div>
 
       <div>
-        <label class="field-label">Jenis Barang (Kategori)</label>
-        <input name="jenis_barang" class="field-input"
+        <label class="field-label">Jenis Barang (Kategori) <span class="text-rose-500">*</span></label>
+        <input name="jenis_barang" required class="field-input"
           placeholder="Nama kategori (akan dibuat otomatis jika belum ada)">
       </div>
 
@@ -653,8 +653,8 @@
       </div>
 
       <div>
-        <label class="field-label">Jenis Barang (Kategori)</label>
-        <input name="jenis_barang" id="editJenisBarang" class="field-input" placeholder="Nama kategori">
+        <label class="field-label">Jenis Barang (Kategori) <span class="text-rose-500">*</span></label>
+        <input name="jenis_barang" id="editJenisBarang" required class="field-input" placeholder="Nama kategori">
       </div>
 
       <div class="grid grid-cols-3 gap-2">
@@ -1332,4 +1332,36 @@
     });
   });
 </script>
+
+{% if repop and repop.target == 'tambah_aset' %}
+<script>
+  // Validasi backend gagal saat Tambah Aset -- buka lagi modalnya dan isi
+  // ulang field yang sudah diketik user (kecuali file upload, tidak bisa
+  // diisi ulang otomatis oleh browser karena alasan keamanan).
+  document.addEventListener('DOMContentLoaded', function () {
+    var data = {{ repop.form | tojson }};
+    var form = document.querySelector('#modalTambahAset form');
+    if (form) {
+      Object.keys(data).forEach(function (key) {
+        var el = form.querySelector('[name="' + key + '"]');
+        if (el && el.type !== 'file') el.value = data[key];
+      });
+    }
+    openModal('modalTambahAset');
+  });
+</script>
+{% endif %}
+
+{% if repop and repop.target == 'edit_aset' %}
+<script>
+  // Validasi backend gagal saat Edit Aset -- buka lagi modal edit aset yang
+  // sama (pakai fungsi openEditAset yang sudah ada) dengan field terisi
+  // seperti submit terakhir.
+  document.addEventListener('DOMContentLoaded', function () {
+    var data = {{ repop.form | tojson }};
+    data.id = {{ repop.id | tojson }};
+    openEditAset(data);
+  });
+</script>
+{% endif %}
 {% endblock %}

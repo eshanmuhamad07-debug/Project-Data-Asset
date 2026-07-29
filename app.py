@@ -7,7 +7,7 @@ import pytz
 
 from flask import (
     Flask, render_template, redirect, url_for, request, flash, jsonify,
-    abort, send_file
+    abort, send_file, session
 )
 from flask_login import (
     login_user, logout_user, login_required, current_user
@@ -146,6 +146,56 @@ def save_dokumen(file_storage, prefix=""):
         return unique_name, None
     except Exception as e:
         return None, f"Gagal menyimpan file: {str(e)}"
+
+
+def save_evidence_pdf(file_storage):
+    """Simpan evidence Peminjaman -- WAJIB berupa file PDF (.pdf).
+
+    Dipakai di seluruh alur evidence Peminjaman: tambah data peminjaman,
+    tambah evidence tambahan, dan konfirmasi perpanjangan. Berbeda dari
+    save_dokumen() (yang masih membolehkan gambar/doc/docx), fungsi ini
+    HANYA menerima PDF sesuai permintaan bisnis bahwa BA (Berita Acara)
+    serah terima harus dalam bentuk PDF resmi.
+
+    Return (filename, error). filename bernilai None jika error tidak kosong.
+    File yang tidak diisi dianggap error juga (evidence wajib/mandatory).
+    """
+    if not file_storage or file_storage.filename == "":
+        return None, "Evidence PDF wajib diupload."
+    if not file_storage.filename.lower().endswith(".pdf"):
+        return None, "Evidence wajib berupa file PDF (.pdf), format lain tidak diterima."
+    filename = secure_filename(file_storage.filename)
+    if not filename:
+        return None, "Nama file tidak valid."
+    unique_name = f"peminjaman_evidence_{datetime.now(WIB).strftime('%Y%m%d%H%M%S%f')}_{filename}"
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
+    try:
+        file_storage.save(filepath)
+        return unique_name, None
+    except Exception as e:
+        return None, f"Gagal menyimpan file: {str(e)}"
+
+
+def gagal_dengan_form(endpoint, pesan, target, id_target=None, **url_kwargs):
+    """Batalkan submit form (tambah/edit) tanpa menghilangkan data yang sudah
+    diisi user. Data form disimpan sementara di session lalu dikirim balik
+    ke halaman asal supaya modal yang sama otomatis terbuka lagi dengan
+    field-field terisi seperti sebelumnya -- user tidak perlu mengetik ulang.
+
+    `target` menandai modal mana yang harus dibuka ulang di halaman tujuan,
+    mis. 'tambah_aset', 'edit_aset', atau 'tambah_peminjaman'.
+    `id_target` (opsional) dipakai untuk modal edit yang butuh tahu ID data
+    mana yang sedang diedit (mis. supaya openEditAset() tahu ID-nya).
+    File upload (mis. foto/evidence) TIDAK bisa disimpan ulang oleh browser
+    karena alasan keamanan, jadi user tetap perlu memilih ulang file-nya.
+    """
+    flash(pesan, "danger")
+    session["form_repopulate"] = {
+        "target": target,
+        "id": id_target,
+        "form": request.form.to_dict(),
+    }
+    return redirect(url_for(endpoint, **url_kwargs))
 
 
 def convert_gdrive_to_thumbnail(url):
@@ -348,6 +398,114 @@ FIELD_LABELS_PEMINJAMAN = [
 # ditampilkan sebagai preview foto (kalau gambar) atau link "Lihat PDF"
 # (kalau dokumen), bukan sekadar teks nama file.
 FILE_FIELD_KEYS = {"foto_url", "evidence", "foto"}
+
+
+def snapshot_peminjaman(p):
+    """Snapshot lengkap satu peminjaman untuk disimpan di log histori
+    (dipakai saat DELETE supaya datanya tidak hilang begitu saja dari History)."""
+    barang = [pa.aset.nama for pa in p.aset_terkait if pa.aset]
+    return {
+        "nama_peminjam": p.nama_peminjam,
+        "unit": p.unit,
+        "lokasi_kerja": p.lokasi_kerja,
+        "jenis_transaksi": p.jenis_transaksi,
+        "barang": barang,
+        "tanggal_pinjam": p.tanggal_pinjam.strftime("%Y-%m-%d") if p.tanggal_pinjam else None,
+        "tanggal_rencana_kembali": p.tanggal_rencana_kembali.strftime("%Y-%m-%d") if p.tanggal_rencana_kembali else None,
+        "tanggal_dikembalikan": p.tanggal_dikembalikan.strftime("%Y-%m-%d") if p.tanggal_dikembalikan else None,
+        "status": p.status,
+        "status_perpanjangan": p.status_perpanjangan,
+        "evidence": p.evidence,
+    }
+
+
+# Urutan & label field maintenance yang ditampilkan di detail histori
+# (Tambah/Edit/Hapus jadwal maintenance).
+FIELD_LABELS_MAINTENANCE = [
+    ("aset", "Aset"),
+    ("kode_aset", "Kode Aset"),
+    ("kategori", "Kategori"),
+    ("judul", "Judul Maintenance"),
+    ("deskripsi", "Deskripsi"),
+    ("vendor", "Vendor"),
+    ("tipe", "Tipe Maintenance"),
+    ("tanggal_mulai", "Tanggal Mulai"),
+    ("tanggal_akhir", "Tanggal Akhir"),
+    ("biaya", "Biaya"),
+    ("status", "Status"),
+]
+
+
+def snapshot_maintenance(m):
+    """Snapshot lengkap satu jadwal maintenance untuk disimpan di log histori
+    (CREATE/UPDATE/DELETE), supaya "Detail Aktivitas" bisa menampilkan semua
+    field seperti halaman Detail Aset, bukan cuma sebagian."""
+    aset = m.aset
+    return {
+        "aset": aset.nama if aset else None,
+        "kode_aset": aset.kode_aset if aset else None,
+        "kategori": m.kategori,
+        "judul": m.judul,
+        "deskripsi": m.deskripsi,
+        "vendor": m.vendor,
+        "tipe": m.tipe,
+        "tanggal_mulai": m.tanggal_mulai.strftime("%Y-%m-%d") if m.tanggal_mulai else None,
+        "tanggal_akhir": m.tanggal_akhir.strftime("%Y-%m-%d") if m.tanggal_akhir else None,
+        "biaya": float(m.biaya) if m.biaya is not None else None,
+        "status": m.status,
+    }
+
+
+def label_aktivitas(a):
+    """Tentukan label aktivitas yang ditampilkan di History / Detail Aktivitas,
+    disesuaikan per target_model DAN per jenis perubahan supaya lebih informatif
+    (mis. "Perpanjangan Peminjaman" bukan cuma "Update Peminjaman", "Upload Foto
+    Dokumentasi" bukan cuma "Edit Maintenance"). Dipakai bersama oleh history_list
+    dan aktivitas_detail supaya labelnya selalu konsisten di kedua halaman."""
+    data_baru = a.data_baru or {}
+    data_lama = a.data_lama or {}
+
+    if a.target_model == "Aset":
+        return {
+            "CREATE": "Tambah Aset",
+            "UPDATE": "Edit Aset",
+            "DELETE": "Hapus Aset",
+            "MOVE": "Pemindahan Aset",
+        }.get(a.aksi, a.aksi)
+
+    if a.target_model == "Peminjaman":
+        if a.aksi == "CREATE":
+            return "Peminjaman Aset"
+        if a.aksi == "DELETE":
+            return "Hapus Peminjaman"
+        if a.aksi == "IMPORT":
+            return "Import Data Peminjaman"
+        if a.aksi == "UPDATE":
+            keys = set(data_baru.keys())
+            if data_baru.get("status") == "Dikembalikan":
+                return "Pengembalian Aset"
+            if data_baru.get("status_perpanjangan") == "Tidak Diperpanjang":
+                return "Konfirmasi Tidak Diperpanjang"
+            if "tanggal_rencana_kembali" in keys:
+                return "Perpanjangan Peminjaman"
+            if "evidence" in keys:
+                return "Upload Evidence Peminjaman"
+            return "Update Peminjaman"
+        return a.aksi
+
+    if a.target_model == "Maintenance":
+        is_foto = ("foto" in data_baru) or ("foto" in data_lama)
+        if a.aksi == "CREATE":
+            return "Tambah Maintenance"
+        if a.aksi == "DELETE":
+            return "Hapus Maintenance"
+        if a.aksi == "UPDATE" and is_foto:
+            return "Hapus Foto Dokumentasi" if not data_baru.get("foto") else "Upload Foto Dokumentasi"
+        if a.aksi == "UPDATE":
+            return "Edit Jadwal Maintenance"
+        return a.aksi
+
+    return {"CREATE": "Tambah Data", "UPDATE": "Update Data", "DELETE": "Hapus Data"}.get(a.aksi, a.aksi)
 
 
 def build_field_diff(data_lama, data_baru, field_labels=None):
@@ -850,6 +1008,13 @@ def aset_list():
     ]
 
     total_keseluruhan = Aset.query.count()
+
+    # Kalau sebelumnya ada submit form Tambah/Edit Aset yang gagal validasi,
+    # ambil (dan hapus) data yang sempat disimpan supaya modal yang sama bisa
+    # otomatis terbuka lagi dengan field-field yang sudah terisi -- user
+    # tidak perlu mengetik ulang semuanya. Lihat helper gagal_dengan_form().
+    repop = session.pop("form_repopulate", None)
+
     return render_template(
         "aset/list.html",
         daftar_aset=daftar_aset,
@@ -858,6 +1023,7 @@ def aset_list():
         gedung_all=gedung_all_formatted,  # <-- KIRIM FORMAT BARU
         filter_aktif=filter_aktif,
         total_keseluruhan=total_keseluruhan,
+        repop=repop,
     )
 
 
@@ -948,16 +1114,11 @@ def api_aset_by_kategori(kategori_id):
 @login_required
 @role_required(ROLE_ADMIN)
 def aset_create():
-    print("=" * 50)
-    print("FORM DATA:")
-    for key, value in request.form.items():
-        print(f"  {key}: {value}")
-    print("=" * 50)
-
     kode_aset = request.form.get("kode_aset", "").strip()
     if Aset.query.filter_by(kode_aset=kode_aset).first():
-        flash("Kode aset sudah digunakan.", "danger")
-        return redirect(url_for("aset_list"))
+        return gagal_dengan_form(
+            "aset_list", "Kode aset sudah digunakan.", "tambah_aset"
+        )
 
     # Ambil semua field
     area = request.form.get("area", "").strip() or None
@@ -983,6 +1144,13 @@ def aset_create():
         except ValueError:
             pass
     keterangan = request.form.get("keterangan", "").strip() or None
+
+    # Jenis Barang (Kategori) sekarang WAJIB diisi -- aset tidak boleh
+    # tersimpan tanpa kategori sama sekali.
+    if not jenis_barang:
+        return gagal_dengan_form(
+            "aset_list", "Jenis Barang (Kategori) wajib diisi.", "tambah_aset"
+        )
 
     # Cari/buat kategori
     id_kategori = None
@@ -1051,6 +1219,15 @@ def aset_create():
 def aset_edit(aset_id):
     aset = Aset.query.get_or_404(aset_id)
 
+    # Jenis Barang (Kategori) WAJIB diisi -- validasi di awal sebelum field
+    # lain diubah, supaya kalau gagal, objek `aset` di database belum
+    # tersentuh sama sekali (belum ada db.session.commit()).
+    jenis_barang = request.form.get("jenis_barang", "").strip()
+    if not jenis_barang:
+        return gagal_dengan_form(
+            "aset_list", "Jenis Barang (Kategori) wajib diisi.", "edit_aset", id_target=aset.id
+        )
+
     # +++ DEFINISIKAN data_lama SEBELUM diubah (snapshot lengkap semua field) +++
     kategori_lama_nama = aset.kategori_ref.nama if aset.kategori_ref else None
     data_lama = snapshot_aset(aset, kategori_nama=kategori_lama_nama)
@@ -1087,7 +1264,6 @@ def aset_edit(aset_id):
         aset.tanggal_datang = None
 
     # Kategori
-    jenis_barang = request.form.get("jenis_barang", "").strip()
     id_kategori = None
     if jenis_barang:
         kategori = Kategori.query.filter(db.func.lower(Kategori.nama) == jenis_barang.lower()).first()
@@ -1547,7 +1723,19 @@ def kategori_list():
 @login_required
 @role_required(ROLE_ADMIN)
 def kategori_create():
-    db.session.add(Kategori(nama=request.form.get("nama")))
+    nama = (request.form.get("nama") or "").strip()
+    if not nama:
+        flash("Nama kategori tidak boleh kosong.", "danger")
+        return redirect(url_for("kategori_list"))
+
+    # Kolom `nama` bersifat unique di database -- cek dulu (case-insensitive)
+    # supaya tidak crash (IntegrityError) kalau nama kategori sudah ada.
+    sudah_ada = Kategori.query.filter(db.func.lower(Kategori.nama) == nama.lower()).first()
+    if sudah_ada:
+        flash(f"Kategori '{sudah_ada.nama}' sudah ada.", "danger")
+        return redirect(url_for("kategori_list"))
+
+    db.session.add(Kategori(nama=nama))
     db.session.commit()
     flash("Kategori ditambahkan.", "success")
     return redirect(url_for("kategori_list"))
@@ -1719,17 +1907,8 @@ def history_list():
         for a in AktivitasLog.query.order_by(AktivitasLog.created_at.desc()).all():
             user = User.query.get(a.id_user)
             pelaku = user.name if user else "Unknown"
-            
-            label_map_by_model = {
-                "Peminjaman": {"CREATE": "Peminjaman Aset", "UPDATE": "Update Peminjaman", "DELETE": "Hapus Peminjaman"},
-                "Maintenance": {"CREATE": "Tambah Maintenance", "UPDATE": "Edit Maintenance", "DELETE": "Hapus Maintenance"},
-            }
-            label_aksi = label_map_by_model.get(a.target_model, {}).get(a.aksi) or {
-                "CREATE": "Tambah Aset",
-                "UPDATE": "Edit Aset",
-                "DELETE": "Hapus Aset",
-                "MOVE": "Pemindahan Aset"
-            }.get(a.aksi, a.aksi)
+
+            label_aksi = label_aktivitas(a)
 
             events.append({
                 "id": a.id,
@@ -1804,29 +1983,23 @@ def history_list():
 @login_required
 @role_required(ROLE_ADMIN)
 def aktivitas_detail(log_id):
-    """Detail aktivitas admin (tambah/edit/hapus aset)."""
+    """Detail aktivitas admin (tambah/edit/hapus aset/peminjaman/maintenance)."""
     log = AktivitasLog.query.get_or_404(log_id)
-    
-    # Ambil nama aksi (sadar target_model supaya Peminjaman/Maintenance tidak
-    # ikut terlabel "Tambah Aset" dsb.)
-    label_map_by_model = {
-        "Peminjaman": {"CREATE": "Peminjaman Aset", "UPDATE": "Update Peminjaman", "DELETE": "Hapus Peminjaman"},
-        "Maintenance": {"CREATE": "Tambah Maintenance", "UPDATE": "Edit Maintenance", "DELETE": "Hapus Maintenance"},
-    }
-    label_aksi = label_map_by_model.get(log.target_model, {}).get(log.aksi) or {
-        "CREATE": "Tambah Aset",
-        "UPDATE": "Edit Aset", 
-        "DELETE": "Hapus Aset",
-        "MOVE": "Pemindahan Aset"
-    }.get(log.aksi, log.aksi)
-    
+
+    # Label aksi disesuaikan per target_model & jenis perubahan (mis. "Perpanjangan
+    # Peminjaman", "Upload Foto Dokumentasi") -- fungsi yang sama dipakai di History List
+    # supaya labelnya selalu konsisten di kedua halaman.
+    label_aksi = label_aktivitas(log)
+
     user = User.query.get(log.id_user)
     pelaku = user.name if user else "Unknown"
 
     field_diff = []
-    foto_aktivitas = None       # <-- TAMBAH (foto baru/sekarang)
+    foto_aktivitas = None       # foto baru/sekarang (upload foto maintenance)
     foto_lama_aktivitas = None  # foto yang digantikan/dihapus (kalau ada)
-    foto_label = None      # <-- TAMBAH
+    foto_label = None
+    peminjaman_current = None   # data peminjaman terkini (live), untuk ringkasan lengkap
+    maintenance_current = None  # data maintenance terkini (live), untuk ringkasan lengkap
 
     if log.target_model == "Aset" and log.aksi in ("CREATE", "UPDATE", "DELETE"):
         field_diff = build_field_diff(log.data_lama, log.data_baru)
@@ -1836,15 +2009,31 @@ def aktivitas_detail(log_id):
     # dengan data_lama/data_baru, jadi bisa dipakai ulang build_field_diff yang sama.
     if log.target_model == "Peminjaman" and log.aksi in ("CREATE", "UPDATE", "DELETE"):
         field_diff = build_field_diff(log.data_lama, log.data_baru, FIELD_LABELS_PEMINJAMAN)
+        # Ambil data peminjaman yang masih hidup supaya halaman ini menampilkan
+        # ringkasan LENGKAP (siapa, unit, barang, status terkini, dst) -- bukan cuma
+        # field yang berubah di aktivitas ini -- persis seperti Detail Data Aset.
+        if log.aksi == "UPDATE":
+            peminjaman_current = Peminjaman.query.get(log.target_id)
 
-    # +++ TAMBAH: Jika aktivitas adalah upload/hapus foto maintenance +++
-    if log.target_model == "Maintenance" and log.aksi == "UPDATE":
-        if log.data_baru and log.data_baru.get("foto"):
-            foto_aktivitas = log.data_baru.get("foto")
-            foto_label = log.data_baru.get("label", "Foto")
-        if log.data_lama and log.data_lama.get("foto"):
-            foto_lama_aktivitas = log.data_lama.get("foto")
-            foto_label = foto_label or log.data_lama.get("label", "Foto")
+    # Detail data Maintenance: bedakan aktivitas foto dokumentasi (before/progress/after)
+    # dari edit jadwal biasa (judul/tipe/status/dll), karena bentuk datanya beda.
+    if log.target_model == "Maintenance":
+        data_baru = log.data_baru or {}
+        data_lama = log.data_lama or {}
+        is_foto_activity = ("foto" in data_baru) or ("foto" in data_lama)
+
+        if log.aksi == "UPDATE" and is_foto_activity:
+            if data_baru.get("foto"):
+                foto_aktivitas = data_baru.get("foto")
+                foto_label = data_baru.get("label", "Foto")
+            if data_lama.get("foto"):
+                foto_lama_aktivitas = data_lama.get("foto")
+                foto_label = foto_label or data_lama.get("label", "Foto")
+        elif log.aksi in ("CREATE", "UPDATE", "DELETE"):
+            field_diff = build_field_diff(log.data_lama, log.data_baru, FIELD_LABELS_MAINTENANCE)
+
+        if log.aksi == "UPDATE":
+            maintenance_current = Maintenance.query.get(log.target_id)
 
     return render_template(
         "history/aktivitas_detail.html",
@@ -1852,9 +2041,11 @@ def aktivitas_detail(log_id):
         label_aksi=label_aksi,
         pelaku=pelaku,
         field_diff=field_diff,
-        foto_aktivitas=foto_aktivitas,          # <-- KIRIM KE TEMPLATE
+        foto_aktivitas=foto_aktivitas,
         foto_lama_aktivitas=foto_lama_aktivitas,
-        foto_label=foto_label,                  # <-- KIRIM KE TEMPLATE
+        foto_label=foto_label,
+        peminjaman_current=peminjaman_current,
+        maintenance_current=maintenance_current,
     )
 
 @app.route("/history/<int:tiket_id>")
@@ -2277,6 +2468,11 @@ def peminjaman_list():
         .all()
     ]
 
+    # Kalau sebelumnya ada submit form Tambah Peminjaman yang gagal validasi,
+    # ambil (dan hapus) data yang sempat disimpan supaya modal bisa otomatis
+    # terbuka lagi dengan field-field yang sudah terisi. Lihat gagal_dengan_form().
+    repop = session.pop("form_repopulate", None)
+
     return render_template(
         "peminjaman/list.html",
         daftar_peminjaman=daftar_peminjaman,
@@ -2294,6 +2490,7 @@ def peminjaman_list():
         total_dipinjam=total_dipinjam,
         total_dikembalikan=total_dikembalikan,
         total_terlambat=total_terlambat,
+        repop=repop,
     )
 
 
@@ -2364,11 +2561,16 @@ def peminjaman_export():
 @login_required
 @role_required(ROLE_ADMIN)
 def peminjaman_create():
-    """Buat data peminjaman aset baru, lengkap dengan input barang (multi-aset)."""
+    """Buat data peminjaman aset baru.
+
+    Catatan revisi: pemilihan Gedung/Lantai/Ruangan/Aset yang dipinjam
+    SUDAH TIDAK WAJIB DIISI (bahkan sudah dihapus dari form Tambah
+    Peminjaman) -- peminjaman sekarang boleh dicatat tanpa menautkan ke
+    barang/aset spesifik manapun. Kalau suatu saat field `aset_ids[]` tetap
+    dikirim (mis. dari flow lain), tetap diproses seperti biasa; kalau
+    kosong, peminjaman tetap tersimpan tanpa data barang.
+    """
     aset_ids = request.form.getlist("aset_ids[]")
-    if not aset_ids:
-        flash("Pilih minimal 1 barang/aset yang dipinjam.", "danger")
-        return redirect(url_for("peminjaman_list"))
 
     nama_peminjam = request.form.get("nama_peminjam", "").strip()
     unit = request.form.get("unit", "").strip()
@@ -2381,27 +2583,50 @@ def peminjaman_create():
     # Jenis Barang (Kategori) -- dropdown Kategori (sama seperti di Data Aset),
     # HANYA boleh memilih Kategori yang sudah ada. Peminjaman tidak pernah
     # menambah Kategori baru -- itu khusus wewenang modul Data Aset.
+    # SEKARANG WAJIB DIISI (sebelumnya opsional).
     id_kategori_form = request.form.get("id_kategori", "").strip()
     id_kategori = int(id_kategori_form) if id_kategori_form.isdigit() else None
 
+    if not id_kategori:
+        return gagal_dengan_form(
+            "peminjaman_list", "Jenis Barang (Kategori) wajib dipilih.", "tambah_peminjaman"
+        )
+
     if not nama_peminjam or not tanggal_pinjam_str:
-        flash("Nama peminjam dan tanggal pinjam wajib diisi.", "danger")
-        return redirect(url_for("peminjaman_list"))
+        return gagal_dengan_form(
+            "peminjaman_list", "Nama peminjam dan tanggal pinjam wajib diisi.", "tambah_peminjaman"
+        )
 
     try:
         tanggal_pinjam = datetime.strptime(tanggal_pinjam_str, "%Y-%m-%d").date()
     except ValueError:
-        flash("Format tanggal pinjam tidak valid.", "danger")
-        return redirect(url_for("peminjaman_list"))
+        return gagal_dengan_form(
+            "peminjaman_list", "Format tanggal pinjam tidak valid.", "tambah_peminjaman"
+        )
 
     tanggal_rencana_kembali = None
     if tanggal_rencana_str:
         try:
             tanggal_rencana_kembali = datetime.strptime(tanggal_rencana_str, "%Y-%m-%d").date()
         except ValueError:
-            pass
+            return gagal_dengan_form(
+                "peminjaman_list", "Format tanggal rencana kembali tidak valid.", "tambah_peminjaman"
+            )
 
-    evidence, evidence_error = save_dokumen(request.files.get("evidence"), prefix="peminjaman_")
+    # VALIDASI URUTAN TANGGAL: rencana kembali tidak boleh lebih awal dari
+    # tanggal pinjam (mis. pinjam 20 Januari tapi rencana kembali 12
+    # Januari seharusnya ditolak).
+    if tanggal_rencana_kembali and tanggal_rencana_kembali < tanggal_pinjam:
+        return gagal_dengan_form(
+            "peminjaman_list",
+            "Tanggal rencana kembali tidak boleh lebih awal dari tanggal pinjam.",
+            "tambah_peminjaman",
+        )
+
+    # Evidence Lampiran (Berita Acara) SEKARANG WAJIB dan HARUS berupa PDF.
+    evidence, evidence_error = save_evidence_pdf(request.files.get("evidence"))
+    if evidence_error:
+        return gagal_dengan_form("peminjaman_list", evidence_error, "tambah_peminjaman")
 
     peminjaman = Peminjaman(
         nama_peminjam=nama_peminjam,
@@ -2437,7 +2662,7 @@ def peminjaman_create():
         aksi="CREATE",
         target_model="Peminjaman",
         target_id=peminjaman.id,
-        deskripsi=f"Peminjaman aset oleh {nama_peminjam}: {', '.join(nama_aset_list) or '-'}",
+        deskripsi=f"Peminjaman aset oleh {nama_peminjam}" + (f": {', '.join(nama_aset_list)}" if nama_aset_list else ""),
         data_baru={
             "nama_peminjam": nama_peminjam,
             "unit": unit,
@@ -2451,11 +2676,7 @@ def peminjaman_create():
     )
 
     db.session.commit()
-
-    if evidence_error:
-        flash(f"Peminjaman berhasil dibuat, tetapi evidence gagal diupload: {evidence_error}", "warning")
-    else:
-        flash(f"Peminjaman berhasil dibuat. {len(aset_ids)} barang dipinjamkan kepada {nama_peminjam}.", "success")
+    flash(f"Peminjaman berhasil dibuat untuk {nama_peminjam}.", "success")
     return redirect(url_for("peminjaman_list"))
 
 
@@ -2522,12 +2743,9 @@ def peminjaman_evidence_upload(id):
     Tidak menimpa evidence lama -- ditambahkan ke histori evidence_list."""
     peminjaman = Peminjaman.query.get_or_404(id)
 
-    filename, error = save_dokumen(request.files.get("evidence_baru"), prefix="peminjaman_evidence_")
+    filename, error = save_evidence_pdf(request.files.get("evidence_baru"))
     if error:
         flash(f"Gagal upload evidence: {error}", "danger")
-        return redirect(url_for("peminjaman_detail", id=id))
-    if not filename:
-        flash("Pilih file evidence terlebih dahulu.", "danger")
         return redirect(url_for("peminjaman_detail", id=id))
 
     ev = PeminjamanEvidence(
@@ -2561,6 +2779,7 @@ def peminjaman_delete(id):
         target_model="Peminjaman",
         target_id=peminjaman.id,
         deskripsi=f"Menghapus data peminjaman {peminjaman.nama_peminjam}",
+        data_lama=snapshot_peminjaman(peminjaman),
     )
     db.session.delete(peminjaman)
     db.session.commit()
@@ -2589,13 +2808,11 @@ def peminjaman_konfirmasi_perpanjangan(id):
         flash("Peminjaman ini sudah dikembalikan, tidak perlu konfirmasi perpanjangan.", "warning")
         return _redirect_aman(next_url)
 
-    # --- Evidence laporan (opsional, berlaku untuk kedua keputusan) ---------
-    # File ini sebelumnya sudah ada di form (reminder.html/dashboard.html)
-    # tapi belum pernah diproses di backend -- ditambahkan supaya bukti
-    # perpanjangan/tidak diperpanjang bisa tersimpan & tampil di History.
-    evidence_filename, evidence_error = save_dokumen(
-        request.files.get("evidence_baru"), prefix="peminjaman_evidence_"
-    )
+    # --- Evidence laporan -----------------------------------------------
+    # Evidence WAJIB diupload dan HARUS berupa PDF, berlaku untuk kedua
+    # keputusan (diperpanjang maupun tidak diperpanjang) -- BA konfirmasi
+    # perpanjangan harus selalu ada dokumen PDF resminya.
+    evidence_filename, evidence_error = save_evidence_pdf(request.files.get("evidence_baru"))
     if evidence_error:
         flash(f"Gagal upload evidence: {evidence_error}", "danger")
         return _redirect_aman(next_url)
@@ -2611,22 +2828,26 @@ def peminjaman_konfirmasi_perpanjangan(id):
             flash("Format tanggal tidak valid.", "danger")
             return _redirect_aman(next_url)
 
+        # VALIDASI URUTAN TANGGAL: tanggal perpanjangan baru tidak boleh
+        # lebih awal dari tanggal pinjam awal.
+        if peminjaman.tanggal_pinjam and tanggal_baru < peminjaman.tanggal_pinjam:
+            flash("Tanggal rencana kembali baru tidak boleh lebih awal dari tanggal pinjam.", "danger")
+            return _redirect_aman(next_url)
+
         tanggal_lama = peminjaman.tanggal_rencana_kembali
         peminjaman.tanggal_rencana_kembali = tanggal_baru
         # Reset supaya notifikasi bisa muncul lagi kalau tanggal baru juga mendekati H-10
         peminjaman.status_perpanjangan = None
 
-        keterangan_evidence = None
-        if evidence_filename:
-            keterangan_evidence = (
-                f"Evidence perpanjangan s.d. {tanggal_baru.strftime('%d-%m-%Y')}"
-            )
-            db.session.add(PeminjamanEvidence(
-                id_peminjaman=peminjaman.id,
-                filename=evidence_filename,
-                keterangan=keterangan_evidence,
-                id_user_uploader=current_user.id,
-            ))
+        keterangan_evidence = (
+            f"Evidence perpanjangan s.d. {tanggal_baru.strftime('%d-%m-%Y')}"
+        )
+        db.session.add(PeminjamanEvidence(
+            id_peminjaman=peminjaman.id,
+            filename=evidence_filename,
+            keterangan=keterangan_evidence,
+            id_user_uploader=current_user.id,
+        ))
 
         data_baru = {"tanggal_rencana_kembali": tanggal_baru.strftime("%Y-%m-%d")}
         if evidence_filename:
@@ -3142,15 +3363,7 @@ def maintenance_create():
         target_model="Maintenance",
         target_id=maintenance.id,
         deskripsi=f"Menambahkan jadwal maintenance untuk aset {aset.nama} ({aset.kode_aset}): {judul}",
-        data_baru={
-            "aset": aset.nama,
-            "kode_aset": aset.kode_aset,
-            "kategori": kategori,
-            "judul": judul,
-            "tipe": tipe,
-            "tanggal_mulai": tanggal_mulai.strftime("%Y-%m-%d"),
-            "status": status,
-        }
+        data_baru=snapshot_maintenance(maintenance),
     )
     
     db.session.commit()
@@ -3163,12 +3376,14 @@ def maintenance_create():
 def maintenance_edit(id):
     """Edit jadwal maintenance."""
     maintenance = Maintenance.query.get_or_404(id)
-    
+    data_lama = snapshot_maintenance(maintenance)
+
     maintenance.judul = request.form.get("judul", "").strip()
     maintenance.deskripsi = request.form.get("deskripsi", "").strip() or None
     maintenance.vendor = request.form.get("vendor", "").strip() or None
     maintenance.tipe = request.form.get("tipe", "Preventif")
-    maintenance.biaya = float(request.form.get("biaya", 0))
+    biaya_raw = request.form.get("biaya", "").strip()
+    maintenance.biaya = float(biaya_raw) if biaya_raw else 0
     maintenance.status = request.form.get("status", "Scheduled")
 
     kategori_raw = request.form.get("kategori", "").strip()
@@ -3183,12 +3398,16 @@ def maintenance_edit(id):
         except ValueError:
             pass
 
-    catat_aktivitas(
-        aksi="UPDATE",
-        target_model="Maintenance",
-        target_id=maintenance.id,
-        deskripsi=f"Memperbarui jadwal maintenance: {maintenance.judul}",
-    )
+    data_baru = snapshot_maintenance(maintenance)
+    if data_lama != data_baru:
+        catat_aktivitas(
+            aksi="UPDATE",
+            target_model="Maintenance",
+            target_id=maintenance.id,
+            deskripsi=f"Memperbarui jadwal maintenance: {maintenance.judul}",
+            data_lama=data_lama,
+            data_baru=data_baru,
+        )
 
     db.session.commit()
     flash("Jadwal maintenance berhasil diperbarui.", "success")
@@ -3308,6 +3527,7 @@ def maintenance_delete(id):
     maintenance = Maintenance.query.get_or_404(id)
     judul = maintenance.judul
     nama_aset = maintenance.aset.nama if maintenance.aset else "-"
+    data_lama = snapshot_maintenance(maintenance)
 
     # Bersihkan file foto dokumentasi dari disk juga
     for kolom in MAINTENANCE_FOTO_SLOTS.values():
@@ -3325,6 +3545,7 @@ def maintenance_delete(id):
         target_model="Maintenance",
         target_id=maintenance.id,
         deskripsi=f"Menghapus jadwal maintenance: {judul} (aset {nama_aset})",
+        data_lama=data_lama,
     )
 
     db.session.delete(maintenance)

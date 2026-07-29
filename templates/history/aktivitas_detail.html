@@ -144,10 +144,77 @@
   </div>
   {% endif %}
 
-  <!-- Detail Data Peminjaman (perpanjangan, tidak diperpanjang, pengembalian, upload evidence, dll) -->
-  {% if log.target_model == 'Peminjaman' %}
+  <!-- Ringkasan Peminjaman Saat Ini (konteks lengkap: siapa, barang apa, status
+       terkini) -- ditampilkan untuk UPDATE (perpanjangan/pengembalian/dll) supaya
+       tidak cuma terlihat field yang berubah, tapi juga konteks lengkapnya,
+       persis seperti Detail Aset yang menampilkan semua data sekaligus. -->
+  {% if log.target_model == 'Peminjaman' and log.aksi == 'UPDATE' and peminjaman_current %}
   <div class="border-t border-slate-100 pt-4">
-    <p class="text-xs text-slate-400 mb-3">Detail Data Peminjaman</p>
+    <div class="flex items-center justify-between mb-3">
+      <p class="text-xs text-slate-400">Ringkasan Peminjaman Saat Ini</p>
+      {{ m.pill('Dikembalikan', 'emerald') if peminjaman_current.status == 'Dikembalikan' else m.pill('Dipinjam', 'amber') }}
+    </div>
+    <div class="bg-slate-50 rounded-xl p-4 space-y-3">
+      <div>
+        <p class="text-xs text-slate-400">Peminjam</p>
+        <p class="text-sm font-semibold text-slate-800">{{ peminjaman_current.nama_peminjam }}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <p class="text-xs text-slate-400">Unit</p>
+          <p class="font-medium text-slate-700">{{ peminjaman_current.unit or '-' }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-slate-400">Lokasi Kerja</p>
+          <p class="font-medium text-slate-700">{{ peminjaman_current.lokasi_kerja or '-' }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-slate-400">Tanggal Pinjam</p>
+          <p class="font-medium text-slate-700">{{ peminjaman_current.tanggal_pinjam.strftime('%d-%m-%Y') if peminjaman_current.tanggal_pinjam else '-' }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-slate-400">Rencana Kembali</p>
+          <p class="font-medium text-slate-700">{{ peminjaman_current.tanggal_rencana_kembali.strftime('%d-%m-%Y') if peminjaman_current.tanggal_rencana_kembali else '-' }}</p>
+        </div>
+        {% if peminjaman_current.tanggal_dikembalikan %}
+        <div>
+          <p class="text-xs text-slate-400">Tanggal Dikembalikan</p>
+          <p class="font-medium text-emerald-600">{{ peminjaman_current.tanggal_dikembalikan.strftime('%d-%m-%Y') }}</p>
+        </div>
+        {% endif %}
+        {% if peminjaman_current.status_perpanjangan %}
+        <div>
+          <p class="text-xs text-slate-400">Status Perpanjangan</p>
+          <p class="font-medium {{ 'text-rose-600' if peminjaman_current.status_perpanjangan == 'Tidak Diperpanjang' else 'text-emerald-600' }}">{{ peminjaman_current.status_perpanjangan }}</p>
+        </div>
+        {% endif %}
+      </div>
+      <div>
+        <p class="text-xs text-slate-400 mb-1.5">Barang / Aset Dipinjam</p>
+        <div class="flex flex-wrap gap-1.5">
+          {% for pa in peminjaman_current.aset_terkait %}
+          {% if pa.aset %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-600">
+            <span class="font-mono text-[10px] text-slate-400">{{ pa.aset.kode_aset }}</span>{{ pa.aset.nama }}
+          </span>
+          {% endif %}
+          {% else %}
+          <p class="text-xs text-slate-400">Tidak ada barang tercatat.</p>
+          {% endfor %}
+        </div>
+      </div>
+      <a href="{{ url_for('peminjaman_detail', id=peminjaman_current.id) }}" class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+        Lihat detail peminjaman lengkap
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Detail Data Peminjaman (perpanjangan, tidak diperpanjang, pengembalian, upload evidence, dll) -->
+  {% if log.target_model == 'Peminjaman' and log.aksi in ['CREATE', 'UPDATE', 'DELETE'] %}
+  <div class="border-t border-slate-100 pt-4">
+    <p class="text-xs text-slate-400 mb-3">{{ 'Perubahan pada Aktivitas Ini' if log.aksi == 'UPDATE' else 'Detail Data Peminjaman' }}</p>
 
     {% if log.aksi == 'CREATE' %}
       <!-- Peminjaman baru dibuat -->
@@ -243,6 +310,102 @@
           {{ m.file_preview(foto_aktivitas, 'w-20 h-20 object-cover rounded-lg border border-emerald-300') }}
         {% endif %}
       </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Detail Data Maintenance (tambah jadwal / edit jadwal / hapus jadwal) -->
+  {% if log.target_model == 'Maintenance' and field_diff %}
+  <div class="border-t border-slate-100 pt-4">
+    <p class="text-xs text-slate-400 mb-3">Detail Data Maintenance</p>
+
+    {% if log.aksi == 'CREATE' %}
+      <!-- Jadwal maintenance baru dibuat -->
+      <div class="bg-emerald-50 rounded-xl p-4 space-y-2">
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          {% for d in field_diff %}
+          <div class="{{ 'col-span-2' if d.key in ['deskripsi'] else '' }}">
+            <p class="text-xs text-slate-400">{{ d.label }}</p>
+            <p class="font-medium text-slate-700 break-words">{{ d.new or '-' }}</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    {% elif log.aksi == 'UPDATE' %}
+      <!-- Edit jadwal maintenance - tampilkan semua perubahan -->
+      <div class="bg-amber-50 rounded-xl p-4 space-y-3">
+        <p class="text-xs font-medium text-amber-700">Perubahan yang dilakukan:</p>
+        <div class="space-y-3">
+          {% for d in field_diff if d.changed %}
+          <div class="text-sm">
+            <span class="text-slate-500 text-xs block mb-1">{{ d.label }}</span>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-rose-600 line-through break-words">{{ d.old or '-' }}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-400 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+              <span class="text-emerald-600 break-words">{{ d.new or '-' }}</span>
+            </div>
+          </div>
+          {% else %}
+          <p class="text-xs text-slate-400">Tidak ada perubahan data yang terdeteksi.</p>
+          {% endfor %}
+        </div>
+      </div>
+
+    {% elif log.aksi == 'DELETE' %}
+      <!-- Jadwal maintenance dihapus -->
+      <div class="bg-rose-50 rounded-xl p-4 space-y-2">
+        <p class="text-xs font-medium text-rose-700">Data maintenance yang dihapus:</p>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          {% for d in field_diff %}
+          <div class="{{ 'col-span-2' if d.key in ['deskripsi'] else '' }}">
+            <p class="text-xs text-slate-400">{{ d.label }}</p>
+            <p class="font-medium text-slate-700 break-words">{{ d.old or '-' }}</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Ringkasan Maintenance Saat Ini (konteks lengkap saat aktivitasnya berupa
+       edit jadwal atau upload/hapus foto, supaya tetap terlihat aset & status
+       terkini walau field itu sendiri tidak berubah di aktivitas ini). -->
+  {% if log.target_model == 'Maintenance' and log.aksi == 'UPDATE' and maintenance_current %}
+  <div class="border-t border-slate-100 pt-4">
+    <div class="flex items-center justify-between mb-3">
+      <p class="text-xs text-slate-400">Ringkasan Maintenance Saat Ini</p>
+      {% set tone = 'slate' if maintenance_current.status == 'Scheduled' else 'amber' if maintenance_current.status == 'On Progress' else 'emerald' if maintenance_current.status == 'Completed' else 'rose' %}
+      {{ m.pill(maintenance_current.status, tone) }}
+    </div>
+    <div class="bg-slate-50 rounded-xl p-4 space-y-3">
+      <div>
+        <p class="text-xs text-slate-400">Judul</p>
+        <p class="text-sm font-semibold text-slate-800">{{ maintenance_current.judul }}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <p class="text-xs text-slate-400">Aset</p>
+          <p class="font-medium text-slate-700">{{ maintenance_current.aset.nama if maintenance_current.aset else '-' }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-slate-400">Tipe</p>
+          <p class="font-medium text-slate-700">{{ maintenance_current.tipe }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-slate-400">Tanggal Mulai</p>
+          <p class="font-medium text-slate-700">{{ maintenance_current.tanggal_mulai.strftime('%d-%m-%Y') if maintenance_current.tanggal_mulai else '-' }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-slate-400">Tanggal Akhir</p>
+          <p class="font-medium text-slate-700">{{ maintenance_current.tanggal_akhir.strftime('%d-%m-%Y') if maintenance_current.tanggal_akhir else '-' }}</p>
+        </div>
+      </div>
+      <a href="{{ url_for('maintenance_detail', id=maintenance_current.id) }}" class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+        Lihat detail maintenance lengkap
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+      </a>
     </div>
   </div>
   {% endif %}
