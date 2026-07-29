@@ -65,6 +65,13 @@
         </form>
         {% if current_user.role == 'admin' %}
         <div class="flex items-center gap-2 shrink-0">
+            <a href="{{ url_for('peminjaman_export') }}" class="btn btn-secondary shrink-0">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                Export Excel
+            </a>
             <a href="{{ url_for('peminjaman_import_guide') }}" class="btn btn-secondary shrink-0">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                     <path stroke-linecap="round" stroke-linejoin="round"
@@ -390,18 +397,13 @@
                 </div>
                 <div>
                     <label class="field-label">Jenis Barang (Kategori)</label>
-                    <select name="id_kategori" id="pinjam_kategori" class="field-input text-sm"
-                        onchange="document.getElementById('pinjam_kategori_baru_wrap').classList.toggle('hidden', this.value !== '__baru__')">
+                    <select name="id_kategori" id="pinjam_kategori" class="field-input text-sm">
                         <option value="">- Opsional -</option>
                         {% for k in kategori_all %}
                         <option value="{{ k.id }}">{{ k.nama }}</option>
                         {% endfor %}
-                        <option value="__baru__">+ Kategori baru...</option>
                     </select>
-                    <div id="pinjam_kategori_baru_wrap" class="hidden mt-1.5">
-                        <input name="kategori_baru" placeholder="Nama kategori baru, mis: Handphone"
-                            class="field-input text-sm">
-                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1">Kategori baru hanya bisa ditambahkan lewat halaman Data Aset.</p>
                 </div>
             </div>
 

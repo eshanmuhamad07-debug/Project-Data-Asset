@@ -4,6 +4,8 @@ Model database untuk Website Manajemen Aset Perusahaan.
 from datetime import datetime
 from flask_login import UserMixin
 from extensions import db
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy import select
 import pytz
 
 # ============================================================
@@ -107,6 +109,30 @@ class Tiket(db.Model):
     user_creator = db.relationship("User", foreign_keys=[created_by])
     aset_terkait = db.relationship("TiketAset", backref="tiket", cascade="all, delete-orphan")
     log_status = db.relationship("LogStatus", backref="tiket", cascade="all, delete-orphan", order_by="LogStatus.created_at")
+
+    @hybrid_property
+    def status_tiket(self):
+        """Status terkini tiket (Pending/Selesai), diambil dari histori
+        LogStatus terakhir -- BUKAN kolom tersendiri (tabel tiket memang
+        tidak dan tidak perlu punya kolom status_tiket sendiri, supaya
+        1 sumber kebenaran cukup lewat LogStatus)."""
+        if self.log_status:
+            return self.log_status[-1].status_baru
+        return "Pending"
+
+    @status_tiket.expression
+    def status_tiket(cls):
+        """Versi SQL dari properti di atas, supaya tetap bisa dipakai untuk
+        query.filter(Tiket.status_tiket == ...) di halaman Pemindahan/
+        Kerusakan (dropdown filter status)."""
+        return (
+            select(LogStatus.status_baru)
+            .where(LogStatus.id_tiket == cls.id)
+            .order_by(LogStatus.id.desc())
+            .limit(1)
+            .correlate(cls)
+            .scalar_subquery()
+        )
 
 
 class TiketAset(db.Model):

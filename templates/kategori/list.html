@@ -7,32 +7,61 @@
 {% block content %}
 
 <div class="card p-5 space-y-3.5">
-  <div class="flex items-center justify-between">
+  <div class="flex items-center justify-between flex-wrap gap-2">
     <p class="font-semibold text-sm text-slate-700">Daftar Kategori</p>
-    <button onclick="openModal('modalKategori')" class="btn btn-secondary btn-sm">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-      Tambah Kategori
-    </button>
+    <div class="flex items-center gap-2">
+      <button type="button" id="toggleSelectModeBtn" class="btn btn-secondary btn-sm">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Pilih Kategori
+      </button>
+      <button type="button" id="deleteSelectedBtn" class="btn btn-danger btn-sm hidden">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+        </svg>
+        Hapus Terpilih (<span id="selectedCount">0</span>)
+      </button>
+      <button onclick="openModal('modalKategori')" class="btn btn-primary btn-sm">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        Tambah Kategori
+      </button>
+    </div>
   </div>
+
+  <p class="text-xs text-slate-400 -mt-2">
+    Kategori yang masih dipakai Aset atau Peminjaman (walau sudah 0 aset, bisa saja masih dipakai di data Peminjaman) tidak akan ikut terhapus saat dipilih massal.
+  </p>
+
   <div class="divide-y divide-slate-100">
     {% for k in kategori_all %}
-    <a href="{{ url_for('aset_list', kategori=k.id) }}"
-      class="py-2.5 flex items-center justify-between group -mx-1 px-1 rounded-lg hover:bg-indigo-50/60 transition-colors cursor-pointer">
-      <span class="flex items-center gap-2.5 text-sm text-slate-700 group-hover:text-indigo-700">
+    <div class="py-2.5 flex items-center justify-between group -mx-1 px-1 rounded-lg hover:bg-indigo-50/60 transition-colors">
+      <input type="checkbox" name="selected_ids" value="{{ k.id }}"
+        class="row-checkbox rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 hidden mr-2.5 shrink-0">
+      <a href="{{ url_for('aset_list', kategori=k.id) }}"
+        class="flex items-center gap-2.5 text-sm text-slate-700 group-hover:text-indigo-700 flex-1 min-w-0">
         <span
           class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 group-hover:bg-indigo-100">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/></svg>
         </span>
-        {{ k.nama }}
-      </span>
-      <span class="flex items-center gap-1.5 text-xs text-slate-400 group-hover:text-indigo-500">
-        {{ k.aset_list|length }} aset
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-          class="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-        </svg>
-      </span>
-    </a>
+        <span class="truncate">{{ k.nama }}</span>
+      </a>
+      <div class="flex items-center gap-1 shrink-0 pl-2">
+        <span class="text-xs text-slate-400 group-hover:text-indigo-500 mr-1 whitespace-nowrap">
+          {{ k.aset_list|length }} aset{% if k.jumlah_peminjaman %} · {{ k.jumlah_peminjaman }} peminjaman{% endif %}
+        </span>
+        <form method="POST" action="{{ url_for('kategori_delete', id=k.id) }}"
+          onsubmit="return confirm('Hapus kategori &quot;{{ k.nama }}&quot;?\n\nKategori yang masih dipakai oleh data Aset/Peminjaman tidak akan bisa dihapus.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" title="Hapus Kategori"
+            class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+            </svg>
+          </button>
+        </form>
+      </div>
+    </div>
     {% else %}
     <div class="py-10 text-center">
       <p class="text-xs text-slate-400">Belum ada kategori.</p>
@@ -40,6 +69,12 @@
     {% endfor %}
   </div>
 </div>
+
+<!-- Form tersembunyi untuk bulk delete -->
+<form id="deleteMultipleForm" method="POST" action="{{ url_for('kategori_delete_multiple') }}" class="hidden">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div id="selectedIdsContainer"></div>
+</form>
 
 <!-- Modal Tambah Kategori -->
 <div id="modalKategori" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
@@ -61,4 +96,72 @@
   </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // =============================================================
+  // PILIH & HAPUS BANYAK KATEGORI SEKALIGUS
+  // =============================================================
+  document.addEventListener('DOMContentLoaded', function () {
+    const toggleBtn = document.getElementById('toggleSelectModeBtn');
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    const selectedCount = document.getElementById('selectedCount');
+    const deleteForm = document.getElementById('deleteMultipleForm');
+    const selectedIdsContainer = document.getElementById('selectedIdsContainer');
+    let selectMode = false;
+
+    function updateSelectedCount() {
+      const checked = document.querySelectorAll('.row-checkbox:checked').length;
+      selectedCount.textContent = checked;
+      deleteBtn.classList.toggle('hidden', checked === 0);
+    }
+
+    function toggleSelectMode() {
+      selectMode = !selectMode;
+      checkboxes.forEach(cb => cb.classList.toggle('hidden'));
+
+      toggleBtn.innerHTML = selectMode
+        ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg> Batal`
+        : `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Pilih Kategori`;
+
+      if (selectMode) {
+        toggleBtn.classList.remove('btn-secondary');
+        toggleBtn.classList.add('btn-primary');
+      } else {
+        toggleBtn.classList.remove('btn-primary');
+        toggleBtn.classList.add('btn-secondary');
+        checkboxes.forEach(cb => cb.checked = false);
+        deleteBtn.classList.add('hidden');
+      }
+      updateSelectedCount();
+    }
+
+    if (toggleBtn) toggleBtn.addEventListener('click', toggleSelectMode);
+    checkboxes.forEach(cb => cb.addEventListener('change', updateSelectedCount));
+
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        const checked = document.querySelectorAll('.row-checkbox:checked');
+        if (checked.length === 0) {
+          alert('Pilih minimal satu kategori untuk dihapus.');
+          return;
+        }
+        if (confirm(`Hapus ${checked.length} kategori yang dipilih?\n\nKategori yang masih dipakai Aset/Peminjaman otomatis dilewati (tidak ikut terhapus).`)) {
+          selectedIdsContainer.innerHTML = '';
+          checked.forEach(cb => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'ids[]';
+            input.value = cb.value;
+            selectedIdsContainer.appendChild(input);
+          });
+          deleteForm.submit();
+        }
+      });
+    }
+  });
+</script>
 {% endblock %}

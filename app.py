@@ -1486,7 +1486,19 @@ def aset_import_guide():
 @login_required
 @role_required(ROLE_ADMIN)
 def kategori_list():
-    kategori_all = Kategori.query.all()
+    kategori_all = Kategori.query.order_by(Kategori.nama).all()
+
+    # Hitung jumlah pemakaian di Peminjaman per kategori (jumlah Aset sudah
+    # tersedia lewat k.aset_list, tidak perlu dihitung ulang di sini).
+    jumlah_peminjaman_map = dict(
+        db.session.query(Peminjaman.id_kategori, db.func.count(Peminjaman.id))
+        .filter(Peminjaman.id_kategori.isnot(None))
+        .group_by(Peminjaman.id_kategori)
+        .all()
+    )
+    for k in kategori_all:
+        k.jumlah_peminjaman = jumlah_peminjaman_map.get(k.id, 0)
+
     return render_template("kategori/list.html", kategori_all=kategori_all)
 
 
@@ -1500,21 +1512,96 @@ def kategori_create():
     return redirect(url_for("kategori_list"))
 
 
-def get_or_create_kategori(nama):
-    """Cari Kategori berdasarkan nama (case-insensitive), buat baru kalau
-    belum ada. Dipakai supaya field 'Jenis Barang' pada Peminjaman konsisten
-    dengan konsep Kategori yang sudah dipakai di modul Data Aset -- baik saat
-    input manual (form Tambah Peminjaman) maupun saat import Excel (sheet
-    BA Transfer)."""
+@app.route("/kategori/<int:id>/delete", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def kategori_delete(id):
+    """Hapus Kategori -- ditolak kalau masih dipakai oleh data Aset atau
+    Peminjaman manapun, supaya tidak ada data yang jadi 'nyangkut'/rusak
+    referensinya."""
+    kategori = Kategori.query.get_or_404(id)
+
+    jumlah_aset = Aset.query.filter_by(id_kategori=id).count()
+    jumlah_peminjaman = Peminjaman.query.filter_by(id_kategori=id).count()
+
+    if jumlah_aset > 0 or jumlah_peminjaman > 0:
+        pemakai = []
+        if jumlah_aset > 0:
+            pemakai.append(f"{jumlah_aset} data Aset")
+        if jumlah_peminjaman > 0:
+            pemakai.append(f"{jumlah_peminjaman} data Peminjaman")
+        flash(
+            f"Kategori '{kategori.nama}' tidak bisa dihapus karena masih dipakai oleh "
+            f"{' dan '.join(pemakai)}. Ubah/hapus data tersebut dulu, atau pindahkan "
+            f"ke kategori lain.",
+            "danger",
+        )
+        return redirect(url_for("kategori_list"))
+
+    db.session.delete(kategori)
+    db.session.commit()
+    flash(f"Kategori '{kategori.nama}' dihapus.", "success")
+    return redirect(url_for("kategori_list"))
+
+
+@app.route("/kategori/delete-multiple", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def kategori_delete_multiple():
+    """Hapus banyak Kategori sekaligus. Kategori yang masih dipakai Aset/
+    Peminjaman otomatis DILEWATI (tidak ikut terhapus) supaya data lain
+    tidak jadi rusak referensinya -- hasilnya dilaporkan lewat flash."""
+    ids = request.form.getlist("ids[]")
+    if not ids:
+        flash("Tidak ada kategori yang dipilih.", "danger")
+        return redirect(url_for("kategori_list"))
+
+    try:
+        ids = [int(i) for i in ids]
+    except ValueError:
+        flash("ID tidak valid.", "danger")
+        return redirect(url_for("kategori_list"))
+
+    kategori_list_dipilih = Kategori.query.filter(Kategori.id.in_(ids)).all()
+    if not kategori_list_dipilih:
+        flash("Tidak ada kategori yang ditemukan.", "danger")
+        return redirect(url_for("kategori_list"))
+
+    dihapus, gagal = [], []
+    for kategori in kategori_list_dipilih:
+        jumlah_aset = Aset.query.filter_by(id_kategori=kategori.id).count()
+        jumlah_peminjaman = Peminjaman.query.filter_by(id_kategori=kategori.id).count()
+        if jumlah_aset > 0 or jumlah_peminjaman > 0:
+            gagal.append(kategori.nama)
+        else:
+            dihapus.append(kategori.nama)
+            db.session.delete(kategori)
+
+    db.session.commit()
+
+    if dihapus:
+        flash(f"{len(dihapus)} kategori berhasil dihapus: {', '.join(dihapus)}.", "success")
+    if gagal:
+        flash(
+            f"{len(gagal)} kategori DILEWATI karena masih dipakai Aset/Peminjaman: {', '.join(gagal)}.",
+            "danger",
+        )
+    return redirect(url_for("kategori_list"))
+
+
+def find_kategori_saja(nama):
+    """Cari Kategori yang SUDAH ADA berdasarkan nama (case-insensitive),
+    TIDAK PERNAH membuat Kategori baru. Dipakai khusus di modul Peminjaman
+    (form Tambah Peminjaman & import Excel) supaya daftar Kategori tidak
+    ikut bertambah dari sana -- Kategori hanya boleh ditambahkan lewat
+    modul Data Aset. Kalau namanya belum terdaftar sebagai Kategori,
+    Peminjaman tetap menyimpan teksnya di kolom jenis_barang (legacy),
+    hanya saja tidak ditautkan (id_kategori tetap kosong)."""
     nama = (nama or "").strip()
     if not nama:
         return None
-    kategori = Kategori.query.filter(db.func.lower(Kategori.nama) == nama.lower()).first()
-    if not kategori:
-        kategori = Kategori(nama=nama)
-        db.session.add(kategori)
-        db.session.flush()
-    return kategori
+    return Kategori.query.filter(db.func.lower(Kategori.nama) == nama.lower()).first()
+
 
 # ---------------------------------------------------------------------------
 # HISTORY (TIKET READ-ONLY)
@@ -1764,6 +1851,55 @@ def pemindahan_detail(tiket_id):
     return render_template("pemindahan/detail.html", tiket=tiket)
 
 
+@app.route("/pemindahan/export")
+@login_required
+@role_required(ROLE_ADMIN)
+def pemindahan_export():
+    """Export seluruh data Pemindahan Aset ke Excel."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Data Pemindahan"
+    ws.append([
+        "No", "Nama Pemohon", "Aset Dipindahkan",
+        "Gedung Asal", "Lantai Asal", "Ruangan Asal",
+        "Gedung Tujuan", "Lantai Tujuan", "Ruangan Tujuan",
+        "Catatan", "Status", "Dibuat Oleh", "Tanggal Dibuat",
+    ])
+
+    daftar = Tiket.query.filter_by(jenis_tiket="Pemindahan").order_by(Tiket.created_at.desc()).all()
+    for no, t in enumerate(daftar, start=1):
+        nama_aset = [f"{ta.aset.kode_aset} - {ta.aset.nama}" for ta in t.aset_terkait if ta.aset]
+        ws.append([
+            no,
+            t.nama_pemohon,
+            "; ".join(nama_aset) if nama_aset else "-",
+            t.gedung_asal or "",
+            t.lantai_asal or "",
+            t.ruangan_asal or "",
+            t.gedung_tujuan or "",
+            t.lantai_tujuan or "",
+            t.ruangan_tujuan or "",
+            t.catatan or "",
+            t.status_tiket or "-",
+            t.user_creator.name if t.user_creator else "-",
+            t.created_at.strftime("%Y-%m-%d %H:%M") if t.created_at else "",
+        ])
+
+    for i in range(1, 14):
+        ws.column_dimensions[get_column_letter(i)].width = 20
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    nama_file = f"data_pemindahan_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=nama_file,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
 @app.route("/kerusakan")
 @login_required
 @role_required(ROLE_ADMIN)
@@ -1801,6 +1937,51 @@ def kerusakan_detail(tiket_id):
     """Detail kerusakan aset."""
     tiket = Tiket.query.filter_by(id=tiket_id, jenis_tiket="Kerusakan").first_or_404()
     return render_template("kerusakan/detail.html", tiket=tiket)
+
+
+@app.route("/kerusakan/export")
+@login_required
+@role_required(ROLE_ADMIN)
+def kerusakan_export():
+    """Export seluruh data Kerusakan Aset ke Excel."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Data Kerusakan"
+    ws.append([
+        "No", "Nama Pemohon", "Aset Rusak",
+        "Gedung", "Lantai", "Ruangan",
+        "Catatan", "Status", "Dibuat Oleh", "Tanggal Dibuat",
+    ])
+
+    daftar = Tiket.query.filter_by(jenis_tiket="Kerusakan").order_by(Tiket.created_at.desc()).all()
+    for no, t in enumerate(daftar, start=1):
+        nama_aset = [f"{ta.aset.kode_aset} - {ta.aset.nama}" for ta in t.aset_terkait if ta.aset]
+        ws.append([
+            no,
+            t.nama_pemohon,
+            "; ".join(nama_aset) if nama_aset else "-",
+            t.gedung_asal or "",
+            t.lantai_asal or "",
+            t.ruangan_asal or "",
+            t.catatan or "",
+            t.status_tiket or "-",
+            t.user_creator.name if t.user_creator else "-",
+            t.created_at.strftime("%Y-%m-%d %H:%M") if t.created_at else "",
+        ])
+
+    for i in range(1, 11):
+        ws.column_dimensions[get_column_letter(i)].width = 20
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    nama_file = f"data_kerusakan_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=nama_file,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @app.route("/tiket/create/pemindahan", methods=["POST"])
@@ -1928,7 +2109,7 @@ def tiket_create_kerusakan():
         ruangan_asal=ruangan_asal,
         catatan=catatan,
         foto=foto,
-        status_tiket="Selesai",  # Langsung selesai, tidak ada alur
+        created_by=current_user.id,
     )
     db.session.add(tiket)
     db.session.flush()
@@ -1953,7 +2134,10 @@ def tiket_create_kerusakan():
             
             db.session.add(TiketAset(id_tiket=tiket.id, id_aset=aset.id))
 
+    # Catat status "Selesai" lewat LogStatus (bukan kolom status_tiket --
+    # lihat models.py: Tiket.status_tiket sekarang dihitung dari sini)
     catat_log(tiket, None, "Selesai")
+
     db.session.commit()
     flash(f"Laporan kerusakan berhasil dibuat. {len(aset_ids)} aset ditandai rusak.", "success")
     return redirect(url_for("kerusakan_list"))
@@ -2061,6 +2245,69 @@ def peminjaman_list():
     )
 
 
+@app.route("/peminjaman/export")
+@login_required
+@role_required(ROLE_ADMIN)
+def peminjaman_export():
+    """Export seluruh data Peminjaman ke Excel (kolom rapi, 1 baris = 1
+    data peminjaman -- bukan gabungan histori event, biar tidak bercampur
+    dengan modul lain)."""
+    today = datetime.now(WIB).date()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Data Peminjaman"
+    ws.append([
+        "No", "Nama Peminjam", "Unit", "Lokasi Kerja",
+        "Jenis Barang (Kategori)", "Jenis Transaksi", "Aset/Barang Dipinjam",
+        "Tanggal Pinjam", "Rencana Kembali", "Tanggal Dikembalikan",
+        "Status", "Status Perpanjangan", "Keterangan",
+        "Dibuat Oleh", "Tanggal Dibuat",
+    ])
+
+    daftar = Peminjaman.query.order_by(Peminjaman.tanggal_pinjam.desc(), Peminjaman.id.desc()).all()
+    for no, p in enumerate(daftar, start=1):
+        if p.status == "Dipinjam" and p.tanggal_rencana_kembali and p.tanggal_rencana_kembali < today:
+            status_tampil = "Terlambat"
+        else:
+            status_tampil = p.status
+
+        nama_barang = [f"{pa.aset.kode_aset} - {pa.aset.nama}" for pa in p.aset_terkait if pa.aset]
+        barang_tampil = "; ".join(nama_barang) if nama_barang else "-"
+
+        ws.append([
+            no,
+            p.nama_peminjam,
+            p.unit or "",
+            p.lokasi_kerja or "",
+            p.kategori_ref.nama if p.kategori_ref else (p.jenis_barang or ""),
+            p.jenis_transaksi or "",
+            barang_tampil,
+            p.tanggal_pinjam.strftime("%Y-%m-%d") if p.tanggal_pinjam else "",
+            p.tanggal_rencana_kembali.strftime("%Y-%m-%d") if p.tanggal_rencana_kembali else "",
+            p.tanggal_dikembalikan.strftime("%Y-%m-%d") if p.tanggal_dikembalikan else "",
+            status_tampil,
+            p.status_perpanjangan or "",
+            p.keterangan or "",
+            p.user_creator.name if p.user_creator else "-",
+            p.created_at.strftime("%Y-%m-%d %H:%M") if p.created_at else "",
+        ])
+
+    for i in range(1, 16):
+        ws.column_dimensions[get_column_letter(i)].width = 20
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    nama_file = f"data_peminjaman_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=nama_file,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
 @app.route("/peminjaman/create", methods=["POST"])
 @login_required
 @role_required(ROLE_ADMIN)
@@ -2079,17 +2326,11 @@ def peminjaman_create():
     tanggal_rencana_str = request.form.get("tanggal_rencana_kembali")
     jenis_transaksi = request.form.get("jenis_transaksi", "").strip() or "Peminjaman"
 
-    # Jenis Barang (Kategori) -- dropdown Kategori (sama seperti di Data Aset).
-    # Kalau user memilih "+ Kategori baru" lalu isi teks manual, buat Kategori
-    # baru otomatis (mengikuti pola get_or_create_kategori).
+    # Jenis Barang (Kategori) -- dropdown Kategori (sama seperti di Data Aset),
+    # HANYA boleh memilih Kategori yang sudah ada. Peminjaman tidak pernah
+    # menambah Kategori baru -- itu khusus wewenang modul Data Aset.
     id_kategori_form = request.form.get("id_kategori", "").strip()
-    kategori_baru_nama = request.form.get("kategori_baru", "").strip()
-    id_kategori = None
-    if id_kategori_form and id_kategori_form != "__baru__" and id_kategori_form.isdigit():
-        id_kategori = int(id_kategori_form)
-    elif (id_kategori_form == "__baru__" or not id_kategori_form) and kategori_baru_nama:
-        kategori_obj = get_or_create_kategori(kategori_baru_nama)
-        id_kategori = kategori_obj.id if kategori_obj else None
+    id_kategori = int(id_kategori_form) if id_kategori_form.isdigit() else None
 
     if not nama_peminjam or not tanggal_pinjam_str:
         flash("Nama peminjam dan tanggal pinjam wajib diisi.", "danger")
@@ -2551,10 +2792,12 @@ def peminjaman_import():
         # Unit di halaman Peminjaman diambil otomatis dari nilai-nilai unik
         # kolom ini, bukan dari tabel master).
 
-        # Jenis Barang dari Excel dipetakan otomatis ke Kategori (dibuat baru
-        # kalau belum ada) supaya konsisten dengan konsep Kategori di modul
-        # Data Aset. Teks aslinya tetap disimpan di jenis_barang (legacy).
-        kategori_obj = get_or_create_kategori(jenis_barang) if jenis_barang else None
+        # Jenis Barang dari Excel HANYA ditautkan ke Kategori yang SUDAH ADA
+        # (terdaftar lewat modul Data Aset) -- TIDAK PERNAH membuat Kategori
+        # baru dari sini, supaya daftar Kategori tidak ikut membengkak tiap
+        # kali import Excel Peminjaman. Teks aslinya tetap disimpan di
+        # jenis_barang (legacy) walaupun tidak ketemu kategorinya.
+        kategori_obj = find_kategori_saja(jenis_barang) if jenis_barang else None
 
         db.session.add(Peminjaman(
             nama_peminjam=nama,
@@ -2660,6 +2903,58 @@ def maintenance_list():
         status_terpilih=status,
         search=search,
         gedung_all=gedung_all_formatted,
+    )
+
+
+@app.route("/maintenance/export")
+@login_required
+@role_required(ROLE_ADMIN)
+def maintenance_export():
+    """Export seluruh data Maintenance ke Excel. Kolom Kategori Aset diambil
+    dari kategori ASET SAAT INI (Aset.kategori_ref), bukan Maintenance.kategori
+    (teks snapshot lama yang bisa sudah tidak sinkron -- sama seperti alasan
+    perbaikan filter kategori di maintenance_list)."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Data Maintenance"
+    ws.append([
+        "No", "Kode Aset", "Nama Aset", "Kategori Aset",
+        "Judul Maintenance", "Tipe", "Vendor",
+        "Tanggal Mulai", "Tanggal Akhir", "Biaya (Rp)", "Status",
+        "Deskripsi", "Dibuat Oleh", "Tanggal Dibuat",
+    ])
+
+    daftar = Maintenance.query.join(Aset).order_by(Maintenance.tanggal_mulai.desc()).all()
+    for no, m in enumerate(daftar, start=1):
+        ws.append([
+            no,
+            m.aset.kode_aset if m.aset else "",
+            m.aset.nama if m.aset else "",
+            m.aset.kategori_ref.nama if m.aset and m.aset.kategori_ref else "",
+            m.judul,
+            m.tipe,
+            m.vendor or "",
+            m.tanggal_mulai.strftime("%Y-%m-%d") if m.tanggal_mulai else "",
+            m.tanggal_akhir.strftime("%Y-%m-%d") if m.tanggal_akhir else "",
+            float(m.biaya) if m.biaya else 0,
+            m.status,
+            m.deskripsi or "",
+            m.user.name if m.user else "-",
+            m.created_at.strftime("%Y-%m-%d %H:%M") if m.created_at else "",
+        ])
+
+    for i in range(1, 15):
+        ws.column_dimensions[get_column_letter(i)].width = 20
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    nama_file = f"data_maintenance_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=nama_file,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 
