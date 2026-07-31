@@ -999,6 +999,30 @@ def upsert_lokasi_master(area, gedung, lantai, ruangan):
             db.session.add(ruangan_obj)
 
 
+def build_lokasi_master():
+    """Bangun data master lokasi (Area -> Gedung -> Lantai -> Ruangan) untuk
+    dropdown berjenjang. Dipakai di form Tambah/Edit Aset (aset_list) dan
+    juga di form Pemindahan Aset per-item (aset_pemindahan_form)."""
+    return {
+        "area": [
+            {"id": a.id, "nama": a.nama, "label": format_area_label(a.nama)}
+            for a in Area.query.order_by(Area.nama).all()
+        ],
+        "gedung": [
+            {"id": g.id, "nama": g.nama, "id_area": g.id_area}
+            for g in Gedung.query.order_by(Gedung.nama).all()
+        ],
+        "lantai": [
+            {"id": l.id, "nama": l.nama, "id_gedung": l.id_gedung}
+            for l in Lantai.query.order_by(Lantai.nama).all()
+        ],
+        "ruangan": [
+            {"id": r.id, "nama": r.nama, "id_gedung": r.id_gedung, "id_lantai": r.id_lantai}
+            for r in Ruangan.query.order_by(Ruangan.nama).all()
+        ],
+    }
+
+
 @app.route("/aset")
 @login_required
 def aset_list():
@@ -1081,24 +1105,7 @@ def aset_list():
     # tabel Area/Gedung/Lantai/Ruangan (terisi otomatis lewat import Excel,
     # lihat upsert_lokasi_master()). Dikirim sebagai JSON supaya JS bisa
     # melakukan filter berjenjang tanpa perlu request tambahan ke server.
-    lokasi_master = {
-        "area": [
-            {"id": a.id, "nama": a.nama, "label": format_area_label(a.nama)}
-            for a in Area.query.order_by(Area.nama).all()
-        ],
-        "gedung": [
-            {"id": g.id, "nama": g.nama, "id_area": g.id_area}
-            for g in Gedung.query.order_by(Gedung.nama).all()
-        ],
-        "lantai": [
-            {"id": l.id, "nama": l.nama, "id_gedung": l.id_gedung}
-            for l in Lantai.query.order_by(Lantai.nama).all()
-        ],
-        "ruangan": [
-            {"id": r.id, "nama": r.nama, "id_gedung": r.id_gedung, "id_lantai": r.id_lantai}
-            for r in Ruangan.query.order_by(Ruangan.nama).all()
-        ],
-    }
+    lokasi_master = build_lokasi_master()
 
     # --- TAMBAHAN: opsi dropdown Fungsi Barang & Satuan. Field ini TIDAK
     # punya tabel master baru (sesuai permintaan) -- opsinya cukup diambil
@@ -1519,6 +1526,113 @@ def aset_histori(aset_id):
             "id_tiket": h.id_tiket
         })
     return jsonify(data)
+
+@app.route("/aset/<int:aset_id>/pemindahan", methods=["GET"])
+@login_required
+@role_required(ROLE_ADMIN)
+def aset_pemindahan_form(aset_id):
+    """Halaman form Pemindahan khusus untuk 1 aset (dibuka lewat tombol
+    'Pemindahan' di Data Aset). Lokasi Saat Ini diambil otomatis dari data
+    aset, user hanya perlu mengisi Lokasi Tujuan."""
+    aset = Aset.query.get_or_404(aset_id)
+    lokasi_master = build_lokasi_master()
+    return render_template(
+        "aset/pemindahan_form.html",
+        aset=aset,
+        lokasi_master=lokasi_master,
+    )
+
+
+@app.route("/aset/<int:aset_id>/pemindahan", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def aset_pemindahan_submit(aset_id):
+    """Proses submit form Pemindahan per-item: buat tiket Pemindahan (langsung
+    Selesai) + histori aset, lalu update lokasi aset -- sama persis alurnya
+    dengan tiket_create_pemindahan(), supaya otomatis muncul juga di menu
+    Pemindahan Aset."""
+    aset = Aset.query.get_or_404(aset_id)
+
+    nama_pemohon = request.form.get("nama_pemohon", "").strip() or current_user.name
+    tujuan_gedung = request.form.get("tujuan_gedung", "").strip()
+    tujuan_lantai = request.form.get("tujuan_lantai", "").strip()
+    tujuan_ruangan = request.form.get("tujuan_ruangan", "").strip()
+    catatan = request.form.get("catatan", "").strip()
+
+    if not tujuan_gedung or not tujuan_ruangan:
+        flash("Lokasi Tujuan (Gedung & Ruangan) wajib diisi.", "danger")
+        return redirect(url_for("aset_pemindahan_form", aset_id=aset.id))
+
+    gedung_asal = aset.gedung
+    lantai_asal = aset.lantai
+    ruangan_asal = aset.ruangan
+
+    lokasi_sama = (
+        tujuan_gedung == (gedung_asal or "")
+        and (tujuan_lantai or None) == (lantai_asal or None)
+        and tujuan_ruangan == (ruangan_asal or "")
+    )
+    if lokasi_sama:
+        flash("Lokasi Tujuan sama dengan lokasi aset saat ini.", "warning")
+        return redirect(url_for("aset_pemindahan_form", aset_id=aset.id))
+
+    tiket = Tiket(
+        jenis_tiket="Pemindahan",
+        nama_pemohon=nama_pemohon,
+        gedung_asal=gedung_asal,
+        lantai_asal=lantai_asal,
+        ruangan_asal=ruangan_asal,
+        gedung_tujuan=tujuan_gedung,
+        lantai_tujuan=tujuan_lantai or None,
+        ruangan_tujuan=tujuan_ruangan,
+        catatan=catatan or None,
+        created_by=current_user.id,
+    )
+    db.session.add(tiket)
+    db.session.flush()
+
+    db.session.add(HistoriAset(
+        id_aset=aset.id,
+        jenis_event="pindah",
+        gedung=tujuan_gedung,
+        lantai=tujuan_lantai or None,
+        ruangan=tujuan_ruangan,
+        gedung_asal=gedung_asal,
+        lantai_asal=lantai_asal,
+        ruangan_asal=ruangan_asal,
+        id_tiket=tiket.id,
+    ))
+
+    db.session.add(LogStatus(
+        id_tiket=tiket.id,
+        status_lama=None,
+        status_baru="Selesai",
+        id_user_pengubah=current_user.id,
+    ))
+
+    db.session.add(TiketAset(id_tiket=tiket.id, id_aset=aset.id))
+
+    data_lama_lokasi = {"gedung": gedung_asal, "lantai": lantai_asal, "ruangan": ruangan_asal}
+
+    aset.gedung = tujuan_gedung
+    aset.lantai = tujuan_lantai or None
+    aset.ruangan = tujuan_ruangan
+    aset.status_aset = "Baik"
+
+    catat_aktivitas(
+        aksi="MOVE",
+        target_model="Aset",
+        target_id=aset.id,
+        deskripsi=f"Memindahkan aset {aset.nama} dari {gedung_asal or '-'} / {ruangan_asal or '-'} ke {tujuan_gedung} / {tujuan_ruangan}",
+        data_lama=data_lama_lokasi,
+        data_baru={"gedung": aset.gedung, "lantai": aset.lantai, "ruangan": aset.ruangan},
+    )
+
+    db.session.commit()
+
+    flash(f"Aset {aset.nama} berhasil dipindahkan.", "success")
+    return redirect(url_for("pemindahan_list"))
+
 
 @app.route("/aset/delete-multiple", methods=["POST"])
 @login_required
