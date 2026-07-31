@@ -54,6 +54,16 @@
           {% if tiket.ruangan_asal %}/ {{ tiket.ruangan_asal }}{% endif %}
         </p>
       </div>
+      {% if tiket.gedung_tujuan %}
+      <div>
+        <p class="text-xs text-slate-400 mb-0.5">🎯 Dipindahkan Ke</p>
+        <p class="font-medium text-slate-700">
+          {{ tiket.gedung_tujuan }}
+          {% if tiket.lantai_tujuan %}/ Lantai {{ tiket.lantai_tujuan }}{% endif %}
+          {% if tiket.ruangan_tujuan %}/ {{ tiket.ruangan_tujuan }}{% endif %}
+        </p>
+      </div>
+      {% endif %}
     </div>
 
     <div>
@@ -84,7 +94,8 @@
       <div class="flex flex-wrap gap-1.5">
         {% for ta in tiket.aset_terkait %}
         <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-600">
-          <span class="font-mono text-[10px] text-slate-400">{{ ta.aset.kode_aset }}</span>{{ ta.aset.nama }}
+          <span class="font-mono text-[10px] text-slate-400">{{ ta.aset.kode_aset if ta.aset else ta.kode_aset_snapshot }}</span>{{ ta.aset.nama if ta.aset else ta.nama_aset_snapshot }}
+          {% if not ta.aset %}<span class="italic text-slate-400">(sudah dihapus)</span>{% endif %}
         </span>
         {% endfor %}
       </div>
@@ -110,10 +121,14 @@
       <p class="text-sm font-semibold text-slate-700 mb-3">Histori Aset</p>
       {% for ta in tiket.aset_terkait %}
         <div class="mb-3">
-          <p class="text-xs font-medium text-slate-600">{{ ta.aset.nama }}</p>
+          <p class="text-xs font-medium text-slate-600">{{ ta.aset.nama if ta.aset else ta.nama_aset_snapshot }}</p>
+          {% if ta.aset %}
           <div id="histori-{{ ta.aset.id }}" class="space-y-1 mt-1">
             <p class="text-xs text-slate-400">Memuat histori...</p>
           </div>
+          {% else %}
+          <p class="text-xs text-slate-400 italic">Aset ini sudah dihapus dari sistem.</p>
+          {% endif %}
         </div>
       {% else %}
         <p class="text-xs text-slate-400">Tidak ada aset terkait.</p>
@@ -128,7 +143,7 @@
 <script>
 // Load histori untuk setiap aset
 document.addEventListener('DOMContentLoaded', function() {
-  {% for ta in tiket.aset_terkait %}
+  {% for ta in tiket.aset_terkait if ta.aset %}
   fetch('/aset/{{ ta.aset.id }}/histori')
     .then(res => res.json())
     .then(data => {

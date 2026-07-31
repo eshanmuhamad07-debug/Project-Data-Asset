@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Kerusakan Aset{% endblock %}
+{% block header %}Kerusakan Aset{% endblock %}
+{% block subheader %}<p class="text-xs text-slate-400">Laporkan kerusakan 1 aset -- riwayatnya otomatis tercatat di menu Kerusakan Aset</p>{% endblock %}
+
+{% block content %}
+
+<div class="max-w-xl">
+  <a href="{{ url_for('aset_list') }}" class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 mb-3">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+    </svg>
+    Kembali ke Data Aset
+  </a>
+
+  <div class="card">
+    <!-- Info Aset -->
+    <div class="p-4 sm:p-5 border-b border-slate-100">
+      <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Aset yang dilaporkan rusak</p>
+      <p class="font-display font-bold text-slate-800">{{ aset.nama }}</p>
+      <p class="text-xs text-slate-500 font-mono">{{ aset.kode_aset }}</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('aset_kerusakan_submit', aset_id=aset.id) }}" enctype="multipart/form-data" class="p-5 space-y-3.5">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div>
+        <label class="field-label">Nama Pemohon</label>
+        <input name="nama_pemohon" class="field-input" placeholder="Nama pengaju"
+          value="{{ current_user.name }}">
+      </div>
+
+      <div>
+        <label class="field-label">Lokasi Aset</label>
+        <div class="field-input bg-slate-100 text-slate-500 cursor-not-allowed">
+          {{ (format_area_label(aset.area) ~ ' - ') if aset.area else '' }}{{ aset.gedung }}{{ (' / Lt. ' ~ aset.lantai) if aset.lantai else '' }} / {{ aset.ruangan }}
+        </div>
+      </div>
+
+      <div>
+        <label class="field-label">Catatan Kerusakan</label>
+        <textarea name="catatan" rows="3" class="field-input" placeholder="Jelaskan kerusakan yang terjadi (opsional)"></textarea>
+      </div>
+
+      <p class="text-xs font-semibold text-slate-500 pt-1">🎯 Tujuan Gedung (opsional)</p>
+      <p class="text-[11px] text-slate-400 -mt-2">Isi kalau aset yang rusak ini juga langsung dipindahkan (mis. ke gudang/bengkel perbaikan). Kosongkan kalau lokasi aset tidak berubah.</p>
+      <div>
+        <label class="field-label text-[10px]">Area</label>
+        <select id="tujuanArea" class="field-input text-sm"
+          onchange="onMasterAreaChange('tujuanArea','tujuanGedung','tujuanLantai','tujuanRuangan')">
+          <option value="">-- Pilih Area --</option>
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="field-label text-[10px]">Gedung</label>
+          <select name="tujuan_gedung" id="tujuanGedung" class="field-input text-sm"
+            onchange="onMasterGedungChange('tujuanArea','tujuanGedung','tujuanLantai','tujuanRuangan')">
+            <option value="">-- Pilih Area dulu --</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label text-[10px]">Lantai</label>
+          <select name="tujuan_lantai" id="tujuanLantai" class="field-input text-sm"
+            onchange="onMasterLantaiChange('tujuanArea','tujuanGedung','tujuanLantai','tujuanRuangan')">
+            <option value="">-- Pilih Gedung dulu --</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="field-label text-[10px]">Ruangan</label>
+        <select name="tujuan_ruangan" id="tujuanRuangan" class="field-input text-sm">
+          <option value="">-- Pilih Gedung dulu --</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="field-label">Upload Foto Kerusakan</label>
+        <input type="file" name="foto" accept="image/*"
+          class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
+      </div>
+
+      <div class="flex gap-2 pt-1">
+        <a href="{{ url_for('aset_list') }}" class="btn btn-secondary flex-1 py-2.5 text-center">Batal</a>
+        <button type="submit" class="btn flex-1 py-2.5" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Laporkan Kerusakan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // =============================================================
+  // DROPDOWN BERJENJANG AREA -> GEDUNG -> LANTAI -> RUANGAN
+  // (sama persis mekanismenya dengan yang dipakai di form Pemindahan Aset,
+  // lihat templates/aset/pemindahan_form.html)
+  // =============================================================
+  const LOKASI_MASTER = {{ lokasi_master | tojson }};
+
+  function populateSelect(selectEl, options, placeholder, selectedValue) {
+    if (!selectEl) return;
+    selectEl.innerHTML = '';
+    const optPlaceholder = document.createElement('option');
+    optPlaceholder.value = '';
+    optPlaceholder.textContent = placeholder;
+    selectEl.appendChild(optPlaceholder);
+
+    let finalOptions = options.map(function (o) {
+      return (typeof o === 'string') ? { value: o, label: o } : o;
+    });
+
+    const sudahAda = selectedValue && finalOptions.some(o => o.value === selectedValue);
+    if (selectedValue && !sudahAda) {
+      finalOptions.push({ value: selectedValue, label: selectedValue });
+    }
+
+    finalOptions.forEach(function (opt) {
+      const o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.label;
+      if (selectedValue && opt.value === selectedValue) o.selected = true;
+      selectEl.appendChild(o);
+    });
+  }
+
+  function getGedungByArea(areaNama) {
+    const areaObj = LOKASI_MASTER.area.find(a => a.nama === areaNama);
+    const areaId = areaObj ? areaObj.id : null;
+    const areaLabel = areaObj ? (areaObj.label || areaObj.nama) : areaNama;
+    const seen = new Set();
+    const result = [];
+    LOKASI_MASTER.gedung
+      .filter(g => areaNama ? g.id_area === areaId : true)
+      .forEach(g => {
+        if (seen.has(g.nama)) return;
+        seen.add(g.nama);
+        result.push({ value: g.nama, label: areaLabel ? `${areaLabel} - ${g.nama}` : g.nama });
+      });
+    result.sort((a, b) => a.label.localeCompare(b.label));
+    return result;
+  }
+
+  function getGedungIdByAreaAndNama(areaNama, gedungNama) {
+    if (!gedungNama) return null;
+    const areaObj = LOKASI_MASTER.area.find(a => a.nama === areaNama);
+    const areaId = areaObj ? areaObj.id : null;
+    const g = LOKASI_MASTER.gedung.find(g => g.nama === gedungNama && (areaNama ? g.id_area === areaId : true));
+    return g ? g.id : null;
+  }
+
+  function getLantaiByGedung(gedungId) {
+    if (!gedungId) return [];
+    const list = LOKASI_MASTER.lantai.filter(l => l.id_gedung === gedungId).map(l => l.nama);
+    return Array.from(new Set(list)).sort();
+  }
+
+  function getLantaiIdByGedungAndNama(gedungId, lantaiNama) {
+    if (!gedungId || !lantaiNama) return null;
+    const l = LOKASI_MASTER.lantai.find(l => l.id_gedung === gedungId && l.nama === lantaiNama);
+    return l ? l.id : null;
+  }
+
+  function getRuanganByGedungLantai(gedungId, lantaiId) {
+    if (!gedungId) return [];
+    const list = LOKASI_MASTER.ruangan
+      .filter(r => r.id_gedung === gedungId && (lantaiId ? (r.id_lantai === lantaiId || r.id_lantai === null) : true))
+      .map(r => r.nama);
+    return Array.from(new Set(list)).sort();
+  }
+
+  function onMasterAreaChange(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, selectedGedung, selectedLantai, selectedRuangan) {
+    const areaSel = document.getElementById(areaSelId);
+    const gedungSel = document.getElementById(gedungSelId);
+    if (!areaSel || !gedungSel) return;
+    const areaNama = areaSel.value;
+    const gedungOptions = getGedungByArea(areaNama);
+    const placeholder = gedungOptions.length ? '-- Pilih Gedung --' : (areaNama ? 'Belum ada data gedung' : '-- Pilih Area dulu --');
+    populateSelect(gedungSel, gedungOptions, placeholder, selectedGedung);
+    onMasterGedungChange(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, selectedLantai, selectedRuangan);
+  }
+
+  function onMasterGedungChange(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, selectedLantai, selectedRuangan) {
+    const areaSel = document.getElementById(areaSelId);
+    const gedungSel = document.getElementById(gedungSelId);
+    const lantaiSel = document.getElementById(lantaiSelId);
+    if (!gedungSel || !lantaiSel) return;
+    const gedungId = getGedungIdByAreaAndNama(areaSel ? areaSel.value : '', gedungSel.value);
+    const lantaiOptions = getLantaiByGedung(gedungId);
+    const placeholder = lantaiOptions.length ? '-- Pilih Lantai (opsional) --' : (gedungId ? 'Belum ada data lantai' : '-- Pilih Gedung dulu --');
+    populateSelect(lantaiSel, lantaiOptions, placeholder, selectedLantai);
+    onMasterLantaiChange(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, selectedRuangan);
+  }
+
+  function onMasterLantaiChange(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, selectedRuangan) {
+    const areaSel = document.getElementById(areaSelId);
+    const gedungSel = document.getElementById(gedungSelId);
+    const lantaiSel = document.getElementById(lantaiSelId);
+    const ruanganSel = document.getElementById(ruanganSelId);
+    if (!gedungSel || !ruanganSel) return;
+    const gedungId = getGedungIdByAreaAndNama(areaSel ? areaSel.value : '', gedungSel.value);
+    const lantaiId = lantaiSel ? getLantaiIdByGedungAndNama(gedungId, lantaiSel.value) : null;
+    const ruanganOptions = getRuanganByGedungLantai(gedungId, lantaiId);
+    const placeholder = ruanganOptions.length ? '-- Pilih Ruangan --' : (gedungId ? 'Belum ada data ruangan' : '-- Pilih Gedung dulu --');
+    populateSelect(ruanganSel, ruanganOptions, placeholder, selectedRuangan);
+  }
+
+  function applyLokasiValues(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, areaVal, gedungVal, lantaiVal, ruanganVal) {
+    const areaSel = document.getElementById(areaSelId);
+    if (!areaSel) return;
+    const areaOptions = LOKASI_MASTER.area.map(a => ({ value: a.nama, label: a.label || a.nama }));
+    populateSelect(areaSel, areaOptions, '-- Pilih Area --', areaVal);
+    onMasterAreaChange(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, gedungVal, lantaiVal, ruanganVal);
+  }
+
+  // Tujuan Gedung mulai kosong -- opsional, tidak wajib diisi.
+  document.addEventListener('DOMContentLoaded', function () {
+    applyLokasiValues('tujuanArea', 'tujuanGedung', 'tujuanLantai', 'tujuanRuangan', '', '', '', '');
+  });
+</script>
+{% endblock %}

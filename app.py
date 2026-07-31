@@ -583,6 +583,22 @@ def catat_log(tiket, status_lama, status_baru):
     ))
 
 
+def tambahkan_tiket_aset(id_tiket, aset):
+    """Buat baris TiketAset sekaligus simpan snapshot kode & nama aset.
+    Dipakai di semua tempat pembuatan tiket Pemindahan/Kerusakan supaya
+    kalau suatu saat asetnya dihapus dari sistem, tiket & histori terkait
+    (menu Pemindahan/Kerusakan) tetap bisa menampilkan kode & nama aset
+    tersebut alih-alih error karena relasi aset sudah kosong."""
+    ta = TiketAset(
+        id_tiket=id_tiket,
+        id_aset=aset.id,
+        kode_aset_snapshot=aset.kode_aset,
+        nama_aset_snapshot=aset.nama,
+    )
+    db.session.add(ta)
+    return ta
+
+
 @app.errorhandler(403)
 def forbidden(e):
     return render_template("403.html"), 403
@@ -1444,7 +1460,7 @@ def aset_delete(aset_id):
     # Ambil alasan dari form
     reason = request.form.get("delete_reason", "").strip()
     
-    # Catat aktivitas dengan alasan
+    # Catat aktivitas dengan alasan (Log Aktivitas / History umum)
     catat_aktivitas(
         aksi="DELETE",
         target_model="Aset",
@@ -1453,10 +1469,49 @@ def aset_delete(aset_id):
         data_lama=snapshot_aset(aset),
         data_baru=None,
     )
-    
+
+    # +++ Simpan juga jejak penghapusan ini ke menu Kerusakan, supaya
+    # riwayatnya tidak hilang begitu saja saat data asetnya benar-benar
+    # dihapus dari database (kode & nama aset diikutsertakan sebagai
+    # snapshot, karena setelah ini asetnya sudah tidak ada lagi).
+    tiket_hapus = Tiket(
+        jenis_tiket="Kerusakan",
+        nama_pemohon=current_user.name,
+        gedung_asal=aset.gedung,
+        lantai_asal=aset.lantai,
+        ruangan_asal=aset.ruangan,
+        catatan="Aset dihapus dari sistem." + (f" Alasan: {reason}" if reason else ""),
+        created_by=current_user.id,
+    )
+    db.session.add(tiket_hapus)
+    db.session.flush()
+    catat_log(tiket_hapus, None, "Selesai")
+    db.session.add(TiketAset(
+        id_tiket=tiket_hapus.id,
+        id_aset=None,
+        kode_aset_snapshot=aset.kode_aset,
+        nama_aset_snapshot=aset.nama,
+    ))
+
+    # +++ Lepas semua TiketAset (Pemindahan/Kerusakan) lama yang masih
+    # menunjuk ke aset ini: backfill snapshot dulu (untuk data lama dari
+    # sebelum fitur snapshot ini ada), baru lepas id_aset-nya supaya tidak
+    # melanggar foreign key ketika aset dihapus -- kode & nama aset tetap
+    # tampil di menu Pemindahan/Kerusakan berkat snapshot tsb.
+    for ta in TiketAset.query.filter_by(id_aset=aset.id).all():
+        if not ta.kode_aset_snapshot:
+            ta.kode_aset_snapshot = aset.kode_aset
+        if not ta.nama_aset_snapshot:
+            ta.nama_aset_snapshot = aset.nama
+        ta.id_aset = None
+
     db.session.delete(aset)
     db.session.commit()
-    flash(f"Aset berhasil dihapus." + (f" Alasan: {reason}" if reason else ""), "success")
+    flash(
+        "Aset berhasil dihapus." + (f" Alasan: {reason}" if reason else "")
+        + " Riwayatnya tetap tersimpan di menu Kerusakan.",
+        "success",
+    )
     return redirect(url_for("aset_list"))
 
 @app.route("/aset/<int:aset_id>/detail")
@@ -1610,7 +1665,7 @@ def aset_pemindahan_submit(aset_id):
         id_user_pengubah=current_user.id,
     ))
 
-    db.session.add(TiketAset(id_tiket=tiket.id, id_aset=aset.id))
+    tambahkan_tiket_aset(tiket.id, aset)
 
     data_lama_lokasi = {"gedung": gedung_asal, "lantai": lantai_asal, "ruangan": ruangan_asal}
 
@@ -1632,6 +1687,125 @@ def aset_pemindahan_submit(aset_id):
 
     flash(f"Aset {aset.nama} berhasil dipindahkan.", "success")
     return redirect(url_for("pemindahan_list"))
+
+
+@app.route("/aset/<int:aset_id>/kerusakan", methods=["GET"])
+@login_required
+@role_required(ROLE_ADMIN)
+def aset_kerusakan_form(aset_id):
+    """Halaman form Kerusakan khusus untuk 1 aset (dibuka lewat tombol
+    'Kerusakan' di Edit Data Aset) -- sama mekanismenya dengan
+    aset_pemindahan_form. Tujuan Gedung/Lantai/Ruangan bersifat opsional:
+    kalau diisi, aset akan sekaligus dipindahkan (mis. ke gudang/bengkel
+    perbaikan) saat dilaporkan rusak; kalau dikosongkan, lokasi aset tidak
+    berubah."""
+    aset = Aset.query.get_or_404(aset_id)
+    lokasi_master = build_lokasi_master()
+    return render_template(
+        "aset/kerusakan_form.html",
+        aset=aset,
+        lokasi_master=lokasi_master,
+    )
+
+
+@app.route("/aset/<int:aset_id>/kerusakan", methods=["POST"])
+@login_required
+@role_required(ROLE_ADMIN)
+def aset_kerusakan_submit(aset_id):
+    """Proses submit form Kerusakan per-item: buat tiket Kerusakan (langsung
+    Selesai) + histori aset, lalu tandai aset Rusak -- sama alurnya dengan
+    tiket_create_kerusakan(), supaya otomatis muncul juga di menu Kerusakan
+    Aset. Kalau Tujuan Gedung/Ruangan diisi, lokasi aset ikut dipindahkan
+    (tercatat sebagai lokasi asal -> tujuan, sama seperti Pemindahan)."""
+    aset = Aset.query.get_or_404(aset_id)
+
+    nama_pemohon = request.form.get("nama_pemohon", "").strip() or current_user.name
+    catatan = request.form.get("catatan", "").strip()
+    tujuan_gedung = request.form.get("tujuan_gedung", "").strip()
+    tujuan_lantai = request.form.get("tujuan_lantai", "").strip()
+    tujuan_ruangan = request.form.get("tujuan_ruangan", "").strip()
+    foto, foto_error = save_upload(request.files.get("foto"), prefix="tiket_")
+
+    gedung_asal = aset.gedung
+    lantai_asal = aset.lantai
+    ruangan_asal = aset.ruangan
+
+    # Tujuan dianggap diisi hanya kalau Gedung & Ruangan tujuan lengkap DAN
+    # benar-benar berbeda dari lokasi aset saat ini.
+    pindah_juga = bool(tujuan_gedung and tujuan_ruangan) and not (
+        tujuan_gedung == (gedung_asal or "")
+        and (tujuan_lantai or None) == (lantai_asal or None)
+        and tujuan_ruangan == (ruangan_asal or "")
+    )
+
+    tiket = Tiket(
+        jenis_tiket="Kerusakan",
+        nama_pemohon=nama_pemohon,
+        gedung_asal=gedung_asal,
+        lantai_asal=lantai_asal,
+        ruangan_asal=ruangan_asal,
+        gedung_tujuan=tujuan_gedung if pindah_juga else None,
+        lantai_tujuan=(tujuan_lantai or None) if pindah_juga else None,
+        ruangan_tujuan=tujuan_ruangan if pindah_juga else None,
+        catatan=catatan or None,
+        foto=foto,
+        created_by=current_user.id,
+    )
+    db.session.add(tiket)
+    db.session.flush()
+
+    db.session.add(HistoriAset(
+        id_aset=aset.id,
+        jenis_event="rusak",
+        gedung=tujuan_gedung if pindah_juga else aset.gedung,
+        lantai=(tujuan_lantai or None) if pindah_juga else aset.lantai,
+        ruangan=tujuan_ruangan if pindah_juga else aset.ruangan,
+        gedung_asal=gedung_asal if pindah_juga else None,
+        lantai_asal=lantai_asal if pindah_juga else None,
+        ruangan_asal=ruangan_asal if pindah_juga else None,
+        id_tiket=tiket.id,
+    ))
+
+    catat_log(tiket, None, "Selesai")
+
+    tambahkan_tiket_aset(tiket.id, aset)
+
+    status_lama = aset.status_aset
+    aset.status_aset = "Rusak"
+    aset.total_kerusakan = (aset.total_kerusakan or 0) + 1
+
+    data_lama = {"status": status_lama, "gedung": gedung_asal, "lantai": lantai_asal, "ruangan": ruangan_asal}
+
+    if pindah_juga:
+        aset.gedung = tujuan_gedung
+        aset.lantai = tujuan_lantai or None
+        aset.ruangan = tujuan_ruangan
+        deskripsi = (
+            f"Melaporkan kerusakan aset {aset.nama} ({aset.kode_aset}) "
+            f"sekaligus memindahkannya dari {gedung_asal or '-'} / {ruangan_asal or '-'} "
+            f"ke {tujuan_gedung} / {tujuan_ruangan}"
+        )
+    else:
+        deskripsi = f"Melaporkan kerusakan aset {aset.nama} ({aset.kode_aset})"
+
+    catat_aktivitas(
+        aksi="DAMAGE",
+        target_model="Aset",
+        target_id=aset.id,
+        deskripsi=deskripsi,
+        data_lama=data_lama,
+        data_baru={"status": aset.status_aset, "gedung": aset.gedung, "lantai": aset.lantai, "ruangan": aset.ruangan},
+    )
+
+    db.session.commit()
+
+    if foto_error:
+        flash(f"Laporan kerusakan berhasil dibuat, tetapi foto gagal diupload: {foto_error}", "warning")
+    elif pindah_juga:
+        flash(f"Kerusakan aset {aset.nama} berhasil dilaporkan dan aset dipindahkan ke {tujuan_gedung} / {tujuan_ruangan}.", "success")
+    else:
+        flash(f"Kerusakan aset {aset.nama} berhasil dilaporkan.", "success")
+    return redirect(url_for("kerusakan_list"))
 
 
 @app.route("/aset/delete-multiple", methods=["POST"])
@@ -2583,7 +2757,7 @@ def tiket_create_pemindahan():
                 }
             )
 
-            db.session.add(TiketAset(id_tiket=tiket.id, id_aset=aset.id))
+            tambahkan_tiket_aset(tiket.id, aset)
 
     db.session.commit()
 
@@ -2642,7 +2816,7 @@ def tiket_create_kerusakan():
             )
             db.session.add(histori)
             
-            db.session.add(TiketAset(id_tiket=tiket.id, id_aset=aset.id))
+            tambahkan_tiket_aset(tiket.id, aset)
 
     # Catat status "Selesai" lewat LogStatus (bukan kolom status_tiket --
     # lihat models.py: Tiket.status_tiket sekarang dihitung dari sini)

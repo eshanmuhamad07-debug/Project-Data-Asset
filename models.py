@@ -200,8 +200,18 @@ class TiketAset(db.Model):
     __tablename__ = "tiket_aset"
     id = db.Column(db.Integer, primary_key=True)
     id_tiket = db.Column(db.Integer, db.ForeignKey("tiket.id"), nullable=False)
-    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=False)
+    # Nullable: kalau aset yang bersangkutan sudah dihapus dari sistem,
+    # id_aset akan dilepas (di-set None) supaya tidak melanggar constraint
+    # FK, tapi tiket & histori-nya (mis. di menu Kerusakan) tetap tampil
+    # berkat kode_aset_snapshot / nama_aset_snapshot di bawah ini.
+    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=True)
     aset = db.relationship("Aset")
+
+    # Snapshot kode & nama aset saat tiket dibuat -- dipakai sebagai fallback
+    # tampilan (di halaman Pemindahan/Kerusakan) kalau aset aslinya sudah
+    # dihapus (aset relationship jadi None).
+    kode_aset_snapshot = db.Column(db.String(50), nullable=True)
+    nama_aset_snapshot = db.Column(db.String(150), nullable=True)
 
 
 class LogStatus(db.Model):
