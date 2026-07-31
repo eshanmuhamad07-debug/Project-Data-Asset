@@ -44,7 +44,7 @@
       <tbody>
         {% for t in daftar_tiket %}
         <tr class="table-row cursor-pointer hover:bg-slate-50" onclick="window.location='{{ url_for('kerusakan_detail', tiket_id=t.id) }}'">
-          <td class="td font-semibold text-slate-800">#{{ t.id }}</td>
+          <td class="td font-semibold text-slate-800">#{{ nomor_urut_map.get(t.id, t.id) }}</td>
           <td class="td">{{ t.nama_pemohon }}</td>
           <td class="td whitespace-nowrap text-slate-500">{{ t.gedung_asal or '—' }} / {{ t.ruangan_asal or '—' }}</td>
           <td class="td">{{ m.pill(t.status_tiket, m.tiket_tone(t.status_tiket)) }}</td>

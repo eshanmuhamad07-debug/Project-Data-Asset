@@ -45,6 +45,67 @@ class Kategori(db.Model):
 
 
 # ============================================================
+# MASTER LOKASI (Area / Gedung / Lantai / Ruangan)
+# ============================================================
+# Tabel-tabel ini TIDAK punya halaman kelola tersendiri (tidak ditampilkan
+# sebagai menu di UI) -- tujuannya hanya sebagai sumber data untuk dropdown
+# Area/Gedung/Lantai/Ruangan di form Tambah & Edit Aset. Data di tabel ini
+# terisi OTOMATIS setiap kali ada import Excel Data Aset (lihat app.py,
+# fungsi upsert_lokasi_master() yang dipanggil dari route /aset/import).
+# Kolom Aset.area / Aset.gedung / Aset.lantai / Aset.ruangan TETAP berupa
+# teks bebas seperti sebelumnya -- tabel master ini hanya dipakai untuk
+# menyusun pilihan dropdown, bukan sebagai foreign key wajib dari Aset.
+class Area(db.Model):
+    __tablename__ = "area"
+    id = db.Column(db.Integer, primary_key=True)
+    nama = db.Column(db.String(100), nullable=False, unique=True)
+
+
+class Gedung(db.Model):
+    __tablename__ = "gedung"
+    id = db.Column(db.Integer, primary_key=True)
+    nama = db.Column(db.String(100), nullable=False)
+    # Nullable: ada kemungkinan data Excel tidak punya kolom Area terisi.
+    id_area = db.Column(db.Integer, db.ForeignKey("area.id"), nullable=True)
+    area_ref = db.relationship("Area", backref="gedung_list")
+
+    # Nama gedung boleh sama di area/TCU berbeda (mis. "Gedung D" ada di
+    # TCU1 & TCU2), jadi yang harus unik adalah kombinasi nama + area.
+    __table_args__ = (
+        db.UniqueConstraint("nama", "id_area", name="uq_gedung_nama_area"),
+    )
+
+
+class Lantai(db.Model):
+    __tablename__ = "lantai"
+    id = db.Column(db.Integer, primary_key=True)
+    nama = db.Column(db.String(50), nullable=False)
+    id_gedung = db.Column(db.Integer, db.ForeignKey("gedung.id"), nullable=False)
+    gedung_ref = db.relationship("Gedung", backref="lantai_list")
+
+    __table_args__ = (
+        db.UniqueConstraint("nama", "id_gedung", name="uq_lantai_nama_gedung"),
+    )
+
+
+class Ruangan(db.Model):
+    __tablename__ = "ruangan"
+    id = db.Column(db.Integer, primary_key=True)
+    nama = db.Column(db.String(100), nullable=False)
+    id_gedung = db.Column(db.Integer, db.ForeignKey("gedung.id"), nullable=False)
+    # Nullable: ada ruangan yang di Excel tidak dilengkapi info lantai.
+    id_lantai = db.Column(db.Integer, db.ForeignKey("lantai.id"), nullable=True)
+    gedung_ref = db.relationship("Gedung", backref="ruangan_list")
+    lantai_ref = db.relationship("Lantai", backref="ruangan_list")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "nama", "id_gedung", "id_lantai", name="uq_ruangan_nama_gedung_lantai"
+        ),
+    )
+
+
+# ============================================================
 # ASET (DENGAN FIELD BARU DARI EXCEL)
 # ============================================================
 class Aset(db.Model):

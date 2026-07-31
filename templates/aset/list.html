@@ -479,12 +479,20 @@
 
       <div>
         <label class="field-label">Area</label>
-        <input name="area" class="field-input">
+        <select name="area" id="tambahArea" class="field-input"
+          onchange="onMasterAreaChange('tambahArea','tambahGedung','tambahLantai','tambahRuangan')">
+          <option value="">-- Pilih Area --</option>
+        </select>
       </div>
 
       <div>
         <label class="field-label">Fungsi Barang</label>
-        <input name="fungsi" class="field-input">
+        <select name="fungsi" id="tambahFungsi" class="field-input">
+          <option value="">-- Pilih Fungsi Barang --</option>
+          {% for f in fungsi_all %}
+          <option value="{{ f }}">{{ f }}</option>
+          {% endfor %}
+        </select>
       </div>
 
       <div class="grid grid-cols-2 gap-3">
@@ -510,7 +518,12 @@
         </div>
         <div>
           <label class="field-label text-[10px]">Satuan</label>
-          <input name="satuan" class="field-input text-sm">
+          <select name="satuan" id="tambahSatuan" class="field-input text-sm">
+            <option value="">-- Pilih --</option>
+            {% for s in satuan_all %}
+            <option value="{{ s }}">{{ s }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div>
           <label class="field-label text-[10px]">Tipe Aset</label>
@@ -523,22 +536,34 @@
 
       <div>
         <label class="field-label">Jenis Barang (Kategori) <span class="text-rose-500">*</span></label>
-        <input name="jenis_barang" required class="field-input"
-          placeholder="Nama kategori (akan dibuat otomatis jika belum ada)">
+        <select name="jenis_barang" id="tambahJenisBarang" required class="field-input">
+          <option value="">-- Pilih Kategori --</option>
+          {% for k in kategori_all %}
+          <option value="{{ k.nama }}">{{ k.nama }}</option>
+          {% endfor %}
+        </select>
       </div>
 
       <div class="grid grid-cols-3 gap-2">
         <div>
           <label class="field-label text-[10px]">Gedung <span class="text-rose-500">*</span></label>
-          <input name="gedung" required class="field-input">
+          <select name="gedung" id="tambahGedung" required class="field-input"
+            onchange="onMasterGedungChange('tambahArea','tambahGedung','tambahLantai','tambahRuangan')">
+            <option value="">-- Pilih Area dulu --</option>
+          </select>
         </div>
         <div>
           <label class="field-label text-[10px]">Lantai</label>
-          <input name="lantai" class="field-input text-sm" placeholder="cth. 1, 2, 3">
+          <select name="lantai" id="tambahLantai" class="field-input text-sm"
+            onchange="onMasterLantaiChange('tambahArea','tambahGedung','tambahLantai','tambahRuangan')">
+            <option value="">-- Pilih Gedung dulu --</option>
+          </select>
         </div>
         <div>
           <label class="field-label text-[10px]">Ruangan <span class="text-rose-500">*</span></label>
-          <input name="ruangan" required class="field-input">
+          <select name="ruangan" id="tambahRuangan" required class="field-input">
+            <option value="">-- Pilih Gedung dulu --</option>
+          </select>
         </div>
       </div>
 
@@ -610,12 +635,20 @@
 
       <div>
         <label class="field-label">Area</label>
-        <input name="area" id="editArea" class="field-input">
+        <select name="area" id="editArea" class="field-input"
+          onchange="onMasterAreaChange('editArea','editGedung','editLantai','editRuangan')">
+          <option value="">-- Pilih Area --</option>
+        </select>
       </div>
 
       <div>
         <label class="field-label">Fungsi Barang</label>
-        <input name="fungsi" id="editFungsi" class="field-input">
+        <select name="fungsi" id="editFungsi" class="field-input">
+          <option value="">-- Pilih Fungsi Barang --</option>
+          {% for f in fungsi_all %}
+          <option value="{{ f }}">{{ f }}</option>
+          {% endfor %}
+        </select>
       </div>
 
       <div class="grid grid-cols-2 gap-3">
@@ -641,7 +674,12 @@
         </div>
         <div>
           <label class="field-label text-[10px]">Satuan</label>
-          <input name="satuan" id="editSatuan" class="field-input text-sm">
+          <select name="satuan" id="editSatuan" class="field-input text-sm">
+            <option value="">-- Pilih --</option>
+            {% for s in satuan_all %}
+            <option value="{{ s }}">{{ s }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div>
           <label class="field-label text-[10px]">Tipe Aset</label>
@@ -654,21 +692,34 @@
 
       <div>
         <label class="field-label">Jenis Barang (Kategori) <span class="text-rose-500">*</span></label>
-        <input name="jenis_barang" id="editJenisBarang" required class="field-input" placeholder="Nama kategori">
+        <select name="jenis_barang" id="editJenisBarang" required class="field-input">
+          <option value="">-- Pilih Kategori --</option>
+          {% for k in kategori_all %}
+          <option value="{{ k.nama }}">{{ k.nama }}</option>
+          {% endfor %}
+        </select>
       </div>
 
       <div class="grid grid-cols-3 gap-2">
         <div>
           <label class="field-label text-[10px]">Gedung <span class="text-rose-500">*</span></label>
-          <input name="gedung" id="editGedung" required class="field-input">
+          <select name="gedung" id="editGedung" required class="field-input"
+            onchange="onMasterGedungChange('editArea','editGedung','editLantai','editRuangan')">
+            <option value="">-- Pilih Area dulu --</option>
+          </select>
         </div>
         <div>
           <label class="field-label text-[10px]">Lantai</label>
-          <input name="lantai" id="editLantai" class="field-input text-sm" placeholder="cth. 1, 2, 3">
+          <select name="lantai" id="editLantai" class="field-input text-sm"
+            onchange="onMasterLantaiChange('editArea','editGedung','editLantai','editRuangan')">
+            <option value="">-- Pilih Gedung dulu --</option>
+          </select>
         </div>
         <div>
           <label class="field-label text-[10px]">Ruangan <span class="text-rose-500">*</span></label>
-          <input name="ruangan" id="editRuangan" required class="field-input">
+          <select name="ruangan" id="editRuangan" required class="field-input">
+            <option value="">-- Pilih Gedung dulu --</option>
+          </select>
         </div>
       </div>
 
@@ -761,6 +812,151 @@
 
 {% block scripts %}
 <script>
+  // =============================================================
+  // DROPDOWN BERJENJANG AREA -> GEDUNG -> LANTAI -> RUANGAN
+  // (dipakai di form Tambah Aset & Edit Aset -- lihat models.py:
+  // Area/Gedung/Lantai/Ruangan, terisi otomatis lewat import Excel)
+  // =============================================================
+  const LOKASI_MASTER = {{ lokasi_master | tojson }};
+
+  function populateSelect(selectEl, options, placeholder, selectedValue) {
+    if (!selectEl) return;
+    selectEl.innerHTML = '';
+    const optPlaceholder = document.createElement('option');
+    optPlaceholder.value = '';
+    optPlaceholder.textContent = placeholder;
+    selectEl.appendChild(optPlaceholder);
+
+    // Terima options berupa array string biasa ATAU array {value, label}
+    // (dipakai utk Gedung supaya labelnya bisa diberi prefix Area, mis.
+    // "TCU1 Jakarta - Gedung A", tapi value yang disimpan tetap "Gedung A").
+    let finalOptions = options.map(function (o) {
+      return (typeof o === 'string') ? { value: o, label: o } : o;
+    });
+
+    // Kalau value yang sedang aktif (mis. data aset lama) ternyata tidak
+    // ada di daftar master (belum pernah diimport), tetap tampilkan supaya
+    // datanya tidak hilang/kereset tanpa sengaja saat form dibuka.
+    const sudahAda = selectedValue && finalOptions.some(o => o.value === selectedValue);
+    if (selectedValue && !sudahAda) {
+      finalOptions.push({ value: selectedValue, label: selectedValue });
+    }
+
+    finalOptions.forEach(function (opt) {
+      const o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.label;
+      if (selectedValue && opt.value === selectedValue) o.selected = true;
+      selectEl.appendChild(o);
+    });
+  }
+
+  function getGedungByArea(areaNama) {
+    const areaObj = LOKASI_MASTER.area.find(a => a.nama === areaNama);
+    const areaId = areaObj ? areaObj.id : null;
+    const areaLabel = areaObj ? (areaObj.label || areaObj.nama) : areaNama;
+    const seen = new Set();
+    const result = [];
+    LOKASI_MASTER.gedung
+      .filter(g => areaNama ? g.id_area === areaId : true)
+      .forEach(g => {
+        if (seen.has(g.nama)) return;
+        seen.add(g.nama);
+        // Format label: "[area] - [gedung]", mis. "TCU1 Jakarta - Gedung A".
+        // Value tetap nama gedung polos (tersimpan apa adanya ke Aset.gedung).
+        result.push({ value: g.nama, label: areaLabel ? `${areaLabel} - ${g.nama}` : g.nama });
+      });
+    result.sort((a, b) => a.label.localeCompare(b.label));
+    return result;
+  }
+
+  function getGedungIdByAreaAndNama(areaNama, gedungNama) {
+    if (!gedungNama) return null;
+    const areaObj = LOKASI_MASTER.area.find(a => a.nama === areaNama);
+    const areaId = areaObj ? areaObj.id : null;
+    const g = LOKASI_MASTER.gedung.find(g => g.nama === gedungNama && (areaNama ? g.id_area === areaId : true));
+    return g ? g.id : null;
+  }
+
+  function getLantaiByGedung(gedungId) {
+    if (!gedungId) return [];
+    const list = LOKASI_MASTER.lantai.filter(l => l.id_gedung === gedungId).map(l => l.nama);
+    return Array.from(new Set(list)).sort();
+  }
+
+  function getLantaiIdByGedungAndNama(gedungId, lantaiNama) {
+    if (!gedungId || !lantaiNama) return null;
+    const l = LOKASI_MASTER.lantai.find(l => l.id_gedung === gedungId && l.nama === lantaiNama);
+    return l ? l.id : null;
+  }
+
+  function getRuanganByGedungLantai(gedungId, lantaiId) {
+    if (!gedungId) return [];
+    const list = LOKASI_MASTER.ruangan
+      .filter(r => r.id_gedung === gedungId && (lantaiId ? (r.id_lantai === lantaiId || r.id_lantai === null) : true))
+      .map(r => r.nama);
+    return Array.from(new Set(list)).sort();
+  }
+
+  // Dipanggil saat pilihan Area berubah -> reload opsi Gedung (dan ikut
+  // mereset Lantai & Ruangan di bawahnya).
+  function onMasterAreaChange(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, selectedGedung, selectedLantai, selectedRuangan) {
+    const areaSel = document.getElementById(areaSelId);
+    const gedungSel = document.getElementById(gedungSelId);
+    if (!areaSel || !gedungSel) return;
+    const areaNama = areaSel.value;
+    const gedungOptions = getGedungByArea(areaNama);
+    const placeholder = gedungOptions.length ? '-- Pilih Gedung --' : (areaNama ? 'Belum ada data gedung' : '-- Pilih Area dulu --');
+    populateSelect(gedungSel, gedungOptions, placeholder, selectedGedung);
+    onMasterGedungChange(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, selectedLantai, selectedRuangan);
+  }
+
+  // Dipanggil saat pilihan Gedung berubah -> reload opsi Lantai (dan ikut
+  // mereset Ruangan di bawahnya).
+  function onMasterGedungChange(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, selectedLantai, selectedRuangan) {
+    const areaSel = document.getElementById(areaSelId);
+    const gedungSel = document.getElementById(gedungSelId);
+    const lantaiSel = document.getElementById(lantaiSelId);
+    if (!gedungSel || !lantaiSel) return;
+    const gedungId = getGedungIdByAreaAndNama(areaSel ? areaSel.value : '', gedungSel.value);
+    const lantaiOptions = getLantaiByGedung(gedungId);
+    const placeholder = lantaiOptions.length ? '-- Pilih Lantai (opsional) --' : (gedungId ? 'Belum ada data lantai' : '-- Pilih Gedung dulu --');
+    populateSelect(lantaiSel, lantaiOptions, placeholder, selectedLantai);
+    onMasterLantaiChange(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, selectedRuangan);
+  }
+
+  // Dipanggil saat pilihan Lantai berubah -> reload opsi Ruangan.
+  function onMasterLantaiChange(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, selectedRuangan) {
+    const areaSel = document.getElementById(areaSelId);
+    const gedungSel = document.getElementById(gedungSelId);
+    const lantaiSel = document.getElementById(lantaiSelId);
+    const ruanganSel = document.getElementById(ruanganSelId);
+    if (!gedungSel || !ruanganSel) return;
+    const gedungId = getGedungIdByAreaAndNama(areaSel ? areaSel.value : '', gedungSel.value);
+    const lantaiId = lantaiSel ? getLantaiIdByGedungAndNama(gedungId, lantaiSel.value) : null;
+    const ruanganOptions = getRuanganByGedungLantai(gedungId, lantaiId);
+    const placeholder = ruanganOptions.length ? '-- Pilih Ruangan --' : (gedungId ? 'Belum ada data ruangan' : '-- Pilih Gedung dulu --');
+    populateSelect(ruanganSel, ruanganOptions, placeholder, selectedRuangan);
+  }
+
+  // Set nilai Area/Gedung/Lantai/Ruangan sekaligus secara berjenjang --
+  // dipakai saat membuka modal Edit Aset atau saat repopulate form Tambah
+  // Aset yang gagal validasi, supaya opsi Gedung/Lantai/Ruangan yang sesuai
+  // ikut termuat dulu sebelum nilainya di-set.
+  function applyLokasiValues(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, areaVal, gedungVal, lantaiVal, ruanganVal) {
+    const areaSel = document.getElementById(areaSelId);
+    if (!areaSel) return;
+    const areaOptions = LOKASI_MASTER.area.map(a => ({ value: a.nama, label: a.label || a.nama }));
+    populateSelect(areaSel, areaOptions, '-- Pilih Area --', areaVal);
+    onMasterAreaChange(areaSelId, gedungSelId, lantaiSelId, ruanganSelId, gedungVal, lantaiVal, ruanganVal);
+  }
+
+  // Inisialisasi awal: isi opsi Area untuk modal Tambah Aset saat halaman
+  // dimuat (modal Edit Aset diisi belakangan lewat openEditAset()).
+  document.addEventListener('DOMContentLoaded', function () {
+    applyLokasiValues('tambahArea', 'tambahGedung', 'tambahLantai', 'tambahRuangan', '', '', '', '');
+  });
+
   // Ganti Kategori di filter -> muat ulang pilihan Sub Kategori (reset).
   // Form TIDAK langsung disubmit, user harus klik tombol "Terapkan" dulu.
   function onFilterKategoriChange(selectEl) {
@@ -1262,7 +1458,6 @@
     document.getElementById('formEditAset').action = `/aset/${data.id}/edit`;
     document.getElementById('editKodeAset').value = data.kode_aset || '';
     document.getElementById('editNama').value = data.nama || '';
-    document.getElementById('editArea').value = data.area || '';
     document.getElementById('editFungsi').value = data.fungsi || '';
     document.getElementById('editMerek').value = data.merek || '';
     document.getElementById('editSerialNumber').value = data.serial_number || '';
@@ -1271,14 +1466,17 @@
     document.getElementById('editVolume').value = data.volume || '';
     document.getElementById('editSatuan').value = data.satuan || '';
     document.getElementById('editStatus').value = data.status_aset || 'Baik';
-    document.getElementById('editGedung').value = data.gedung || '';
-    document.getElementById('editLantai').value = data.lantai || '';
-    document.getElementById('editRuangan').value = data.ruangan || '';
     document.getElementById('editJenisBarang').value = data.jenis_barang || '';
     document.getElementById('editTanggalDatang').value = data.tanggal_datang || '';
     document.getElementById('editKeterangan').value = data.keterangan || '';
     document.getElementById('editFotoUrl').value = data.foto_url || '';
     document.getElementById('editLinkQr').value = data.link_qr || '';
+
+    // Area/Gedung/Lantai/Ruangan: dropdown berjenjang -- muat opsi Gedung/
+    // Lantai/Ruangan yang relevan dulu sebelum nilainya di-set.
+    applyLokasiValues('editArea', 'editGedung', 'editLantai', 'editRuangan',
+      data.area || '', data.gedung || '', data.lantai || '', data.ruangan || '');
+
     openModal('modalEditAset');
   }
 
@@ -1343,10 +1541,15 @@
     var form = document.querySelector('#modalTambahAset form');
     if (form) {
       Object.keys(data).forEach(function (key) {
+        if (['area', 'gedung', 'lantai', 'ruangan'].includes(key)) return; // ditangani terpisah (dropdown berjenjang)
         var el = form.querySelector('[name="' + key + '"]');
         if (el && el.type !== 'file') el.value = data[key];
       });
     }
+    // Area/Gedung/Lantai/Ruangan: dropdown berjenjang -- muat opsi yang
+    // relevan dulu sebelum nilainya di-set kembali.
+    applyLokasiValues('tambahArea', 'tambahGedung', 'tambahLantai', 'tambahRuangan',
+      data.area || '', data.gedung || '', data.lantai || '', data.ruangan || '');
     openModal('modalTambahAset');
   });
 </script>

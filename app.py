@@ -24,7 +24,8 @@ from extensions import db, login_manager, csrf, limiter
 from models import (
     User, Kategori, Aset, Tiket, TiketAset,
     LogStatus, HistoriAset, AktivitasLog, Maintenance,
-    Peminjaman, PeminjamanAset, PeminjamanEvidence
+    Peminjaman, PeminjamanAset, PeminjamanEvidence,
+    Area, Gedung, Lantai, Ruangan
 )
 from roles import ROLE_ADMIN
 
@@ -938,6 +939,66 @@ def parse_gedung_value(value):
     return "", value
 
 
+def upsert_lokasi_master(area, gedung, lantai, ruangan):
+    """Simpan/perbarui data Area, Gedung, Lantai, dan Ruangan ke tabel master
+    (lihat models.py: Area, Gedung, Lantai, Ruangan) berdasarkan satu baris
+    data aset (biasanya dipanggil per-baris saat import Excel di
+    /aset/import). Tabel-tabel ini TIDAK ditampilkan langsung ke user --
+    hanya dipakai sebagai sumber data dropdown Area/Gedung/Lantai/Ruangan di
+    form Tambah & Edit Aset.
+
+    Kalau kombinasi data sudah ada, tidak dibuat duplikat (get-or-create).
+    Nama gedung boleh sama di area yang berbeda (mis. "Gedung D" di TCU1 dan
+    TCU2), jadi Gedung dicocokkan berdasarkan kombinasi nama + area.
+    """
+    area = (area or "").strip()
+    gedung = (gedung or "").strip()
+    lantai = (lantai or "").strip()
+    ruangan = (ruangan or "").strip()
+
+    area_obj = None
+    if area:
+        area_obj = Area.query.filter(db.func.lower(Area.nama) == area.lower()).first()
+        if not area_obj:
+            area_obj = Area(nama=area)
+            db.session.add(area_obj)
+            db.session.flush()
+
+    gedung_obj = None
+    # "-" dipakai sebagai placeholder gedung kosong di proses import (lihat
+    # aset_import) -- jangan ikut dimasukkan sebagai data master.
+    if gedung and gedung != "-":
+        q = Gedung.query.filter(db.func.lower(Gedung.nama) == gedung.lower())
+        q = q.filter_by(id_area=area_obj.id) if area_obj else q.filter(Gedung.id_area.is_(None))
+        gedung_obj = q.first()
+        if not gedung_obj:
+            gedung_obj = Gedung(nama=gedung, id_area=area_obj.id if area_obj else None)
+            db.session.add(gedung_obj)
+            db.session.flush()
+
+    lantai_obj = None
+    if lantai and gedung_obj:
+        lantai_obj = Lantai.query.filter(
+            db.func.lower(Lantai.nama) == lantai.lower(), Lantai.id_gedung == gedung_obj.id
+        ).first()
+        if not lantai_obj:
+            lantai_obj = Lantai(nama=lantai, id_gedung=gedung_obj.id)
+            db.session.add(lantai_obj)
+            db.session.flush()
+
+    if ruangan and ruangan != "-" and gedung_obj:
+        q = Ruangan.query.filter(
+            db.func.lower(Ruangan.nama) == ruangan.lower(), Ruangan.id_gedung == gedung_obj.id
+        )
+        q = q.filter_by(id_lantai=lantai_obj.id) if lantai_obj else q.filter(Ruangan.id_lantai.is_(None))
+        ruangan_obj = q.first()
+        if not ruangan_obj:
+            ruangan_obj = Ruangan(
+                nama=ruangan, id_gedung=gedung_obj.id, id_lantai=lantai_obj.id if lantai_obj else None
+            )
+            db.session.add(ruangan_obj)
+
+
 @app.route("/aset")
 @login_required
 def aset_list():
@@ -1015,6 +1076,44 @@ def aset_list():
     # tidak perlu mengetik ulang semuanya. Lihat helper gagal_dengan_form().
     repop = session.pop("form_repopulate", None)
 
+    # --- TAMBAHAN: data master lokasi untuk dropdown berjenjang Area ->
+    # Gedung -> Lantai -> Ruangan di form Tambah/Edit Aset. Diambil dari
+    # tabel Area/Gedung/Lantai/Ruangan (terisi otomatis lewat import Excel,
+    # lihat upsert_lokasi_master()). Dikirim sebagai JSON supaya JS bisa
+    # melakukan filter berjenjang tanpa perlu request tambahan ke server.
+    lokasi_master = {
+        "area": [
+            {"id": a.id, "nama": a.nama, "label": format_area_label(a.nama)}
+            for a in Area.query.order_by(Area.nama).all()
+        ],
+        "gedung": [
+            {"id": g.id, "nama": g.nama, "id_area": g.id_area}
+            for g in Gedung.query.order_by(Gedung.nama).all()
+        ],
+        "lantai": [
+            {"id": l.id, "nama": l.nama, "id_gedung": l.id_gedung}
+            for l in Lantai.query.order_by(Lantai.nama).all()
+        ],
+        "ruangan": [
+            {"id": r.id, "nama": r.nama, "id_gedung": r.id_gedung, "id_lantai": r.id_lantai}
+            for r in Ruangan.query.order_by(Ruangan.nama).all()
+        ],
+    }
+
+    # --- TAMBAHAN: opsi dropdown Fungsi Barang & Satuan. Field ini TIDAK
+    # punya tabel master baru (sesuai permintaan) -- opsinya cukup diambil
+    # dari nilai unik yang sudah ada di tabel Aset.
+    fungsi_all = [
+        r[0] for r in db.session.query(Aset.fungsi)
+        .filter(Aset.fungsi.isnot(None), Aset.fungsi != "")
+        .distinct().order_by(Aset.fungsi).all()
+    ]
+    satuan_all = [
+        r[0] for r in db.session.query(Aset.satuan)
+        .filter(Aset.satuan.isnot(None), Aset.satuan != "")
+        .distinct().order_by(Aset.satuan).all()
+    ]
+
     return render_template(
         "aset/list.html",
         daftar_aset=daftar_aset,
@@ -1024,6 +1123,9 @@ def aset_list():
         filter_aktif=filter_aktif,
         total_keseluruhan=total_keseluruhan,
         repop=repop,
+        lokasi_master=lokasi_master,
+        fungsi_all=fungsi_all,
+        satuan_all=satuan_all,
     )
 
 
@@ -1128,7 +1230,7 @@ def aset_create():
     merek = request.form.get("merek", "").strip() or None
     serial_number = request.form.get("serial_number", "").strip() or None
     spesifikasi = request.form.get("spesifikasi", "").strip() or None
-    tipe_aset = request.form.get("tipe_aset", "OPEX").strip()
+    tipe_aset = request.form.get("tipe_aset", "").strip() or None
     volume = request.form.get("volume", "").strip() or None
     satuan = request.form.get("satuan", "").strip() or None
     status_aset = request.form.get("status_aset", "Baik")
@@ -1563,6 +1665,12 @@ def aset_import():
             dilewati += 1
             error_baris.append(f"Baris {i}: kode_aset atau nama kosong")
             continue
+
+        # TAMBAHAN: simpan Area/Gedung/Lantai/Ruangan baris ini ke tabel
+        # master (Area/Gedung/Lantai/Ruangan) supaya bisa dipakai sebagai
+        # sumber dropdown di form Tambah/Edit Aset. Tidak ditampilkan
+        # sebagai halaman tersendiri, cuma data pendukung dropdown.
+        upsert_lokasi_master(area, gedung, lantai, ruangan)
 
         # +++ DEFINISIKAN DI SINI +++
         foto_url_thumbnail = convert_gdrive_to_thumbnail(foto_url) if foto_url else None
@@ -2055,6 +2163,43 @@ def history_detail(tiket_id):
     tiket = Tiket.query.get_or_404(tiket_id)
     return render_template("history/detail.html", tiket=tiket)
 
+
+def build_nomor_urut_tiket(jenis_tiket):
+    """Bangun mapping {id_tiket: nomor_urut} KHUSUS untuk 1 jenis tiket
+    (\"Pemindahan\" atau \"Kerusakan\"), diurutkan berdasarkan waktu dibuat
+    (paling lama = nomor 1, dst).
+
+    Tabel `tiket` dipakai bersama oleh modul Pemindahan & Kerusakan, jadi
+    `Tiket.id` (primary key) itu satu deret angka yang sama-sama dipakai
+    kedua modul -- makanya kalau ditampilkan apa adanya, nomornya kelihatan
+    "nyambung" lintas modul (mis. Pemindahan #1, lalu tiket Kerusakan
+    berikutnya jadi #2, padahal itu Kerusakan pertama). Fungsi ini menghitung
+    ulang nomor urut yang independen per jenis tiket supaya masing-masing
+    modul mulai dari #1 sendiri-sendiri."""
+    ids_urut = [
+        row[0] for row in db.session.query(Tiket.id)
+        .filter_by(jenis_tiket=jenis_tiket)
+        .order_by(Tiket.created_at.asc(), Tiket.id.asc())
+        .all()
+    ]
+    return {tid: idx + 1 for idx, tid in enumerate(ids_urut)}
+
+
+def hitung_nomor_urut_tiket(tiket):
+    """Versi hemat query dari build_nomor_urut_tiket() untuk 1 tiket saja
+    (dipakai di halaman Detail Pemindahan/Kerusakan) -- cukup hitung berapa
+    banyak tiket dengan jenis yang sama yang dibuat sebelum (atau bersamaan
+    dengan, dengan id lebih kecil/sama) tiket ini."""
+    return Tiket.query.filter(
+        Tiket.jenis_tiket == tiket.jenis_tiket
+    ).filter(
+        db.or_(
+            Tiket.created_at < tiket.created_at,
+            db.and_(Tiket.created_at == tiket.created_at, Tiket.id <= tiket.id),
+        )
+    ).count()
+
+
 @app.route("/pemindahan")
 @login_required
 @role_required(ROLE_ADMIN)
@@ -2077,11 +2222,14 @@ def pemindahan_list():
         g[0] for g in db.session.query(Aset.gedung).distinct().order_by(Aset.gedung).all() if g[0]
     ]
 
+    nomor_urut_map = build_nomor_urut_tiket("Pemindahan")
+
     return render_template(
         "pemindahan/list.html",
         daftar_tiket=daftar_tiket,
         pagination=pagination,
         gedung_all=gedung_all,
+        nomor_urut_map=nomor_urut_map,
     )
 
 
@@ -2091,7 +2239,8 @@ def pemindahan_list():
 def pemindahan_detail(tiket_id):
     """Detail pemindahan aset."""
     tiket = Tiket.query.filter_by(id=tiket_id, jenis_tiket="Pemindahan").first_or_404()
-    return render_template("pemindahan/detail.html", tiket=tiket)
+    nomor_urut = hitung_nomor_urut_tiket(tiket)
+    return render_template("pemindahan/detail.html", tiket=tiket, nomor_urut=nomor_urut)
 
 
 @app.route("/pemindahan/export")
@@ -2165,11 +2314,14 @@ def kerusakan_list():
         g[0] for g in db.session.query(Aset.gedung).distinct().order_by(Aset.gedung).all() if g[0]
     ]
 
+    nomor_urut_map = build_nomor_urut_tiket("Kerusakan")
+
     return render_template(
         "kerusakan/list.html",
         daftar_tiket=daftar_tiket,
         pagination=pagination,
         gedung_all=gedung_all,
+        nomor_urut_map=nomor_urut_map,
     )
 
 
@@ -2179,7 +2331,8 @@ def kerusakan_list():
 def kerusakan_detail(tiket_id):
     """Detail kerusakan aset."""
     tiket = Tiket.query.filter_by(id=tiket_id, jenis_tiket="Kerusakan").first_or_404()
-    return render_template("kerusakan/detail.html", tiket=tiket)
+    nomor_urut = hitung_nomor_urut_tiket(tiket)
+    return render_template("kerusakan/detail.html", tiket=tiket, nomor_urut=nomor_urut)
 
 
 @app.route("/kerusakan/export")

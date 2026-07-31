@@ -1,12 +1,12 @@
 {% import "_macros.html" as m %}
 {% extends "base.html" %}
-{% block title %}Kerusakan #{{ tiket.id }}{% endblock %}
+{% block title %}Kerusakan #{{ nomor_urut }}{% endblock %}
 {% block header %}
 <a href="{{ url_for('kerusakan_list') }}" class="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-600 text-xs font-medium mb-0.5">
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
   Kerusakan Aset
 </a>
-<div>Kerusakan #{{ tiket.id }}</div>
+<div>Kerusakan #{{ nomor_urut }}</div>
 {% endblock %}
 {% block content %}
 
