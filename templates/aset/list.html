@@ -128,7 +128,7 @@
               <option value="">{{ 'Pilih Gedung dulu' if not request.args.get('gedung') else 'Semua Lantai' }}</option>
               {% endif %}
             </select>
-            <select name="ruangan" id="filterRuangan" class="field-input w-full sm:w-44">
+            <select name="ruangan" id="filterRuangan" onchange="onFilterRuanganChange(this)" class="field-input w-full sm:w-44">
               {% if request.args.get('ruangan') %}
               <option value="{{ request.args.get('ruangan') }}" selected>{{ request.args.get('ruangan') }}</option>
               {% else %}
@@ -1023,7 +1023,32 @@
     loadRuangan(gedungEl, 'filterLantai', 'filterRuangan');
   }
 
-  window.addEventListener('DOMContentLoaded', () => {
+  // Ganti Ruangan langsung (tanpa pilih Lantai dulu) -> cari tahu otomatis
+  // Lantai-nya dan sinkronkan dropdown Lantai supaya tetap sesuai,
+  // "menyesuaikan" dengan Ruangan yang dipilih (mis. Gedung A + Ruangan
+  // Lobby -> otomatis kepilih Lantai 1). Kalau Lantai sudah kepilih
+  // manual duluan, biarkan (tidak ditimpa).
+  async function onFilterRuanganChange(ruanganEl) {
+    const gedungEl = document.getElementById('filterGedung');
+    const lantaiEl = document.getElementById('filterLantai');
+    if (!gedungEl || !lantaiEl || !ruanganEl.value) return;
+    if (lantaiEl.value) return; // Lantai sudah dipilih manual, jangan ditimpa
+
+    try {
+      const params = new URLSearchParams({ gedung: gedungEl.value, ruangan: ruanganEl.value });
+      const res = await fetch(`/api/lantai-by-ruangan?${params.toString()}`);
+      const data = await res.json();
+      if (data.lantai) {
+        // Muat ulang opsi Lantai untuk gedung ini, lalu langsung pilih
+        // nilai yang ditemukan.
+        await loadLantai(gedungEl, 'filterLantai', data.lantai);
+      }
+    } catch (err) {
+      // Diamkan kalau gagal -- Lantai tetap "Semua Lantai", tidak fatal.
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', async () => {
     {% if request.args.get('kategori') %}
     // Filter kategori aktif -> muat opsi sub-kategori terkait & pertahankan pilihan
     loadSubKategori(document.getElementById('filterKategori'), 'filterSubKategori', '{{ request.args.get("sub_kategori", "") }}');
@@ -1031,8 +1056,13 @@
     {% if request.args.get('gedung') %}
     // Filter gedung aktif -> muat opsi lantai & ruangan terkait, pertahankan pilihan
     const gedungEl = document.getElementById('filterGedung');
-    loadLantai(gedungEl, 'filterLantai', '{{ request.args.get("lantai", "") }}');
-    loadRuangan(gedungEl, 'filterLantai', 'filterRuangan', '{{ request.args.get("ruangan", "") }}');
+    await loadLantai(gedungEl, 'filterLantai', '{{ request.args.get("lantai", "") }}');
+    await loadRuangan(gedungEl, 'filterLantai', 'filterRuangan', '{{ request.args.get("ruangan", "") }}');
+    {% if request.args.get('ruangan') and not request.args.get('lantai') %}
+    // Ruangan sudah difilter tapi Lantai belum -- cari tahu otomatis
+    // supaya dropdown Lantai ikut menyesuaikan Ruangan yang difilter.
+    await onFilterRuanganChange(document.getElementById('filterRuangan'));
+    {% endif %}
     {% endif %}
   });
 
@@ -1287,19 +1317,14 @@
         return res.json();
       })
       .then(data => {
-        // Foto
-        let fotoHtml = '';
-        if (data.foto) {
-          if (data.foto.startsWith('http://') || data.foto.startsWith('https://') || data.foto.startsWith('//')) {
-            fotoHtml = `<img src="${data.foto}" class="rounded-xl max-h-60 w-full object-contain border border-slate-200 bg-slate-50" 
-                            onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23f1f5f9%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2394a3b8%22 font-family=%22sans-serif%22 font-size=%2214%22%3EFoto tidak ditemukan%3C/text%3E%3C/svg%3E'">`;
-          } else {
-            fotoHtml = `<img src="/static/uploads/${data.foto}" class="rounded-xl max-h-60 w-full object-contain border border-slate-200 bg-slate-50" 
-                            onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23f1f5f9%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2394a3b8%22 font-family=%22sans-serif%22 font-size=%2214%22%3EFoto tidak ditemukan%3C/text%3E%3C/svg%3E'; console.error('Foto tidak ditemukan:', '/static/uploads/${data.foto}');">`;
-          }
-        } else {
-          fotoHtml = `<div class="bg-slate-100 rounded-xl h-40 flex items-center justify-center text-slate-400 text-sm">Tidak ada foto</div>`;
-        }
+        // =============================================================
+        // GALERI FOTO (Foto Utama + Foto Perbaikan/Pemindahan)
+        // Disimpan di variabel global supaya tombol geser (prev/next) bisa
+        // pindah slide tanpa fetch ulang. Lihat renderFotoAsetSlide() &
+        // geserFotoAset() di bagian bawah file ini.
+        // =============================================================
+        window.__fotoGalleryAset = data.foto_gallery || [];
+        window.__fotoIndexAset = 0;
 
         // Warna status
         const statusColor = {
@@ -1493,10 +1518,14 @@
             <p class="text-sm text-slate-700 whitespace-pre-wrap">${data.keterangan || '-'}</p>
           </div>
           
-          <!-- Foto -->
+          <!-- Foto (Galeri: Foto Utama + Foto Perbaikan/Pemindahan) -->
           <div>
-            <p class="text-xs text-slate-400 mb-1.5">Foto</p>
-            ${fotoHtml}
+            <p id="fotoAsetLabel" class="text-xs mb-1.5"></p>
+            <div class="relative">
+              <div id="fotoAsetImgWrap"></div>
+              <div id="fotoAsetPrevWrap" class="absolute left-1.5 top-1/2 -translate-y-1/2"></div>
+              <div id="fotoAsetNextWrap" class="absolute right-1.5 top-1/2 -translate-y-1/2"></div>
+            </div>
           </div>
           
           <!-- Histori -->
@@ -1508,6 +1537,7 @@
           </div>
         </div>
       `;
+        renderFotoAsetSlide();
       })
       .catch(err => {
         console.error('Error:', err);
@@ -1519,6 +1549,87 @@
         </div>
       `;
       });
+  }
+
+  // =============================================================
+  // GALERI FOTO DETAIL ASET (Foto Utama + Foto Perbaikan/Pemindahan)
+  // State disimpan di window.__fotoGalleryAset (array) & __fotoIndexAset
+  // (index slide yang sedang tampil), di-set oleh openDetailAset().
+  // =============================================================
+  function buildFotoSrcAset(foto) {
+    if (!foto) return null;
+    if (foto.startsWith('http://') || foto.startsWith('https://') || foto.startsWith('//')) return foto;
+    return `/static/uploads/${foto}`;
+  }
+
+  const FOTO_PLACEHOLDER_SVG = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23f1f5f9%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2394a3b8%22 font-family=%22sans-serif%22 font-size=%2214%22%3EFoto tidak ditemukan%3C/text%3E%3C/svg%3E';
+
+  // Tombol panah biasa (bisa diklik) -- dipakai kalau galeri punya foto
+  function buildArrowBtnHtml(direction) {
+    const isPrev = direction === 'prev';
+    const path = isPrev ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6';
+    return `
+      <button type="button" onclick="geserFotoAset(${isPrev ? -1 : 1})"
+        class="w-8 h-8 rounded-full bg-white/90 border border-slate-200 shadow-sm flex items-center justify-center text-slate-600 hover:bg-white hover:text-indigo-600 transition-colors">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="${path}" />
+        </svg>
+      </button>`;
+  }
+
+  // Tombol panah "disilang" (tidak bisa diklik) -- dipakai kalau aset SAMA
+  // SEKALI tidak punya foto (baik foto utama maupun foto Perbaikan/Pemindahan).
+  function buildArrowBtnDisabledHtml(direction) {
+    const isPrev = direction === 'prev';
+    const path = isPrev ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6';
+    return `
+      <button type="button" disabled
+        class="w-8 h-8 rounded-full bg-white/70 border border-slate-200 shadow-sm flex items-center justify-center text-slate-300 cursor-not-allowed">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="${path}" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke="#f87171" stroke-width="2" d="M5 5l14 14" />
+        </svg>
+      </button>`;
+  }
+
+  function renderFotoAsetSlide() {
+    const labelEl = document.getElementById('fotoAsetLabel');
+    const imgWrap = document.getElementById('fotoAsetImgWrap');
+    const prevWrap = document.getElementById('fotoAsetPrevWrap');
+    const nextWrap = document.getElementById('fotoAsetNextWrap');
+    if (!labelEl || !imgWrap || !prevWrap || !nextWrap) return;
+
+    const gallery = window.__fotoGalleryAset || [];
+
+    if (gallery.length === 0) {
+      labelEl.innerHTML = `<span class="text-slate-400">Belum ada foto</span>`;
+      imgWrap.innerHTML = `<div class="bg-slate-100 rounded-xl h-40 flex items-center justify-center text-slate-400 text-sm">Tidak ada foto</div>`;
+      prevWrap.innerHTML = buildArrowBtnDisabledHtml('prev');
+      nextWrap.innerHTML = buildArrowBtnDisabledHtml('next');
+      return;
+    }
+
+    const idx = window.__fotoIndexAset || 0;
+    const item = gallery[idx];
+    const src = buildFotoSrcAset(item.foto);
+
+    labelEl.innerHTML = `<span class="text-slate-400">${item.tanggal || '-'}</span>
+      <span class="text-slate-300 mx-1">•</span>
+      <span class="font-semibold text-slate-600">${item.label}</span>`;
+    imgWrap.innerHTML = `<img src="${src}" class="rounded-xl max-h-60 w-full object-contain border border-slate-200 bg-slate-50"
+                            onerror="this.onerror=null; this.src='${FOTO_PLACEHOLDER_SVG}';">`;
+    prevWrap.innerHTML = buildArrowBtnHtml('prev');
+    nextWrap.innerHTML = buildArrowBtnHtml('next');
+  }
+
+  function geserFotoAset(delta) {
+    const gallery = window.__fotoGalleryAset || [];
+    if (gallery.length === 0) return;
+    let idx = (window.__fotoIndexAset || 0) + delta;
+    if (idx < 0) idx = gallery.length - 1;   // dari slide pertama, geser kiri -> balik ke slide terakhir
+    if (idx >= gallery.length) idx = 0;      // dari slide terakhir, geser kanan -> balik ke Foto Utama
+    window.__fotoIndexAset = idx;
+    renderFotoAsetSlide();
   }
 
   function openEditAset(data) {

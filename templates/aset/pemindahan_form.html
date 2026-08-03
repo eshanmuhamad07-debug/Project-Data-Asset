@@ -21,7 +21,7 @@
       <p class="text-xs text-slate-500 font-mono">{{ aset.kode_aset }}</p>
     </div>
 
-    <form method="POST" action="{{ url_for('aset_pemindahan_submit', aset_id=aset.id) }}" class="p-5 space-y-3.5">
+    <form method="POST" action="{{ url_for('aset_pemindahan_submit', aset_id=aset.id) }}" enctype="multipart/form-data" class="p-5 space-y-3.5">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <div>
@@ -72,6 +72,13 @@
       <div>
         <label class="field-label">Catatan</label>
         <textarea name="catatan" rows="2" class="field-input" placeholder="Opsional"></textarea>
+      </div>
+
+      <div>
+        <label class="field-label">Foto <span class="text-slate-400 font-normal">(Opsional)</span></label>
+        <input type="file" name="foto" accept="image/*"
+          class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
+        <p class="text-[10px] text-slate-400 mt-1">Foto kondisi/bukti aset saat dipindahkan, akan tampil di halaman detail pemindahan.</p>
       </div>
 
       <div class="flex gap-2 pt-1">

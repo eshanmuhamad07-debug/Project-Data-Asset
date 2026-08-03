@@ -958,6 +958,36 @@ def parse_gedung_value(value):
     return "", value
 
 
+def resolve_lantai_dari_ruangan(gedung_nama, ruangan_nama, area_nama=None):
+    """Cari nama Lantai dari data master Lokasi (tabel Ruangan), berdasarkan
+    Gedung + Ruangan yang dipilih -- dipakai kalau user hanya mengisi/pilih
+    Gedung & Ruangan saja tanpa memilih Lantai secara eksplisit (mis. di
+    filter Data Aset, atau di form Pemindahan/Kerusakan yang lokasi
+    tujuannya opsional).
+
+    Setiap Ruangan sebenarnya SUDAH terikat ke 1 Lantai tertentu di data
+    master (lihat Ruangan.id_lantai di models.py) -- jadi kalau Ruangan-nya
+    sudah dipilih, Lantai-nya sebenarnya sudah pasti diketahui, tidak perlu
+    dipilih manual lagi. Fungsi ini mengembalikan None kalau gedung/ruangan
+    kosong, atau kalau kombinasinya tidak ditemukan di data master, atau
+    kalau Ruangan itu memang tidak punya Lantai tercatat.
+    """
+    if not gedung_nama or not ruangan_nama:
+        return None
+
+    q = Ruangan.query.join(Gedung, Ruangan.id_gedung == Gedung.id).filter(
+        Gedung.nama == gedung_nama,
+        Ruangan.nama == ruangan_nama,
+    )
+    if area_nama:
+        q = q.join(Area, Gedung.id_area == Area.id, isouter=True).filter(Area.nama == area_nama)
+
+    ruangan = q.first()
+    if ruangan and ruangan.lantai_ref:
+        return ruangan.lantai_ref.nama
+    return None
+
+
 def upsert_lokasi_master(area, gedung, lantai, ruangan):
     """Simpan/perbarui data Area, Gedung, Lantai, dan Ruangan ke tabel master
     (lihat models.py: Area, Gedung, Lantai, Ruangan) berdasarkan satu baris
@@ -1241,6 +1271,36 @@ def api_ruangan():
     return jsonify([r[0] for r in hasil])
 
 
+@app.route("/api/lantai-by-ruangan")
+@login_required
+def api_lantai_by_ruangan():
+    """Dipakai di Filter Lanjutan (Lokasi) halaman Data Aset: kalau user
+    langsung pilih Ruangan tanpa pilih Lantai dulu, cari tahu otomatis
+    Lantai-nya supaya dropdown Lantai ikut menyesuaikan (bukan malah
+    tetap "Semua Lantai")."""
+    gedung_raw = request.args.get("gedung", "")
+    ruangan = request.args.get("ruangan", "")
+    if not gedung_raw or not ruangan:
+        return jsonify({"lantai": None})
+    gedung_area, gedung_nama = parse_gedung_value(gedung_raw)
+
+    # Cek dulu dari data Aset yang sebenarnya (konsisten dengan /api/lantai
+    # & /api/ruangan) -- kalau semua aset di ruangan itu memang 1 lantai
+    # yang sama, itu jawabannya.
+    filters = [Aset.gedung == gedung_nama, Aset.ruangan == ruangan, Aset.lantai.isnot(None), Aset.lantai != ""]
+    if gedung_area:
+        filters.append(Aset.area == gedung_area)
+    lantai_values = [r[0] for r in db.session.query(Aset.lantai).filter(*filters).distinct().all()]
+    lantai = lantai_values[0] if len(lantai_values) == 1 else None
+
+    # Kalau belum ketemu dari data Aset (mis. ruangan itu belum ada aset
+    # sama sekali di lantai manapun), coba dari data master Lokasi.
+    if not lantai:
+        lantai = resolve_lantai_dari_ruangan(gedung_nama, ruangan, gedung_area or None)
+
+    return jsonify({"lantai": lantai})
+
+
 @app.route("/api/aset-by-lokasi")
 @login_required
 def api_aset_by_lokasi():
@@ -1307,6 +1367,12 @@ def aset_create():
     gedung = request.form.get("gedung", "").strip()
     ruangan = request.form.get("ruangan", "").strip()
     lantai = request.form.get("lantai", "").strip() or None
+    # +++ Kalau Lantai tidak dipilih manual tapi Gedung & Ruangan sudah
+    # diisi, cari tahu otomatis dari data master Lokasi (Ruangan pasti
+    # terikat ke 1 Lantai tertentu) -- supaya lokasi aset baru tidak
+    # "kehilangan" info Lantai gara-gara cuma pilih Gedung + Ruangan.
+    if not lantai and gedung and ruangan:
+        lantai = resolve_lantai_dari_ruangan(gedung, ruangan)
     link_qr = request.form.get("link_qr", "").strip() or None
     tanggal_datang_str = request.form.get("tanggal_datang", "").strip()
     tanggal_datang = date.today()  # default ke tanggal hari ini kalau kosong
@@ -1421,6 +1487,11 @@ def aset_edit(aset_id):
     aset.gedung = request.form.get("gedung", "").strip()
     aset.ruangan = request.form.get("ruangan", "").strip()
     aset.lantai = request.form.get("lantai", "").strip() or None
+    # +++ Sama seperti di Tambah Aset: kalau Lantai tidak dipilih manual
+    # tapi Gedung & Ruangan sudah diisi, cari tahu otomatis dari data
+    # master Lokasi.
+    if not aset.lantai and aset.gedung and aset.ruangan:
+        aset.lantai = resolve_lantai_dari_ruangan(aset.gedung, aset.ruangan)
     aset.keterangan = request.form.get("keterangan", "").strip() or None
     aset.link_qr = request.form.get("link_qr", "").strip() or None
 
@@ -1654,7 +1725,54 @@ def aset_detail(aset_id):
         foto_display = aset.foto_url
     elif aset.foto:
         foto_display = aset.foto
-    
+
+    # +++ GALERI FOTO (Foto Utama + foto Kerusakan/Pemindahan) +++
+    # Digabung jadi 1 galeri geser (prev/next) di modal Detail Aset, supaya
+    # foto dari tiket Kerusakan ("Foto Perbaikan") dan Pemindahan
+    # ("Foto Pemindahan") tidak perlu dibuka lewat halaman detail tiket
+    # masing-masing lagi. HANYA tiket yang benar-benar punya foto yang
+    # dihitung & ditampilkan -- kalau mis. Kerusakan ke-2 tidak ada foto
+    # tapi ke-3 ada, penomorannya tetap urut rapat: "Foto Perbaikan 1",
+    # "Foto Perbaikan 2" (bukan loncat ke angka 3).
+    foto_gallery = []
+    if foto_display:
+        foto_gallery.append({
+            "label": "Foto Utama",
+            "foto": foto_display,
+            "tanggal": aset.tanggal_datang.strftime("%d-%m-%Y") if aset.tanggal_datang else None,
+        })
+
+    tiket_aset_list = (
+        TiketAset.query.filter_by(id_aset=aset.id)
+        .join(Tiket, TiketAset.id_tiket == Tiket.id)
+        .order_by(Tiket.created_at.asc())
+        .all()
+    )
+
+    urut_kerusakan = 0
+    for ta in tiket_aset_list:
+        t = ta.tiket
+        if not t or t.jenis_tiket != "Kerusakan" or not t.foto:
+            continue
+        urut_kerusakan += 1
+        foto_gallery.append({
+            "label": f"Foto Perbaikan {urut_kerusakan}",
+            "foto": t.foto,
+            "tanggal": t.created_at.strftime("%d-%m-%Y") if t.created_at else None,
+        })
+
+    urut_pemindahan = 0
+    for ta in tiket_aset_list:
+        t = ta.tiket
+        if not t or t.jenis_tiket != "Pemindahan" or not t.foto:
+            continue
+        urut_pemindahan += 1
+        foto_gallery.append({
+            "label": f"Foto Pemindahan {urut_pemindahan}",
+            "foto": t.foto,
+            "tanggal": t.created_at.strftime("%d-%m-%Y") if t.created_at else None,
+        })
+
     data = {
         "id": aset.id,
         "kode_aset": aset.kode_aset,
@@ -1673,6 +1791,7 @@ def aset_detail(aset_id):
         "ruangan": aset.ruangan,
         "kategori": aset.kategori_ref.nama if aset.kategori_ref else "-",
         "foto": foto_display,
+        "foto_gallery": foto_gallery,
         "total_kerusakan": aset.total_kerusakan or 0,
         "tanggal_datang": aset.tanggal_datang.strftime("%d-%m-%Y") if aset.tanggal_datang else "",
         "keterangan": aset.keterangan or "",
@@ -1730,6 +1849,14 @@ def aset_pemindahan_submit(aset_id):
     tujuan_lantai = request.form.get("tujuan_lantai", "").strip()
     tujuan_ruangan = request.form.get("tujuan_ruangan", "").strip()
     catatan = request.form.get("catatan", "").strip()
+    foto, foto_error = save_upload(request.files.get("foto"), prefix="tiket_")
+
+    # +++ Kalau Lantai tujuan tidak dipilih manual tapi Gedung & Ruangan
+    # tujuan sudah diisi, coba cari tahu Lantai-nya otomatis dari data
+    # master Lokasi (Ruangan pasti terikat ke 1 Lantai tertentu) -- supaya
+    # tidak sampai "kehilangan" info Lantai kayak yang dialami sebelumnya.
+    if not tujuan_lantai and tujuan_gedung and tujuan_ruangan:
+        tujuan_lantai = resolve_lantai_dari_ruangan(tujuan_gedung, tujuan_ruangan) or ""
 
     # +++ Lokasi Tujuan sekarang OPSIONAL: kalau Gedung/Ruangan tujuan tidak
     # diisi (belum tahu aset akan dipindahkan ke mana), jangan blokir --
@@ -1768,6 +1895,7 @@ def aset_pemindahan_submit(aset_id):
         lantai_tujuan=tujuan_lantai or None,
         ruangan_tujuan=tujuan_ruangan,
         catatan=catatan or None,
+        foto=foto,
         created_by=current_user.id,
     )
     db.session.add(tiket)
@@ -1820,7 +1948,9 @@ def aset_pemindahan_submit(aset_id):
 
     db.session.commit()
 
-    if tujuan_diketahui:
+    if foto_error:
+        flash(f"Aset {aset.nama} berhasil dipindahkan, tetapi foto gagal diupload: {foto_error}", "warning")
+    elif tujuan_diketahui:
         flash(f"Aset {aset.nama} berhasil dipindahkan.", "success")
     else:
         flash(f"Aset {aset.nama} dicatat sebagai dipindahkan, dengan lokasi tujuan tidak diketahui.", "success")
@@ -1863,6 +1993,12 @@ def aset_kerusakan_submit(aset_id):
     tujuan_lantai = request.form.get("tujuan_lantai", "").strip()
     tujuan_ruangan = request.form.get("tujuan_ruangan", "").strip()
     foto, foto_error = save_upload(request.files.get("foto"), prefix="tiket_")
+
+    # +++ Sama seperti di Pemindahan: kalau Lantai tujuan tidak dipilih
+    # manual tapi Gedung & Ruangan tujuan sudah diisi, cari tahu otomatis
+    # dari data master Lokasi.
+    if not tujuan_lantai and tujuan_gedung and tujuan_ruangan:
+        tujuan_lantai = resolve_lantai_dari_ruangan(tujuan_gedung, tujuan_ruangan) or ""
 
     gedung_asal = aset.gedung
     lantai_asal = aset.lantai
@@ -2850,6 +2986,14 @@ def tiket_create_pemindahan():
     ruangan_tujuan = request.form.get("ruangan_tujuan", "").strip()
     nama_pemohon = request.form.get("nama_pemohon", "").strip()
     catatan = request.form.get("catatan", "").strip()
+
+    # +++ Sama seperti di form Pemindahan per-item: kalau Lantai (asal
+    # maupun tujuan) tidak dipilih manual tapi Gedung & Ruangan-nya sudah
+    # diisi, cari tahu otomatis dari data master Lokasi.
+    if not lantai_asal and gedung_asal and ruangan_asal:
+        lantai_asal = resolve_lantai_dari_ruangan(gedung_asal, ruangan_asal) or ""
+    if not lantai_tujuan and gedung_tujuan and ruangan_tujuan:
+        lantai_tujuan = resolve_lantai_dari_ruangan(gedung_tujuan, ruangan_tujuan) or ""
 
     # +++ Lokasi Tujuan OPSIONAL: kalau Gedung tujuan tidak diisi (belum
     # tahu aset-aset ini akan dipindahkan ke mana), jangan blokir -- anggap
