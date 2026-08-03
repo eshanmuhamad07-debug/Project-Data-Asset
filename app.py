@@ -68,6 +68,18 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
+# +++ PERBAIKAN BUG "No such file or directory" saat upload foto/evidence +++
+# Folder static/uploads TIDAK otomatis ada di komputer/server baru -- folder
+# kosong sering ikut hilang saat project di-zip, di-copy, atau di-clone ulang
+# (git & banyak tool zip tidak menyimpan folder yang benar-benar kosong).
+# Kalau folder ini tidak ada, file_storage.save() di save_upload()/
+# save_dokumen()/save_evidence_pdf() akan gagal dengan error persis:
+# "[Errno 2] No such file or directory: '...static/uploads/xxx.jpg'" --
+# datanya (aset/tiket/peminjaman/dst) tetap tersimpan, tapi fotonya gagal.
+# os.makedirs(..., exist_ok=True) di bawah ini memastikan folder tersebut
+# SELALU ada begitu aplikasi dijalankan, di komputer manapun.
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 db.init_app(app)
 login_manager.init_app(app)
 csrf.init_app(app)
