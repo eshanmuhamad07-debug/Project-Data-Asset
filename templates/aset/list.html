@@ -149,7 +149,18 @@
             <input type="checkbox" id="selectAll"
               class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 hidden">
           </th>
-          <th class="th">Kode</th>
+          <th class="th">
+            <a href="{{ url_for('aset_list', page=1, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10), urutan='desc' if urutan == 'asc' else 'asc') }}"
+              class="inline-flex items-center gap-1 hover:text-indigo-600"
+              title="{{ 'Urutan: Naik (1 → banyak). Klik untuk urutkan turun.' if urutan == 'asc' else 'Urutan: Turun (banyak → 1). Klik untuk urutkan naik.' }}">
+              Kode
+              {% if urutan == 'asc' %}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m0 0l-5-5m5 5l5-5" /></svg>
+              {% else %}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20V4m0 0l-5 5m5-5l5 5" /></svg>
+              {% endif %}
+            </a>
+          </th>
           <th class="th">Nama</th>
           <th class="th">Lokasi</th>
           <th class="th">Tipe</th>
@@ -272,7 +283,7 @@
     <div class="flex items-center gap-1.5 flex-wrap justify-center">
       <!-- Tombol First -->
       {% if pagination.has_prev %}
-      <a href="{{ url_for('aset_list', page=1, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}"
+      <a href="{{ url_for('aset_list', page=1, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10), urutan=request.args.get('urutan','asc')) }}"
         class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all duration-200"
         title="Halaman Pertama">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -289,7 +300,7 @@
 
       <!-- Tombol Previous -->
       {% if pagination.has_prev %}
-      <a href="{{ url_for('aset_list', page=pagination.prev_num, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}"
+      <a href="{{ url_for('aset_list', page=pagination.prev_num, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10), urutan=request.args.get('urutan','asc')) }}"
         class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-600 hover:text-indigo-600 transition-all duration-200"
         title="Halaman Sebelumnya">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -310,7 +321,7 @@
         {% set end = [pagination.page + 2, pagination.pages] | min %}
 
         {% if start > 1 %}
-        <a href="{{ url_for('aset_list', page=1, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}"
+        <a href="{{ url_for('aset_list', page=1, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10), urutan=request.args.get('urutan','asc')) }}"
           class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-white hover:shadow-sm hover:text-indigo-600 transition-all duration-200">1</a>
         {% if start > 2 %}
         <span class="w-6 h-8 flex items-center justify-center text-slate-300 text-xs">…</span>
@@ -323,7 +334,7 @@
           class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold text-white bg-indigo-600 shadow-md shadow-indigo-200">{{
           p }}</span>
         {% else %}
-        <a href="{{ url_for('aset_list', page=p, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}"
+        <a href="{{ url_for('aset_list', page=p, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10), urutan=request.args.get('urutan','asc')) }}"
           class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-white hover:shadow-sm hover:text-indigo-600 transition-all duration-200">{{
           p }}</a>
         {% endif %}
@@ -332,7 +343,7 @@
         {% if end < pagination.pages %} {% if end < pagination.pages - 1 %} <span
           class="w-6 h-8 flex items-center justify-center text-slate-300 text-xs">…</span>
           {% endif %}
-          <a href="{{ url_for('aset_list', page=pagination.pages, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}"
+          <a href="{{ url_for('aset_list', page=pagination.pages, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10), urutan=request.args.get('urutan','asc')) }}"
             class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium text-slate-500 hover:bg-white hover:shadow-sm hover:text-indigo-600 transition-all duration-200">{{
             pagination.pages }}</a>
           {% endif %}
@@ -340,7 +351,7 @@
 
       <!-- Tombol Next -->
       {% if pagination.has_next %}
-      <a href="{{ url_for('aset_list', page=pagination.next_num, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}"
+      <a href="{{ url_for('aset_list', page=pagination.next_num, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10), urutan=request.args.get('urutan','asc')) }}"
         class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-600 hover:text-indigo-600 transition-all duration-200"
         title="Halaman Berikutnya">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -357,7 +368,7 @@
 
       <!-- Tombol Last -->
       {% if pagination.has_next %}
-      <a href="{{ url_for('aset_list', page=pagination.pages, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10)) }}"
+      <a href="{{ url_for('aset_list', page=pagination.pages, q=request.args.get('q',''), status=request.args.get('status',''), kategori=request.args.get('kategori',''), tipe=request.args.get('tipe',''), gedung=request.args.get('gedung',''), lantai=request.args.get('lantai',''), ruangan=request.args.get('ruangan',''), per_page=request.args.get('per_page', 10), urutan=request.args.get('urutan','asc')) }}"
         class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all duration-200"
         title="Halaman Terakhir">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">

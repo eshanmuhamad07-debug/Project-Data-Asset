@@ -8,6 +8,7 @@
 <div class="card">
   <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
     <form method="GET" class="flex flex-wrap gap-2">
+      <input type="hidden" name="urutan" value="{{ request.args.get('urutan','asc') }}">
       <select name="status" onchange="this.form.submit()" class="field-input w-full sm:w-48">
         <option value="">Semua Status</option>
         <option value="Pending" {{ 'selected' if request.args.get('status')=='Pending' }}>Pending</option>
@@ -34,7 +35,18 @@
     <table class="w-full">
       <thead>
         <tr class="border-b border-slate-100 bg-slate-50/60">
-          <th class="th">#</th>
+          <th class="th">
+            <a href="{{ url_for('pemindahan_list', page=1, status=request.args.get('status',''), urutan='desc' if urutan == 'asc' else 'asc') }}"
+              class="inline-flex items-center gap-1 hover:text-indigo-600"
+              title="{{ 'Urutan: Naik (#1 → banyak). Klik untuk urutkan turun.' if urutan == 'asc' else 'Urutan: Turun (banyak → #1). Klik untuk urutkan naik.' }}">
+              #
+              {% if urutan == 'asc' %}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m0 0l-5-5m5 5l5-5" /></svg>
+              {% else %}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20V4m0 0l-5 5m5-5l5 5" /></svg>
+              {% endif %}
+            </a>
+          </th>
           <th class="th">Pemohon</th>
           <th class="th">Asal</th>
           <th class="th">Tujuan</th>
@@ -69,10 +81,10 @@
     <span>Halaman {{ pagination.page }} dari {{ pagination.pages }}</span>
     <div class="flex gap-2">
       {% if pagination.has_prev %}
-        <a href="{{ url_for('pemindahan_list', page=pagination.prev_num, status=request.args.get('status','')) }}" class="btn btn-secondary btn-sm">&lsaquo; Sebelumnya</a>
+        <a href="{{ url_for('pemindahan_list', page=pagination.prev_num, status=request.args.get('status',''), urutan=request.args.get('urutan','asc')) }}" class="btn btn-secondary btn-sm">&lsaquo; Sebelumnya</a>
       {% endif %}
       {% if pagination.has_next %}
-        <a href="{{ url_for('pemindahan_list', page=pagination.next_num, status=request.args.get('status','')) }}" class="btn btn-secondary btn-sm">Berikutnya &rsaquo;</a>
+        <a href="{{ url_for('pemindahan_list', page=pagination.next_num, status=request.args.get('status',''), urutan=request.args.get('urutan','asc')) }}" class="btn btn-secondary btn-sm">Berikutnya &rsaquo;</a>
       {% endif %}
     </div>
   </div>

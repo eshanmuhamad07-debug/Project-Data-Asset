@@ -1101,7 +1101,7 @@ def aset_list():
     # tersimpan di session (redirect supaya URL & tampilan filter di form
     # tetap sinkron). Tombol Reset mengirim ?reset=1 untuk menghapus
     # simpanan ini secara eksplisit.
-    ASET_FILTER_KEYS = ("q", "status", "kategori", "tipe", "gedung", "lantai", "ruangan", "per_page", "page")
+    ASET_FILTER_KEYS = ("q", "status", "kategori", "tipe", "gedung", "lantai", "ruangan", "per_page", "page", "urutan")
 
     if request.args.get("reset"):
         session.pop("aset_filter_qs", None)
@@ -1155,7 +1155,16 @@ def aset_list():
     if per_page not in [10, 25, 50, 100]:
         per_page = 10
 
-    pagination = query.order_by(Aset.id.desc()).paginate(
+    # +++ URUTAN DATA (klik panah di header kolom "Kode") +++
+    # Default ASC (Kode/data paling lama di atas, 1 -> N) sesuai permintaan;
+    # sebelumnya hardcode DESC (N -> 1) tanpa bisa diubah user.
+    urutan = request.args.get("urutan", "asc")
+    if urutan not in ("asc", "desc"):
+        urutan = "asc"
+
+    pagination = query.order_by(
+        Aset.id.asc() if urutan == "asc" else Aset.id.desc()
+    ).paginate(
         page=page, per_page=per_page, error_out=False
     )
     daftar_aset = pagination.items
@@ -1237,6 +1246,7 @@ def aset_list():
         fungsi_all=fungsi_all,
         satuan_all=satuan_all,
         cek_harian_today=cek_harian_today,
+        urutan=urutan,
     )
 
 
@@ -2811,9 +2821,17 @@ def pemindahan_list():
     if status:
         query = query.filter(Tiket.status_tiket == status)
 
+    # +++ URUTAN DATA (klik panah di header kolom "#") +++
+    # Default ASC (#1 di atas, paling lama); sebelumnya hardcode DESC.
+    urutan = request.args.get("urutan", "asc")
+    if urutan not in ("asc", "desc"):
+        urutan = "asc"
+
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 10, type=int)
-    pagination = query.order_by(Tiket.created_at.desc()).paginate(
+    pagination = query.order_by(
+        Tiket.created_at.asc() if urutan == "asc" else Tiket.created_at.desc()
+    ).paginate(
         page=page, per_page=per_page, error_out=False
     )
     daftar_tiket = pagination.items
@@ -2830,6 +2848,7 @@ def pemindahan_list():
         pagination=pagination,
         gedung_all=gedung_all,
         nomor_urut_map=nomor_urut_map,
+        urutan=urutan,
     )
 
 
@@ -2903,9 +2922,17 @@ def kerusakan_list():
     if status:
         query = query.filter(Tiket.status_tiket == status)
 
+    # +++ URUTAN DATA (klik panah di header kolom "#") +++
+    # Default ASC (#1 di atas, paling lama); sebelumnya hardcode DESC.
+    urutan = request.args.get("urutan", "asc")
+    if urutan not in ("asc", "desc"):
+        urutan = "asc"
+
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 10, type=int)
-    pagination = query.order_by(Tiket.created_at.desc()).paginate(
+    pagination = query.order_by(
+        Tiket.created_at.asc() if urutan == "asc" else Tiket.created_at.desc()
+    ).paginate(
         page=page, per_page=per_page, error_out=False
     )
     daftar_tiket = pagination.items
@@ -2922,6 +2949,7 @@ def kerusakan_list():
         pagination=pagination,
         gedung_all=gedung_all,
         nomor_urut_map=nomor_urut_map,
+        urutan=urutan,
     )
 
 
