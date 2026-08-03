@@ -12,7 +12,7 @@
 <span class="pill {{ cls }}"><span class="pill-dot {{ dot }}"></span>{{ label }}</span>
 {% endmacro %}
 
-{% macro aset_tone(status) %}{{ 'emerald' if status=='Baik' else 'rose' if status=='Rusak' else 'sky' }}{% endmacro %}
+{% macro aset_tone(status) %}{{ 'emerald' if status=='Baik' else 'rose' if status=='Rusak' else 'slate' if status=='Tidak Terpakai' else 'sky' }}{% endmacro %}
 
 {% macro jenis_aset_tone(jenis) %}{{ 'violet' if jenis=='Pusat' else 'sky' }}{% endmacro %}
 

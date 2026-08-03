@@ -197,6 +197,10 @@
           <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-600">
             <span class="font-mono text-[10px] text-slate-400">{{ pa.aset.kode_aset }}</span>{{ pa.aset.nama }}
           </span>
+          {% elif pa.nama_aset_snapshot %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-400" title="Aset ini sudah dihapus dari sistem">
+            <span class="font-mono text-[10px]">{{ pa.kode_aset_snapshot }}</span>{{ pa.nama_aset_snapshot }} (dihapus)
+          </span>
           {% endif %}
           {% else %}
           <p class="text-xs text-slate-400">Tidak ada barang tercatat.</p>

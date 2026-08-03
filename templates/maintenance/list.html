@@ -105,8 +105,8 @@
                 <tr class="table-row hover:bg-slate-50">
                     <td class="td text-slate-500 text-center">{{ loop.index + ((pagination.page - 1) *
                         pagination.per_page) }}</td>
-                    <td class="td font-medium text-slate-800">{{ m.aset.nama if m.aset else '-' }}</td>
-                    <td class="td font-mono text-xs text-slate-500">{{ m.aset.kode_aset if m.aset else '-' }}</td>
+                    <td class="td font-medium text-slate-800">{{ m.aset.nama if m.aset else (m.nama_aset_snapshot or '-') }}</td>
+                    <td class="td font-mono text-xs text-slate-500">{{ m.aset.kode_aset if m.aset else (m.kode_aset_snapshot or '-') }}</td>
                     <td class="td text-slate-600">{{ m.vendor or '-' }}</td>
                     <td class="td">
                         <span
@@ -141,6 +141,7 @@
                             data-deskripsi="{{ m.deskripsi or '' }}" data-vendor="{{ m.vendor or '' }}"
                             data-tipe="{{ m.tipe }}" data-biaya="{{ m.biaya }}" data-status="{{ m.status }}"
                             data-kategori="{{ m.kategori }}"
+                            data-kondisi-aset="{{ m.aset.status_aset if m.aset else 'Baik' }}"
                             data-tanggal-akhir="{{ m.tanggal_akhir.strftime('%Y-%m-%d') if m.tanggal_akhir else '' }}"
                             class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-indigo-50">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -265,6 +266,18 @@
                 <p class="text-[10px] text-slate-400 mt-0.5">Akan otomatis terisi dari kategori aset yang dipilih</p>
             </div>
 
+            <!-- Kondisi Aset (default dari kondisi aset saat ini, bisa diubah) -->
+            <div>
+                <label class="field-label">Kondisi Aset</label>
+                <select id="maintenance_kondisi" name="kondisi_aset" class="field-input" disabled>
+                    <option value="">Pilih aset terlebih dahulu</option>
+                    <option value="Baik">Baik</option>
+                    <option value="Rusak">Rusak</option>
+                    <option value="Tidak Terpakai">Tidak Terpakai</option>
+                </select>
+                <p class="text-[10px] text-slate-400 mt-0.5">Otomatis terisi kondisi aset saat ini, ubah kalau perlu</p>
+            </div>
+
             <div>
                 <label class="field-label">Jenis Pekerjaan <span class="text-rose-500">*</span></label>
                 <input name="judul" required placeholder="Mis: Pembersihan AC" class="field-input">
@@ -352,6 +365,16 @@
                 <p class="text-[10px] text-slate-400 mt-0.5">Kategori tidak dapat diubah karena terikat dengan aset</p>
             </div>
 
+            <!-- Kondisi Aset (bisa diubah) -->
+            <div>
+                <label class="field-label">Kondisi Aset</label>
+                <select id="editKondisi" name="kondisi_aset" class="field-input">
+                    <option value="Baik">Baik</option>
+                    <option value="Rusak">Rusak</option>
+                    <option value="Tidak Terpakai">Tidak Terpakai</option>
+                </select>
+            </div>
+
             <div>
                 <label class="field-label">Deskripsi</label>
                 <textarea name="deskripsi" id="editDeskripsi" rows="2" class="field-input"></textarea>
@@ -414,6 +437,7 @@
         const biaya = button.dataset.biaya;
         const status = button.dataset.status;
         const kategori = button.dataset.kategori;
+        const kondisiAset = button.dataset.kondisiAset;
         const tanggal_akhir = button.dataset.tanggalAkhir;
 
         const form = document.getElementById('formEditMaintenance');
@@ -425,6 +449,7 @@
         document.getElementById('editTipe').value = tipe || 'Preventif';
         document.getElementById('editBiaya').value = biaya || 0;
         document.getElementById('editStatus').value = status || 'Scheduled';
+        document.getElementById('editKondisi').value = kondisiAset || 'Baik';
         document.getElementById('editTanggalAkhir').value = tanggal_akhir || '';
         openModal('modalEditMaintenance');
     }
@@ -440,6 +465,13 @@
                 const kategoriDisplay = document.getElementById('maintenance_kategori_display');
                 if (kategoriDisplay) {
                     kategoriDisplay.value = kategori || '(Tidak ada kategori)';
+                }
+
+                const kondisi = e.target.dataset.status || 'Baik';
+                const kondisiSelect = document.getElementById('maintenance_kondisi');
+                if (kondisiSelect) {
+                    kondisiSelect.disabled = false;
+                    kondisiSelect.value = kondisi;
                 }
             }
         });
@@ -482,6 +514,7 @@
                     label.innerHTML = `
                     <input type="radio" name="aset_ids" value="${a.id}" 
                            data-kategori="${a.kategori || ''}"
+                           data-status="${a.status_aset || 'Baik'}"
                            class="rounded-full border-slate-300 text-indigo-600 focus:ring-indigo-500 aset-radio">
                     <span class="font-mono text-[11px] text-slate-400">${a.kode}</span> ${a.nama}
                 `;
@@ -492,6 +525,13 @@
                 const kategoriDisplay = document.getElementById('maintenance_kategori_display');
                 if (kategoriDisplay) {
                     kategoriDisplay.value = '';
+                }
+
+                // Reset kondisi aset dropdown
+                const kondisiSelect = document.getElementById('maintenance_kondisi');
+                if (kondisiSelect) {
+                    kondisiSelect.disabled = true;
+                    kondisiSelect.value = '';
                 }
             });
     };

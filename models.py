@@ -124,7 +124,7 @@ class Aset(db.Model):
     lantai = db.Column(db.String(50), nullable=True)
     ruangan = db.Column(db.String(100), nullable=False)
 
-    status_aset = db.Column(db.String(20), default="Baik")   # Baik / Rusak
+    status_aset = db.Column(db.String(20), default="Baik")   # Baik / Rusak / Tidak Terpakai
     total_kerusakan = db.Column(db.Integer, default=0, nullable=False)
 
     # --- Field BARU dari Excel ---
@@ -228,7 +228,7 @@ class LogStatus(db.Model):
 class HistoriAset(db.Model):
     __tablename__ = "histori_aset"
     id = db.Column(db.Integer, primary_key=True)
-    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=False)
+    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=True)
     jenis_event = db.Column(db.String(20), nullable=False)
     gedung = db.Column(db.String(100), nullable=True)
     lantai = db.Column(db.String(50), nullable=True)
@@ -238,6 +238,9 @@ class HistoriAset(db.Model):
     ruangan_asal = db.Column(db.String(100), nullable=True)
     tanggal = db.Column(db.DateTime, default=get_wib_now, nullable=False)
     id_tiket = db.Column(db.Integer, db.ForeignKey("tiket.id"), nullable=True)
+    # Catatan bebas untuk detail event, mis. "Kondisi diubah dari Rusak
+    # menjadi Baik (maintenance: Ganti sparepart AC)"
+    keterangan = db.Column(db.Text, nullable=True)
     aset = db.relationship("Aset")
     tiket = db.relationship("Tiket")
 
@@ -316,15 +319,28 @@ class PeminjamanAset(db.Model):
     __tablename__ = "peminjaman_aset"
     id = db.Column(db.Integer, primary_key=True)
     id_peminjaman = db.Column(db.Integer, db.ForeignKey("peminjaman.id"), nullable=False)
-    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=False)
+    # Nullable: kalau aset yang bersangkutan sudah dihapus dari sistem,
+    # id_aset akan dilepas (di-set None) supaya tidak melanggar constraint
+    # FK, tapi riwayat peminjamannya tetap tampil berkat
+    # kode_aset_snapshot / nama_aset_snapshot di bawah ini.
+    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=True)
     aset = db.relationship("Aset")
+
+    kode_aset_snapshot = db.Column(db.String(50), nullable=True)
+    nama_aset_snapshot = db.Column(db.String(150), nullable=True)
 
 
 class Maintenance(db.Model):
     __tablename__ = "maintenance"
 
     id = db.Column(db.Integer, primary_key=True)
-    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=False)
+    # Nullable: kalau aset yang bersangkutan sudah dihapus dari sistem,
+    # id_aset akan dilepas (di-set None) supaya tidak melanggar constraint
+    # FK, tapi riwayat maintenance-nya tetap tampil berkat
+    # kode_aset_snapshot / nama_aset_snapshot di bawah ini.
+    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=True)
+    kode_aset_snapshot = db.Column(db.String(50), nullable=True)
+    nama_aset_snapshot = db.Column(db.String(150), nullable=True)
     kategori = db.Column(db.String(50), nullable=False)  # Elektronik / Furniture
     judul = db.Column(db.String(200), nullable=False)
     deskripsi = db.Column(db.Text, nullable=True)

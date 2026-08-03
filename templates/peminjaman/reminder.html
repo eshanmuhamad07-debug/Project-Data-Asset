@@ -82,7 +82,7 @@
           <span class="text-slate-400 font-normal">— {{ p.unit or '-' }} / {{ p.lokasi_kerja or '-' }}</span>
         </p>
         <p class="text-xs text-slate-500 mt-0.5">
-          Aset: {% for pa in p.aset_terkait %}{{ pa.aset.nama if pa.aset else '-' }}{% if not loop.last %}, {% endif
+          Aset: {% for pa in p.aset_terkait %}{{ pa.aset.nama if pa.aset else (pa.nama_aset_snapshot or '-') }}{% if not loop.last %}, {% endif
           %}{% endfor %}
         </p>
         <p class="text-xs mt-1 {{ 'text-rose-600 font-semibold' if p.tanggal_rencana_kembali < today else 'text-amber-600 font-medium' }}">
@@ -96,7 +96,7 @@
       </div>
       <button type="button" onclick="openKonfirmasiPerpanjangan(
           {{ p.id }}, '{{ p.nama_peminjam|e }}',
-          '{% for pa in p.aset_terkait %}{{ pa.aset.nama if pa.aset else "-" }}{% if not loop.last %}, {% endif %}{% endfor %}',
+          '{% for pa in p.aset_terkait %}{{ pa.aset.nama if pa.aset else (pa.nama_aset_snapshot or "-") }}{% if not loop.last %}, {% endif %}{% endfor %}',
           '{{ p.tanggal_pinjam.strftime('%d-%m-%Y') if p.tanggal_pinjam else '-' }}',
           '{{ p.tanggal_rencana_kembali.strftime('%d-%m-%Y') if p.tanggal_rencana_kembali else '-' }}',
           '{{ p.tanggal_rencana_kembali.strftime('%Y-%m-%d') if p.tanggal_rencana_kembali else '' }}'

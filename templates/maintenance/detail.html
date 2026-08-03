@@ -12,7 +12,7 @@
 <div>Detail Maintenance</div>
 {% endblock %}
 {% block subheader %}
-<p class="text-xs text-slate-400">{{ m.judul }} — {{ m.aset.nama if m.aset else '-' }}</p>
+<p class="text-xs text-slate-400">{{ m.judul }} — {{ m.aset.nama if m.aset else (m.nama_aset_snapshot or '-') }}</p>
 {% endblock %}
 
 {% block content %}
@@ -54,12 +54,14 @@
 
         <div class="border-t border-slate-100 pt-4">
             <p class="text-xs text-slate-400 mb-0.5">🗄️ Aset</p>
-            <p class="font-medium text-slate-700">{{ m.aset.nama if m.aset else '-' }}</p>
-            <p class="text-xs text-slate-400 font-mono mt-0.5">{{ m.aset.kode_aset if m.aset else '-' }}</p>
+            <p class="font-medium text-slate-700">{{ m.aset.nama if m.aset else (m.nama_aset_snapshot or '-') }}</p>
+            <p class="text-xs text-slate-400 font-mono mt-0.5">{{ m.aset.kode_aset if m.aset else (m.kode_aset_snapshot or '-') }}</p>
             {% if m.aset %}
             <p class="text-xs text-slate-500 mt-1">📍 {{ m.aset.gedung }}{% if m.aset.lantai %} / Lantai {{
                 m.aset.lantai
                 }}{% endif %} / {{ m.aset.ruangan }}</p>
+            {% else %}
+            <p class="text-xs text-rose-400 mt-1">⚠️ Aset ini sudah dihapus dari sistem</p>
             {% endif %}
         </div>
 

@@ -404,7 +404,7 @@ FILE_FIELD_KEYS = {"foto_url", "evidence", "foto"}
 def snapshot_peminjaman(p):
     """Snapshot lengkap satu peminjaman untuk disimpan di log histori
     (dipakai saat DELETE supaya datanya tidak hilang begitu saja dari History)."""
-    barang = [pa.aset.nama for pa in p.aset_terkait if pa.aset]
+    barang = [pa.aset.nama if pa.aset else pa.nama_aset_snapshot for pa in p.aset_terkait if pa.aset or pa.nama_aset_snapshot]
     return {
         "nama_peminjam": p.nama_peminjam,
         "unit": p.unit,
@@ -662,6 +662,7 @@ def logout():
 def dashboard():
     total_aset = Aset.query.count()
     total_rusak = Aset.query.filter_by(status_aset="Rusak").count()
+    total_tidak_terpakai = Aset.query.filter_by(status_aset="Tidak Terpakai").count()
     total_kategori = Kategori.query.count()
     
     # Untuk user: statistik CAPEX/OPEX
@@ -773,7 +774,7 @@ def dashboard():
         ).all()
         for p in peminjaman_aktif:
             key = p.tanggal_rencana_kembali.strftime("%Y-%m-%d")
-            aset_names = ", ".join([pa.aset.nama for pa in p.aset_terkait if pa.aset]) or "-"
+            aset_names = ", ".join([pa.aset.nama if pa.aset else pa.nama_aset_snapshot for pa in p.aset_terkait if pa.aset or pa.nama_aset_snapshot]) or "-"
             peminjaman_calendar.setdefault(key, []).append({
                 "id": p.id,
                 "nama_peminjam": p.nama_peminjam,
@@ -813,6 +814,7 @@ def dashboard():
         "dashboard.html",
         total_aset=total_aset,
         total_rusak=total_rusak,
+        total_tidak_terpakai=total_tidak_terpakai,
         total_kategori=total_kategori,
         total_maintenance=total_maintenance,  
         total_pemindahan=total_pemindahan,
@@ -1216,7 +1218,8 @@ def api_aset_by_lokasi():
         "id": a.id,
         "kode": a.kode_aset,
         "nama": a.nama,
-        "kategori": a.kategori_ref.nama if a.kategori_ref else ""  # <-- NAMA KATEGORI ASET
+        "kategori": a.kategori_ref.nama if a.kategori_ref else "",  # <-- NAMA KATEGORI ASET
+        "status_aset": a.status_aset or "Baik",  # <-- KONDISI ASET SAAT INI
     } for a in hasil])
 
 
@@ -1367,7 +1370,7 @@ def aset_edit(aset_id):
     aset.merek = request.form.get("merek", "").strip() or None
     aset.serial_number = request.form.get("serial_number", "").strip() or None
     aset.spesifikasi = request.form.get("spesifikasi", "").strip() or None
-    aset.tipe_aset = request.form.get("tipe_aset", "OPEX").strip()
+    aset.tipe_aset = request.form.get("tipe_aset", "").strip() or None
     aset.volume = request.form.get("volume", "").strip() or None
     aset.satuan = request.form.get("satuan", "").strip() or None
     aset.status_aset = request.form.get("status_aset", aset.status_aset)
@@ -1505,6 +1508,35 @@ def aset_delete(aset_id):
             ta.nama_aset_snapshot = aset.nama
         ta.id_aset = None
 
+    # +++ Lepas juga semua riwayat HistoriAset (mis. jenis_event "pindah",
+    # "rusak", dll) yang masih menunjuk ke aset ini. Riwayat ini hanya pernah
+    # ditampilkan di halaman detail aset yang bersangkutan, jadi aman untuk
+    # dilepas -- begitu asetnya dihapus, halaman itu juga sudah tidak bisa
+    # diakses lagi. Tanpa ini, delete akan gagal karena foreign key
+    # constraint (histori_aset.id_aset) masih mengunci ke aset.id.
+    for h in HistoriAset.query.filter_by(id_aset=aset.id).all():
+        h.id_aset = None
+
+    # +++ Lepas juga riwayat Peminjaman (peminjaman_aset) yang masih
+    # menunjuk ke aset ini: backfill snapshot dulu (biar tetap ketahuan
+    # aset apa yang dulu dipinjam), baru lepas id_aset-nya.
+    for pa in PeminjamanAset.query.filter_by(id_aset=aset.id).all():
+        if not pa.kode_aset_snapshot:
+            pa.kode_aset_snapshot = aset.kode_aset
+        if not pa.nama_aset_snapshot:
+            pa.nama_aset_snapshot = aset.nama
+        pa.id_aset = None
+
+    # +++ Lepas juga riwayat Maintenance yang masih menunjuk ke aset ini,
+    # dengan cara yang sama (backfill snapshot lalu lepas id_aset-nya),
+    # supaya riwayat maintenance tetap ada meski asetnya sudah dihapus.
+    for mt in Maintenance.query.filter_by(id_aset=aset.id).all():
+        if not mt.kode_aset_snapshot:
+            mt.kode_aset_snapshot = aset.kode_aset
+        if not mt.nama_aset_snapshot:
+            mt.nama_aset_snapshot = aset.nama
+        mt.id_aset = None
+
     db.session.delete(aset)
     db.session.commit()
     flash(
@@ -1530,7 +1562,8 @@ def aset_detail(aset_id):
             "lantai_asal": h.lantai_asal or "",
             "ruangan_asal": h.ruangan_asal or "",
             "tanggal": h.tanggal.strftime("%d-%m-%Y %H:%M"),
-            "id_tiket": h.id_tiket
+            "id_tiket": h.id_tiket,
+            "keterangan": h.keterangan or "",
         })
     
     foto_display = None
@@ -1578,7 +1611,8 @@ def aset_histori(aset_id):
             "lantai": h.lantai or "",
             "ruangan": h.ruangan or "",
             "tanggal": h.tanggal.strftime("%d-%m-%Y %H:%M"),
-            "id_tiket": h.id_tiket
+            "id_tiket": h.id_tiket,
+            "keterangan": h.keterangan or "",
         })
     return jsonify(data)
 
@@ -1839,6 +1873,32 @@ def aset_delete_multiple():
             deskripsi=f"Menghapus aset via bulk: {aset.nama} ({aset.kode_aset}) - Alasan: {reason or 'Tidak ada alasan'}",
             data_lama=snapshot_aset(aset, kategori_nama=aset.kategori_ref.nama if aset.kategori_ref else None)
         )
+
+        # +++ Sama seperti aset_delete (single): lepas dulu TiketAset &
+        # HistoriAset yang masih menunjuk ke aset ini, supaya tidak melanggar
+        # foreign key constraint saat aset dihapus. Tanpa ini, bulk delete
+        # akan gagal untuk aset yang punya riwayat tiket (pindah/rusak).
+        for ta in TiketAset.query.filter_by(id_aset=aset.id).all():
+            if not ta.kode_aset_snapshot:
+                ta.kode_aset_snapshot = aset.kode_aset
+            if not ta.nama_aset_snapshot:
+                ta.nama_aset_snapshot = aset.nama
+            ta.id_aset = None
+        for h in HistoriAset.query.filter_by(id_aset=aset.id).all():
+            h.id_aset = None
+        for pa in PeminjamanAset.query.filter_by(id_aset=aset.id).all():
+            if not pa.kode_aset_snapshot:
+                pa.kode_aset_snapshot = aset.kode_aset
+            if not pa.nama_aset_snapshot:
+                pa.nama_aset_snapshot = aset.nama
+            pa.id_aset = None
+        for mt in Maintenance.query.filter_by(id_aset=aset.id).all():
+            if not mt.kode_aset_snapshot:
+                mt.kode_aset_snapshot = aset.kode_aset
+            if not mt.nama_aset_snapshot:
+                mt.nama_aset_snapshot = aset.nama
+            mt.id_aset = None
+
         db.session.delete(aset)
     
     db.session.commit()
@@ -1985,7 +2045,7 @@ def aset_import():
                     pass
 
         # Status valid
-        status_valid = status_aset if status_aset in ("Baik", "Rusak", "Dipindahkan") else "Baik"
+        status_valid = status_aset if status_aset in ("Baik", "Rusak", "Tidak Terpakai", "Dipindahkan") else "Baik"
 
         # PERBAIKAN: tipe_aset (CAPEX/OPEX) dari Excel.
         # tipe_valid = None berarti Excel TIDAK punya nilai CAPEX/OPEX yang valid
@@ -2049,7 +2109,7 @@ def aset_import():
                 # mengandalkan default kolom di models.py) supaya perilakunya
                 # jelas dan gampang ditelusuri -- ini HANYA berlaku untuk aset
                 # baru yang memang belum pernah ada tipe_aset-nya sama sekali.
-                tipe_aset=tipe_valid or "OPEX",
+                tipe_aset=tipe_valid or None,
                 volume=volume or None,
                 satuan=satuan or None,
                 status_aset=status_valid,
@@ -2280,7 +2340,7 @@ def history_list():
     if filter_jenis in ["", "Peminjaman"]:
         for p in Peminjaman.query.order_by(Peminjaman.created_at.desc()).all():
             creator_name = p.user_creator.name if p.user_creator else "System"
-            aset_list = ", ".join([pa.aset.nama for pa in p.aset_terkait[:3] if pa.aset])
+            aset_list = ", ".join([pa.aset.nama if pa.aset else pa.nama_aset_snapshot for pa in p.aset_terkait[:3] if pa.aset or pa.nama_aset_snapshot])
             if len(p.aset_terkait) > 3:
                 aset_list += f" dan {len(p.aset_terkait)-3} lainnya"
 
@@ -2962,7 +3022,11 @@ def peminjaman_export():
         else:
             status_tampil = p.status
 
-        nama_barang = [f"{pa.aset.kode_aset} - {pa.aset.nama}" for pa in p.aset_terkait if pa.aset]
+        nama_barang = [
+            f"{pa.aset.kode_aset} - {pa.aset.nama}" if pa.aset
+            else f"{pa.kode_aset_snapshot or '-'} - {pa.nama_aset_snapshot} (dihapus)"
+            for pa in p.aset_terkait if pa.aset or pa.nama_aset_snapshot
+        ]
         barang_tampil = "; ".join(nama_barang) if nama_barang else "-"
 
         ws.append([
@@ -3612,7 +3676,10 @@ def maintenance_list():
     search = request.args.get("search", "").strip()
     status = request.args.get("status", "").strip()
     
-    query = Maintenance.query.join(Aset)
+    # +++ outerjoin (LEFT JOIN), bukan join biasa -- supaya baris maintenance
+    # milik aset yang sudah dihapus (id_aset di-set NULL) tetap ikut tampil,
+    # bukan malah hilang dari daftar.
+    query = Maintenance.query.outerjoin(Aset)
     
     if kategori_id:
         # PERBAIKAN: filter berdasarkan kategori ASET SAAT INI (Aset.id_kategori),
@@ -3685,12 +3752,12 @@ def maintenance_export():
         "Deskripsi", "Dibuat Oleh", "Tanggal Dibuat",
     ])
 
-    daftar = Maintenance.query.join(Aset).order_by(Maintenance.tanggal_mulai.desc()).all()
+    daftar = Maintenance.query.outerjoin(Aset).order_by(Maintenance.tanggal_mulai.desc()).all()
     for no, m in enumerate(daftar, start=1):
         ws.append([
             no,
-            m.aset.kode_aset if m.aset else "",
-            m.aset.nama if m.aset else "",
+            m.aset.kode_aset if m.aset else (m.kode_aset_snapshot or ""),
+            m.aset.nama if m.aset else (m.nama_aset_snapshot or ""),
             m.aset.kategori_ref.nama if m.aset and m.aset.kategori_ref else "",
             m.judul,
             m.tipe,
@@ -3740,6 +3807,7 @@ def maintenance_create():
     tanggal_akhir_str = request.form.get("tanggal_akhir")
     biaya = request.form.get("biaya", 0)
     status = request.form.get("status", "Scheduled")
+    kondisi_aset = request.form.get("kondisi_aset", "").strip()
     
     # Validasi
     if not judul or not tanggal_mulai_str:
@@ -3794,10 +3862,30 @@ def maintenance_create():
         gedung=aset.gedung,
         lantai=aset.lantai,
         ruangan=aset.ruangan,
-        id_tiket=None
+        id_tiket=None,
+        keterangan=f"{judul}" + (f" — {deskripsi}" if deskripsi else ""),
     )
     db.session.add(histori)
-    
+
+    # Update kondisi aset kalau admin memilih kondisi baru saat menambahkan
+    # jadwal maintenance (mis. langsung menandai aset "Baik" lagi setelah
+    # diperbaiki, atau "Tidak Terpakai" kalau ternyata sudah tidak dipakai).
+    # Kalau kondisinya memang berubah, catat juga sebagai entri histori
+    # tersendiri supaya kelihatan jelas di riwayat aset.
+    if kondisi_aset in ("Baik", "Rusak", "Tidak Terpakai"):
+        kondisi_lama = aset.status_aset
+        if kondisi_lama != kondisi_aset:
+            db.session.add(HistoriAset(
+                id_aset=int(aset_id),
+                jenis_event="kondisi",
+                gedung=aset.gedung,
+                lantai=aset.lantai,
+                ruangan=aset.ruangan,
+                id_tiket=None,
+                keterangan=f"Kondisi diubah dari {kondisi_lama or '-'} menjadi {kondisi_aset} (maintenance: {judul})",
+            ))
+        aset.status_aset = kondisi_aset
+
     # Catat aktivitas admin
     catat_aktivitas(
         aksi="CREATE",
@@ -3826,6 +3914,21 @@ def maintenance_edit(id):
     biaya_raw = request.form.get("biaya", "").strip()
     maintenance.biaya = float(biaya_raw) if biaya_raw else 0
     maintenance.status = request.form.get("status", "Scheduled")
+
+    kondisi_aset = request.form.get("kondisi_aset", "").strip()
+    if kondisi_aset in ("Baik", "Rusak", "Tidak Terpakai") and maintenance.aset:
+        kondisi_lama = maintenance.aset.status_aset
+        if kondisi_lama != kondisi_aset:
+            db.session.add(HistoriAset(
+                id_aset=maintenance.aset.id,
+                jenis_event="kondisi",
+                gedung=maintenance.aset.gedung,
+                lantai=maintenance.aset.lantai,
+                ruangan=maintenance.aset.ruangan,
+                id_tiket=None,
+                keterangan=f"Kondisi diubah dari {kondisi_lama or '-'} menjadi {kondisi_aset} (edit maintenance: {maintenance.judul})",
+            ))
+        maintenance.aset.status_aset = kondisi_aset
 
     kategori_raw = request.form.get("kategori", "").strip()
     if kategori_raw:

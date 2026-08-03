@@ -127,13 +127,16 @@ document.addEventListener('DOMContentLoaded', function() {
         else if (h.jenis === 'perbaikan') { label = '✅ Diperbaiki'; color = 'text-emerald-600'; }
         else if (h.jenis === 'pinjam') { label = '📦 Dipinjam'; color = 'text-amber-600'; }
         else if (h.jenis === 'kembali') { label = '↩️ Dikembalikan'; color = 'text-emerald-600'; }
+        else if (h.jenis === 'maintenance') { label = '🔧 Maintenance'; color = 'text-indigo-600'; }
+        else if (h.jenis === 'kondisi') { label = '🎯 Perubahan Kondisi'; color = 'text-amber-600'; }
         let lokasi = '';
         if (h.gedung) {
           lokasi = h.gedung;
           if (h.lantai) lokasi += ` / Lantai ${h.lantai}`;
           if (h.ruangan) lokasi += ` / ${h.ruangan}`;
         }
-        return `<p class="text-xs ${color}">${label} ${lokasi || ''} <span class="text-slate-400">(${h.tanggal})</span></p>`;
+        const detail = h.keterangan ? h.keterangan : (lokasi || '');
+        return `<p class="text-xs ${color}">${label} ${detail} <span class="text-slate-400">(${h.tanggal})</span></p>`;
       }).join('');
     })
     .catch(() => {

@@ -115,7 +115,12 @@
                     <td class="td text-slate-600">{{ p.unit or '-' }}</td>
                     <td class="td text-slate-600">{{ p.lokasi_kerja or '-' }}</td>
                     <td class="td text-slate-700">
-                        {% set nama_aset = p.aset_terkait|selectattr('aset')|map(attribute='aset.nama')|list %}
+                        {% set nama_aset = [] %}
+                        {% for pa in p.aset_terkait %}
+                            {% if pa.aset %}{{ nama_aset.append(pa.aset.nama) or '' }}
+                            {% elif pa.nama_aset_snapshot %}{{ nama_aset.append(pa.nama_aset_snapshot) or '' }}
+                            {% endif %}
+                        {% endfor %}
                         {% if nama_aset %}
                             {{ nama_aset[:2]|join(', ') }}{% if nama_aset|length > 2 %} +{{ nama_aset|length - 2 }} lainnya{% endif %}
                         {% elif p.kategori_ref %}
