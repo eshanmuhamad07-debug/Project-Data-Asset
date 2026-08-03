@@ -1044,6 +1044,33 @@ def build_lokasi_master():
 @app.route("/aset")
 @login_required
 def aset_list():
+    # +++ PERSISTENSI FILTER: filter (dan pagination/per_page) di halaman
+    # Data Aset TIDAK BOLEH reset sendiri -- baik karena user pindah ke
+    # halaman lain lalu balik lagi, maupun karena tambah/edit/hapus aset
+    # yang me-redirect balik ke sini tanpa query string. Filter hanya boleh
+    # hilang kalau user menekan tombol Reset secara eksplisit.
+    #
+    # Caranya: setiap kali request datang MEMBAWA parameter filter apa pun
+    # (dari form filter, klik pagination, atau ganti per_page), query
+    # string itu disimpan ke session. Kalau request datang TANPA parameter
+    # filter sama sekali (mis. dari link menu, atau redirect setelah
+    # simpan/hapus aset), ambil & pakai lagi query string terakhir yang
+    # tersimpan di session (redirect supaya URL & tampilan filter di form
+    # tetap sinkron). Tombol Reset mengirim ?reset=1 untuk menghapus
+    # simpanan ini secara eksplisit.
+    ASET_FILTER_KEYS = ("q", "status", "kategori", "tipe", "gedung", "lantai", "ruangan", "per_page", "page")
+
+    if request.args.get("reset"):
+        session.pop("aset_filter_qs", None)
+        return redirect(url_for("aset_list"))
+
+    if any(k in request.args for k in ASET_FILTER_KEYS):
+        session["aset_filter_qs"] = request.query_string.decode("utf-8")
+    else:
+        saved_qs = session.get("aset_filter_qs")
+        if saved_qs:
+            return redirect(f"{url_for('aset_list')}?{saved_qs}")
+
     q = request.args.get("q", "").strip()
     status = request.args.get("status", "")
     kategori_id = request.args.get("kategori", "")

@@ -71,7 +71,7 @@
           {% if request.args.get('q') or request.args.get('status') or request.args.get('kategori') or
           request.args.get('tipe') or request.args.get('gedung') or request.args.get('lantai') or
           request.args.get('ruangan') %}
-          <a href="{{ url_for('aset_list') }}" class="btn btn-secondary shrink-0 text-slate-400">Reset</a>
+          <a href="{{ url_for('aset_list', reset=1) }}" class="btn btn-secondary shrink-0 text-slate-400">Reset</a>
           {% endif %}
 
           <!-- TOMBOL TAMBAH ASET (di samping Terapkan) -->
