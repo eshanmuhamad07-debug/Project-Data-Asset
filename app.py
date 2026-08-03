@@ -25,7 +25,7 @@ from models import (
     User, Kategori, Aset, Tiket, TiketAset,
     LogStatus, HistoriAset, AktivitasLog, Maintenance,
     Peminjaman, PeminjamanAset, PeminjamanEvidence,
-    Area, Gedung, Lantai, Ruangan
+    Area, Gedung, Lantai, Ruangan, PengecekanHarian
 )
 from roles import ROLE_ADMIN
 
@@ -472,6 +472,7 @@ def label_aktivitas(a):
             "UPDATE": "Edit Aset",
             "DELETE": "Hapus Aset",
             "MOVE": "Pemindahan Aset",
+            "CEK_HARIAN": "Pengecekan Harian Aset",
         }.get(a.aksi, a.aksi)
 
     if a.target_model == "Peminjaman":
@@ -1117,6 +1118,21 @@ def aset_list():
     )
     daftar_aset = pagination.items
     kategori_all = Kategori.query.all()
+
+    # --- TAMBAHAN: status Pengecekan Harian HARI INI untuk aset yang
+    # tampil di halaman ini saja (bukan semua aset) -- dipakai untuk mark
+    # hijau "Dicek Hari Ini" di tabel. Mark ini otomatis hilang besok
+    # karena selalu dibandingkan terhadap tanggal hari ini (lihat
+    # PengecekanHarian di models.py).
+    hari_ini = datetime.now(WIB).date()
+    ids_halaman_ini = [a.id for a in daftar_aset]
+    cek_harian_today = {}
+    if ids_halaman_ini:
+        rows_cek = PengecekanHarian.query.filter(
+            PengecekanHarian.tanggal == hari_ini,
+            PengecekanHarian.id_aset.in_(ids_halaman_ini),
+        ).all()
+        cek_harian_today = {r.id_aset: r.status for r in rows_cek}
     
     # --- TAMBAHAN: Ambil daftar AREA + GEDUNG (unik) ---
     gedung_all = (
@@ -1178,6 +1194,7 @@ def aset_list():
         lokasi_master=lokasi_master,
         fungsi_all=fungsi_all,
         satuan_all=satuan_all,
+        cek_harian_today=cek_harian_today,
     )
 
 
@@ -1456,6 +1473,45 @@ def aset_edit(aset_id):
         foto, foto_error = save_upload(foto_file, prefix="aset_")
         if foto:
             aset.foto = foto
+
+    # --- TAMBAHAN: Pengecekan Harian (opsional, tidak wajib diisi) ---
+    # Dropdown ini TIDAK termasuk field wajib -- kalau dikosongkan (value
+    # ""), tidak ada apa pun yang diubah/dicatat terkait pengecekan harian.
+    pengecekan_harian_input = request.form.get("pengecekan_harian", "").strip()
+    if pengecekan_harian_input in ("Selesai", "Belum"):
+        hari_ini = datetime.now(WIB).date()
+        cek = PengecekanHarian.query.filter_by(id_aset=aset.id, tanggal=hari_ini).first()
+        status_cek_lama = cek.status if cek else None
+        if not cek:
+            cek = PengecekanHarian(id_aset=aset.id, tanggal=hari_ini)
+            db.session.add(cek)
+        cek.status = pengecekan_harian_input
+        cek.id_user = current_user.id
+
+        # Catat ke riwayat aset (muncul di modal Detail Aset & aset_histori)
+        db.session.add(HistoriAset(
+            id_aset=aset.id,
+            jenis_event="cek_harian",
+            gedung=aset.gedung,
+            lantai=aset.lantai,
+            ruangan=aset.ruangan,
+            id_tiket=None,
+            keterangan=f"Pengecekan harian: {pengecekan_harian_input}",
+        ))
+
+        # Catat juga ke Aktivitas (muncul di halaman History terpadu)
+        if status_cek_lama != pengecekan_harian_input:
+            catat_aktivitas(
+                aksi="CEK_HARIAN",
+                target_model="Aset",
+                target_id=aset.id,
+                deskripsi=(
+                    f"Pengecekan harian aset {aset.nama} ({aset.kode_aset}): "
+                    f"{pengecekan_harian_input}"
+                ),
+                data_lama={"pengecekan_harian": status_cek_lama},
+                data_baru={"pengecekan_harian": pengecekan_harian_input},
+            )
 
     # +++ DEFINISIKAN data_baru SETELAH perubahan (snapshot lengkap semua field) +++
     kategori_baru_nama = kategori.nama if jenis_barang else None

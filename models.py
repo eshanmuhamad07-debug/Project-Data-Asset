@@ -147,6 +147,40 @@ class Aset(db.Model):
 
     # --- Relasi ke histori ---
     histori = db.relationship("HistoriAset", backref="aset_ref", cascade="all, delete-orphan")
+    pengecekan_harian = db.relationship(
+        "PengecekanHarian", backref="aset_ref", cascade="all, delete-orphan"
+    )
+
+
+# ============================================================
+# PENGECEKAN HARIAN ASET
+# ============================================================
+# 1 baris = 1 hasil pengecekan untuk 1 aset di 1 tanggal (kolom `tanggal`
+# HANYA tanggal, tanpa jam -- lihat unique constraint di bawah). Dropdown
+# "Pengecekan Harian" di modal Edit Aset TIDAK wajib diisi -- kalau
+# dikosongkan (value ""), tidak ada baris baru/diubah sama sekali.
+#
+# Mark hijau "Dicek Hari Ini" di halaman Data Aset dihitung langsung dari
+# tabel ini: cek apakah ADA baris dengan tanggal == hari ini (WIB) dan
+# status == "Selesai" untuk aset tsb. Karena perbandingannya selalu
+# terhadap tanggal HARI INI, mark ini otomatis "hilang" begitu tanggal
+# berganti -- tidak perlu job/cron reset terpisah. Riwayat pengecekan hari
+# sebelumnya tetap tersimpan permanen di tabel ini (dan juga dicatat ke
+# HistoriAset supaya muncul di Riwayat/Detail Aset & History).
+class PengecekanHarian(db.Model):
+    __tablename__ = "pengecekan_harian"
+    id = db.Column(db.Integer, primary_key=True)
+    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=False)
+    tanggal = db.Column(db.Date, nullable=False)  # tanggal WIB saat dicek (tanpa jam)
+    status = db.Column(db.String(20), nullable=False)  # "Selesai" / "Belum"
+    id_user = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=get_wib_now)
+    updated_at = db.Column(db.DateTime, default=get_wib_now, onupdate=get_wib_now)
+    user = db.relationship("User")
+
+    __table_args__ = (
+        db.UniqueConstraint("id_aset", "tanggal", name="uq_pengecekan_aset_tanggal"),
+    )
 
 
 # ============================================================
