@@ -1675,22 +1675,32 @@ def aset_pemindahan_submit(aset_id):
     tujuan_ruangan = request.form.get("tujuan_ruangan", "").strip()
     catatan = request.form.get("catatan", "").strip()
 
-    if not tujuan_gedung or not tujuan_ruangan:
-        flash("Lokasi Tujuan (Gedung & Ruangan) wajib diisi.", "danger")
-        return redirect(url_for("aset_pemindahan_form", aset_id=aset.id))
+    # +++ Lokasi Tujuan sekarang OPSIONAL: kalau Gedung/Ruangan tujuan tidak
+    # diisi (belum tahu aset akan dipindahkan ke mana), jangan blokir --
+    # anggap tujuan tidak diketahui, catat itu di catatan & histori, dan
+    # kosongkan lokasi aset (bukan dianggap masih di lokasi lama, karena
+    # asetnya memang sudah dipindahkan).
+    tujuan_diketahui = bool(tujuan_gedung and tujuan_ruangan)
+    if not tujuan_diketahui:
+        tujuan_gedung = None
+        tujuan_lantai = None
+        tujuan_ruangan = None
+        catatan_otomatis = "Aset dipindahkan, lokasi tujuan tidak diketahui."
+        catatan = f"{catatan} ({catatan_otomatis})" if catatan else catatan_otomatis
 
     gedung_asal = aset.gedung
     lantai_asal = aset.lantai
     ruangan_asal = aset.ruangan
 
-    lokasi_sama = (
-        tujuan_gedung == (gedung_asal or "")
-        and (tujuan_lantai or None) == (lantai_asal or None)
-        and tujuan_ruangan == (ruangan_asal or "")
-    )
-    if lokasi_sama:
-        flash("Lokasi Tujuan sama dengan lokasi aset saat ini.", "warning")
-        return redirect(url_for("aset_pemindahan_form", aset_id=aset.id))
+    if tujuan_diketahui:
+        lokasi_sama = (
+            tujuan_gedung == (gedung_asal or "")
+            and (tujuan_lantai or None) == (lantai_asal or None)
+            and tujuan_ruangan == (ruangan_asal or "")
+        )
+        if lokasi_sama:
+            flash("Lokasi Tujuan sama dengan lokasi aset saat ini.", "warning")
+            return redirect(url_for("aset_pemindahan_form", aset_id=aset.id))
 
     tiket = Tiket(
         jenis_tiket="Pemindahan",
@@ -1717,6 +1727,7 @@ def aset_pemindahan_submit(aset_id):
         lantai_asal=lantai_asal,
         ruangan_asal=ruangan_asal,
         id_tiket=tiket.id,
+        keterangan=None if tujuan_diketahui else "Aset dipindahkan, lokasi tujuan tidak diketahui.",
     ))
 
     db.session.add(LogStatus(
@@ -1733,20 +1744,30 @@ def aset_pemindahan_submit(aset_id):
     aset.gedung = tujuan_gedung
     aset.lantai = tujuan_lantai or None
     aset.ruangan = tujuan_ruangan
-    aset.status_aset = "Baik"
+    # Kalau tujuannya diketahui, aset dianggap "Baik" di lokasi barunya.
+    # Kalau tidak diketahui, tandai statusnya "Dipindahkan" supaya kelihatan
+    # jelas di daftar aset bahwa keberadaannya sekarang tidak pasti.
+    aset.status_aset = "Baik" if tujuan_diketahui else "Dipindahkan"
 
     catat_aktivitas(
         aksi="MOVE",
         target_model="Aset",
         target_id=aset.id,
-        deskripsi=f"Memindahkan aset {aset.nama} dari {gedung_asal or '-'} / {ruangan_asal or '-'} ke {tujuan_gedung} / {tujuan_ruangan}",
+        deskripsi=(
+            f"Memindahkan aset {aset.nama} dari {gedung_asal or '-'} / {ruangan_asal or '-'} ke {tujuan_gedung} / {tujuan_ruangan}"
+            if tujuan_diketahui else
+            f"Memindahkan aset {aset.nama} dari {gedung_asal or '-'} / {ruangan_asal or '-'} -- lokasi tujuan tidak diketahui"
+        ),
         data_lama=data_lama_lokasi,
         data_baru={"gedung": aset.gedung, "lantai": aset.lantai, "ruangan": aset.ruangan},
     )
 
     db.session.commit()
 
-    flash(f"Aset {aset.nama} berhasil dipindahkan.", "success")
+    if tujuan_diketahui:
+        flash(f"Aset {aset.nama} berhasil dipindahkan.", "success")
+    else:
+        flash(f"Aset {aset.nama} dicatat sebagai dipindahkan, dengan lokasi tujuan tidak diketahui.", "success")
     return redirect(url_for("pemindahan_list"))
 
 
@@ -2774,6 +2795,18 @@ def tiket_create_pemindahan():
     nama_pemohon = request.form.get("nama_pemohon", "").strip()
     catatan = request.form.get("catatan", "").strip()
 
+    # +++ Lokasi Tujuan OPSIONAL: kalau Gedung tujuan tidak diisi (belum
+    # tahu aset-aset ini akan dipindahkan ke mana), jangan blokir -- anggap
+    # tujuan tidak diketahui, catat di catatan & histori, kosongkan lokasi
+    # aset-asetnya, dan tandai statusnya "Dipindahkan".
+    tujuan_diketahui = bool(gedung_tujuan)
+    if not tujuan_diketahui:
+        gedung_tujuan = None
+        lantai_tujuan = None
+        ruangan_tujuan = None
+        catatan_otomatis = "Aset dipindahkan, lokasi tujuan tidak diketahui."
+        catatan = f"{catatan} ({catatan_otomatis})" if catatan else catatan_otomatis
+
     foto, foto_error = save_upload(request.files.get("foto"), prefix="tiket_")
 
     tiket = Tiket(
@@ -2812,7 +2845,8 @@ def tiket_create_pemindahan():
                 gedung_asal=aset.gedung,
                 lantai_asal=aset.lantai,
                 ruangan_asal=aset.ruangan,
-                id_tiket=tiket.id
+                id_tiket=tiket.id,
+                keterangan=None if tujuan_diketahui else "Aset dipindahkan, lokasi tujuan tidak diketahui.",
             )
             db.session.add(histori)
 
@@ -2820,7 +2854,7 @@ def tiket_create_pemindahan():
             aset.gedung = gedung_tujuan
             aset.lantai = lantai_tujuan or None
             aset.ruangan = ruangan_tujuan
-            aset.status_aset = "Baik"
+            aset.status_aset = "Baik" if tujuan_diketahui else "Dipindahkan"
 
             # Catat log status (untuk tiket)
             db.session.add(LogStatus(
@@ -2835,7 +2869,11 @@ def tiket_create_pemindahan():
                 aksi="MOVE",
                 target_model="Aset",
                 target_id=aset.id,
-                deskripsi=f"Memindahkan aset {aset.nama} dari {data_lama['gedung']} / {data_lama['ruangan']} ke {gedung_tujuan} / {ruangan_tujuan}",
+                deskripsi=(
+                    f"Memindahkan aset {aset.nama} dari {data_lama['gedung']} / {data_lama['ruangan']} ke {gedung_tujuan} / {ruangan_tujuan}"
+                    if tujuan_diketahui else
+                    f"Memindahkan aset {aset.nama} dari {data_lama['gedung']} / {data_lama['ruangan']} -- lokasi tujuan tidak diketahui"
+                ),
                 data_lama=data_lama,
                 data_baru={
                     "gedung": aset.gedung,
@@ -2850,8 +2888,10 @@ def tiket_create_pemindahan():
 
     if foto_error:
         flash(f"Pemindahan berhasil, tetapi foto gagal diupload: {foto_error}", "warning")
-    else:
+    elif tujuan_diketahui:
         flash(f"Pemindahan berhasil. {len(aset_ids)} aset dipindahkan.", "success")
+    else:
+        flash(f"{len(aset_ids)} aset dicatat sebagai dipindahkan, dengan lokasi tujuan tidak diketahui.", "success")
     return redirect(url_for("pemindahan_list"))
 
 @app.route("/tiket/create/kerusakan", methods=["POST"])

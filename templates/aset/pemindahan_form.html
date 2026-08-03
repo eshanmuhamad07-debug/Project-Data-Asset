@@ -38,6 +38,7 @@
       </div>
 
       <p class="text-xs font-semibold text-slate-500 pt-1">🎯 Lokasi Tujuan</p>
+      <p class="text-[11px] text-slate-400 -mt-1">Kosongkan kalau belum tahu aset ini akan dipindahkan ke mana -- nanti otomatis dicatat sebagai "tujuan tidak diketahui".</p>
       <div>
         <label class="field-label text-[10px]">Area</label>
         <select id="tujuanArea" class="field-input text-sm"
@@ -47,10 +48,10 @@
       </div>
       <div class="grid grid-cols-2 gap-2">
         <div>
-          <label class="field-label text-[10px]">Gedung <span class="text-rose-500">*</span></label>
-          <select name="tujuan_gedung" id="tujuanGedung" required class="field-input text-sm"
+          <label class="field-label text-[10px]">Gedung</label>
+          <select name="tujuan_gedung" id="tujuanGedung" class="field-input text-sm"
             onchange="onMasterGedungChange('tujuanArea','tujuanGedung','tujuanLantai','tujuanRuangan')">
-            <option value="">-- Pilih Area dulu --</option>
+            <option value="">-- Belum diketahui --</option>
           </select>
         </div>
         <div>
@@ -62,9 +63,9 @@
         </div>
       </div>
       <div>
-        <label class="field-label text-[10px]">Ruangan <span class="text-rose-500">*</span></label>
-        <select name="tujuan_ruangan" id="tujuanRuangan" required class="field-input text-sm">
-          <option value="">-- Pilih Gedung dulu --</option>
+        <label class="field-label text-[10px]">Ruangan</label>
+        <select name="tujuan_ruangan" id="tujuanRuangan" class="field-input text-sm">
+          <option value="">-- Belum diketahui --</option>
         </select>
       </div>
 

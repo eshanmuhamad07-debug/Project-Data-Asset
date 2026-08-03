@@ -167,7 +167,9 @@
           </td>
           <td class="td font-mono text-[12px] text-slate-500 whitespace-nowrap">{{ a.kode_aset }}</td>
           <td class="td font-medium text-slate-800">{{ a.nama }}</td>
-          <td class="td whitespace-nowrap text-slate-500">{{ (format_area_label(a.area) ~ ' - ') if a.area else '' }}{{ a.gedung }} / {{ a.ruangan }}</td>
+          <td class="td whitespace-nowrap text-slate-500">
+            {% if a.gedung %}{{ (format_area_label(a.area) ~ ' - ') if a.area else '' }}{{ a.gedung }} / {{ a.ruangan }}{% else %}<span class="italic text-slate-400">Lokasi tidak diketahui</span>{% endif %}
+          </td>
           <td class="td">{{ m.pill(a.tipe_aset or 'None', 'violet' if a.tipe_aset == 'CAPEX' else 'sky' if a.tipe_aset == 'OPEX' else 'slate') }}</td>
           <td class="td whitespace-nowrap text-slate-500">{{ a.kategori_ref.nama if a.kategori_ref else '—' }}</td>
           <td class="td">{{ m.pill(a.status_aset, m.aset_tone(a.status_aset)) }}</td>
@@ -1300,10 +1302,14 @@
               let asal = `${h.gedung_asal || '-'}`;
               if (h.lantai_asal) asal += ` / Lantai ${h.lantai_asal}`;
               if (h.ruangan_asal) asal += ` / ${h.ruangan_asal}`;
-              let tujuan = `${h.gedung || '-'}`;
-              if (h.lantai) tujuan += ` / Lantai ${h.lantai}`;
-              if (h.ruangan) tujuan += ` / ${h.ruangan}`;
-              detailLokasi = `📍 ${asal} → ${tujuan}`;
+              if (h.gedung) {
+                let tujuan = `${h.gedung}`;
+                if (h.lantai) tujuan += ` / Lantai ${h.lantai}`;
+                if (h.ruangan) tujuan += ` / ${h.ruangan}`;
+                detailLokasi = `📍 ${asal} → ${tujuan}`;
+              } else {
+                detailLokasi = `📍 ${asal} → tujuan tidak diketahui`;
+              }
             } else if (h.jenis === 'rusak') {
               label = '⚠️ Kerusakan';
               color = 'text-rose-600';
@@ -1435,9 +1441,9 @@
           <div>
             <p class="text-xs text-slate-400">Lokasi Saat Ini</p>
             <p class="text-sm text-slate-700">
-              ${data.gedung} 
-              ${data.lantai ? `/ Lantai ${data.lantai}` : ''} 
-              ${data.ruangan ? `/ ${data.ruangan}` : ''}
+              ${data.gedung
+                ? `${data.gedung} ${data.lantai ? `/ Lantai ${data.lantai}` : ''} ${data.ruangan ? `/ ${data.ruangan}` : ''}`
+                : `<span class="italic text-slate-400">Lokasi tidak diketahui</span>`}
             </p>
           </div>
           
