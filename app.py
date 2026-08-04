@@ -25,7 +25,8 @@ from models import (
     User, Kategori, Aset, Tiket, TiketAset,
     LogStatus, HistoriAset, AktivitasLog, Maintenance,
     Peminjaman, PeminjamanAset, PeminjamanEvidence,
-    Area, Gedung, Lantai, Ruangan, PengecekanHarian
+    Area, Gedung, Lantai, Ruangan, PengecekanHarian,
+    CatatanAset, CatatanAsetItem, CatatanFoto
 )
 from roles import ROLE_ADMIN
 
@@ -4403,6 +4404,345 @@ def maintenance_delete(id):
     db.session.commit()
     flash("Jadwal maintenance berhasil dihapus.", "success")
     return redirect(url_for("maintenance_list"))
+
+
+# ---------------------------------------------------------------------------
+# CATATAN (NOTES)
+# ---------------------------------------------------------------------------
+# Fitur catatan bebas: judul, keterangan (bebas panjang), boleh terkait
+# BANYAK aset sekaligus (dipilih lewat checkbox -- lihat CatatanAsetItem),
+# dan boleh punya BANYAK foto pendukung (lihat CatatanFoto). Ditampilkan
+# sebagai kartu (bukan tabel) di halaman daftar -- tiap kartu menampilkan
+# judul & tanggal dibuat, diklik untuk lihat detail lengkapnya. Tambah
+# catatan memakai HALAMAN TERSENDIRI (bukan modal popup) supaya nyaman
+# dipakai untuk keterangan panjang, banyak aset, dan banyak foto sekaligus.
+def snapshot_catatan(c):
+    """Snapshot lengkap satu catatan untuk log aktivitas (CREATE/UPDATE/DELETE)."""
+    return {
+        "judul": c.judul,
+        "keterangan": c.keterangan,
+        "aset": sorted([
+            item.aset.nama if item.aset else (item.nama_aset_snapshot or "?")
+            for item in c.aset_list
+        ]),
+        "jumlah_foto": len(c.foto_list),
+    }
+
+
+@app.route("/notes")
+@login_required
+def notes_list():
+    """Daftar catatan dalam bentuk kartu, bisa dicari dan difilter per aset."""
+    search = request.args.get("search", "").strip()
+
+    query = CatatanAset.query
+    if search:
+        # Cari juga lewat aset yang terkait (CatatanAsetItem -> Aset), jadi
+        # perlu outerjoin + distinct supaya 1 catatan tidak duplikat kalau
+        # terkait lebih dari 1 aset yang sama-sama cocok pencarian.
+        query = (
+            query.outerjoin(CatatanAsetItem, CatatanAsetItem.id_catatan == CatatanAset.id)
+            .outerjoin(Aset, Aset.id == CatatanAsetItem.id_aset)
+            .filter(
+                db.or_(
+                    CatatanAset.judul.ilike(f"%{search}%"),
+                    CatatanAset.keterangan.ilike(f"%{search}%"),
+                    Aset.nama.ilike(f"%{search}%"),
+                    Aset.kode_aset.ilike(f"%{search}%"),
+                )
+            )
+            .distinct()
+        )
+
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 12, type=int)
+    pagination = query.order_by(CatatanAset.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    daftar_catatan = pagination.items
+
+    return render_template(
+        "notes/list.html",
+        daftar_catatan=daftar_catatan,
+        pagination=pagination,
+        search=search,
+    )
+
+
+@app.route("/notes/create", methods=["GET"])
+@login_required
+def notes_create_form():
+    """Halaman (bukan modal) untuk menambah catatan baru."""
+    aset_all = Aset.query.order_by(Aset.nama).all()
+    return render_template("notes/form.html", mode="create", c=None, aset_all=aset_all, selected_aset_ids=[])
+
+
+@app.route("/notes/create", methods=["POST"])
+@login_required
+def notes_create():
+    """Simpan catatan baru: judul & keterangan biasa, aset boleh banyak
+    (checkbox, field 'aset_ids'), foto boleh banyak (input file 'foto'
+    dengan atribut multiple)."""
+    judul = request.form.get("judul", "").strip()
+    keterangan = request.form.get("keterangan", "").strip()
+    aset_ids = request.form.getlist("aset_ids")
+
+    aset_all = Aset.query.order_by(Aset.nama).all()
+
+    if not judul:
+        flash("Judul catatan wajib diisi.", "danger")
+        return render_template(
+            "notes/form.html", mode="create", c=None, aset_all=aset_all,
+            selected_aset_ids=[int(i) for i in aset_ids if i.isdigit()],
+            judul_input=judul, keterangan_input=keterangan,
+        )
+
+    # Validasi semua aset yang dipilih dulu sebelum menyimpan apapun
+    aset_terpilih = []
+    for aid in aset_ids:
+        aset = Aset.query.get(aid)
+        if aset:
+            aset_terpilih.append(aset)
+
+    # Validasi semua file foto dulu (kalau ada yang gagal, batalkan semua
+    # supaya tidak ada foto "menggantung" tanpa catatan yang konsisten)
+    file_list = [f for f in request.files.getlist("foto") if f and f.filename]
+    for f in file_list:
+        if not allowed_file(f.filename):
+            flash(f"File '{f.filename}' bukan format gambar yang didukung.", "danger")
+            return render_template(
+                "notes/form.html", mode="create", c=None, aset_all=aset_all,
+                selected_aset_ids=[a.id for a in aset_terpilih],
+                judul_input=judul, keterangan_input=keterangan,
+            )
+
+    catatan = CatatanAset(
+        judul=judul,
+        keterangan=keterangan or None,
+        created_by=current_user.id,
+    )
+    db.session.add(catatan)
+    db.session.flush()  # dapatkan catatan.id sebelum dipakai relasi/log aktivitas
+
+    for aset in aset_terpilih:
+        db.session.add(CatatanAsetItem(
+            id_catatan=catatan.id,
+            id_aset=aset.id,
+            kode_aset_snapshot=aset.kode_aset,
+            nama_aset_snapshot=aset.nama,
+        ))
+
+    gagal_upload = []
+    for f in file_list:
+        unique_name, error = save_upload(f, prefix="catatan_")
+        if error:
+            gagal_upload.append(f"{f.filename}: {error}")
+            continue
+        db.session.add(CatatanFoto(
+            id_catatan=catatan.id,
+            filename=unique_name,
+            uploaded_by=current_user.id,
+        ))
+
+    catat_aktivitas(
+        aksi="CREATE",
+        target_model="CatatanAset",
+        target_id=catatan.id,
+        deskripsi=f"Menambahkan catatan: {judul}" + (
+            f" ({len(aset_terpilih)} aset terkait)" if aset_terpilih else ""
+        ),
+        data_baru=snapshot_catatan(catatan),
+    )
+
+    db.session.commit()
+
+    if gagal_upload:
+        flash("Catatan disimpan, tapi sebagian foto gagal diupload: " + "; ".join(gagal_upload), "warning")
+    else:
+        flash("Catatan berhasil disimpan.", "success")
+    return redirect(url_for("notes_detail", id=catatan.id))
+
+
+@app.route("/notes/<int:id>/detail")
+@login_required
+def notes_detail(id):
+    """Halaman detail satu catatan: keterangan lengkap, daftar aset terkait,
+    dan galeri foto (bisa lebih dari satu)."""
+    catatan = CatatanAset.query.get_or_404(id)
+    return render_template("notes/detail.html", c=catatan)
+
+
+@app.route("/notes/<int:id>/edit", methods=["GET"])
+@login_required
+def notes_edit_form(id):
+    """Halaman (bukan modal) untuk mengedit judul/keterangan/aset terkait
+    sebuah catatan. Foto dikelola terpisah lewat halaman detail."""
+    catatan = CatatanAset.query.get_or_404(id)
+    aset_all = Aset.query.order_by(Aset.nama).all()
+    selected_ids = [item.id_aset for item in catatan.aset_list if item.id_aset]
+    return render_template("notes/form.html", mode="edit", c=catatan, aset_all=aset_all, selected_aset_ids=selected_ids)
+
+
+@app.route("/notes/<int:id>/edit", methods=["POST"])
+@login_required
+def notes_edit(id):
+    """Edit judul/keterangan/aset terkait sebuah catatan. Foto diganti/
+    ditambah lewat route notes_upload_foto tersendiri."""
+    catatan = CatatanAset.query.get_or_404(id)
+    data_lama = snapshot_catatan(catatan)
+
+    judul = request.form.get("judul", "").strip()
+    aset_ids = request.form.getlist("aset_ids")
+    aset_all = Aset.query.order_by(Aset.nama).all()
+
+    if not judul:
+        flash("Judul catatan wajib diisi.", "danger")
+        return render_template(
+            "notes/form.html", mode="edit", c=catatan, aset_all=aset_all,
+            selected_aset_ids=[int(i) for i in aset_ids if i.isdigit()],
+        )
+
+    catatan.judul = judul
+    catatan.keterangan = request.form.get("keterangan", "").strip() or None
+
+    # Ganti seluruh daftar aset terkait sesuai checkbox yang dicentang saat ini
+    for item in list(catatan.aset_list):
+        db.session.delete(item)
+    db.session.flush()
+
+    for aid in aset_ids:
+        aset = Aset.query.get(aid)
+        if aset:
+            db.session.add(CatatanAsetItem(
+                id_catatan=catatan.id,
+                id_aset=aset.id,
+                kode_aset_snapshot=aset.kode_aset,
+                nama_aset_snapshot=aset.nama,
+            ))
+
+    db.session.flush()
+    data_baru = snapshot_catatan(catatan)
+    if data_lama != data_baru:
+        catat_aktivitas(
+            aksi="UPDATE",
+            target_model="CatatanAset",
+            target_id=catatan.id,
+            deskripsi=f"Memperbarui catatan: {catatan.judul}",
+            data_lama=data_lama,
+            data_baru=data_baru,
+        )
+
+    db.session.commit()
+    flash("Catatan berhasil diperbarui.", "success")
+    return redirect(url_for("notes_detail", id=id))
+
+
+@app.route("/notes/<int:id>/foto", methods=["POST"])
+@login_required
+def notes_upload_foto(id):
+    """Tambah satu atau beberapa foto sekaligus ke sebuah catatan (input
+    file mendukung atribut multiple). Selalu redirect balik ke detail."""
+    catatan = CatatanAset.query.get_or_404(id)
+    file_list = [f for f in request.files.getlist("foto") if f and f.filename]
+
+    if not file_list:
+        flash("Pilih minimal satu file foto terlebih dahulu.", "danger")
+        return redirect(url_for("notes_detail", id=id))
+
+    berhasil = 0
+    gagal_upload = []
+    for f in file_list:
+        unique_name, error = save_upload(f, prefix="catatan_")
+        if error:
+            gagal_upload.append(f"{f.filename}: {error}")
+            continue
+        db.session.add(CatatanFoto(
+            id_catatan=catatan.id,
+            filename=unique_name,
+            uploaded_by=current_user.id,
+        ))
+        berhasil += 1
+
+    if berhasil:
+        catat_aktivitas(
+            aksi="UPDATE",
+            target_model="CatatanAset",
+            target_id=catatan.id,
+            deskripsi=f"Menambahkan {berhasil} foto untuk catatan: {catatan.judul}",
+        )
+        db.session.commit()
+
+    if gagal_upload:
+        flash(
+            (f"{berhasil} foto berhasil diupload, " if berhasil else "") +
+            "sebagian gagal: " + "; ".join(gagal_upload),
+            "warning" if berhasil else "danger",
+        )
+    else:
+        flash(f"{berhasil} foto berhasil diupload.", "success")
+    return redirect(url_for("notes_detail", id=id))
+
+
+@app.route("/notes/foto/<int:foto_id>/delete", methods=["POST"])
+@login_required
+def notes_delete_foto(foto_id):
+    """Hapus satu foto tertentu milik sebuah catatan (catatan itu sendiri
+    tidak ikut terhapus, foto lain yang tersisa tetap ada)."""
+    foto = CatatanFoto.query.get_or_404(foto_id)
+    id_catatan = foto.id_catatan
+    catatan = foto.catatan
+
+    path = os.path.join(app.config["UPLOAD_FOLDER"], foto.filename)
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+    catat_aktivitas(
+        aksi="UPDATE",
+        target_model="CatatanAset",
+        target_id=id_catatan,
+        deskripsi=f"Menghapus satu foto dari catatan: {catatan.judul if catatan else '-'}",
+        data_lama={"foto": foto.filename},
+    )
+
+    db.session.delete(foto)
+    db.session.commit()
+    flash("Foto berhasil dihapus.", "success")
+    return redirect(url_for("notes_detail", id=id_catatan))
+
+
+@app.route("/notes/<int:id>/delete", methods=["POST"])
+@login_required
+def notes_delete(id):
+    """Hapus catatan beserta seluruh file foto pendukungnya. Relasi aset
+    terkait (CatatanAsetItem) & foto (CatatanFoto) ikut terhapus otomatis
+    lewat cascade "all, delete-orphan" di model."""
+    catatan = CatatanAset.query.get_or_404(id)
+    judul = catatan.judul
+    data_lama = snapshot_catatan(catatan)
+
+    for foto in catatan.foto_list:
+        path = os.path.join(app.config["UPLOAD_FOLDER"], foto.filename)
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+    catat_aktivitas(
+        aksi="DELETE",
+        target_model="CatatanAset",
+        target_id=catatan.id,
+        deskripsi=f"Menghapus catatan: {judul}",
+        data_lama=data_lama,
+    )
+
+    db.session.delete(catatan)
+    db.session.commit()
+    flash("Catatan berhasil dihapus.", "success")
+    return redirect(url_for("notes_list"))
 
 # ---------------------------------------------------------------------------
 # USERS (Admin only)

@@ -364,8 +364,66 @@ class PeminjamanAset(db.Model):
     nama_aset_snapshot = db.Column(db.String(150), nullable=True)
 
 
+class CatatanAset(db.Model):
+    """Catatan (notes) bebas terkait aset. Berbeda dari Histori/Maintenance/
+    Kerusakan yang otomatis tercipta dari alur tiket -- CatatanAset murni
+    dibuat manual oleh user untuk mencatat hal apapun, boleh terkait BANYAK
+    aset sekaligus (lihat CatatanAsetItem) dan boleh punya BANYAK foto
+    pendukung (lihat CatatanFoto)."""
+    __tablename__ = "catatan_aset"
+
+    id = db.Column(db.Integer, primary_key=True)
+    judul = db.Column(db.String(200), nullable=False)
+    keterangan = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=get_wib_now, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+
+    user = db.relationship("User")
+    aset_list = db.relationship(
+        "CatatanAsetItem", backref="catatan", cascade="all, delete-orphan"
+    )
+    foto_list = db.relationship(
+        "CatatanFoto",
+        backref="catatan",
+        cascade="all, delete-orphan",
+        order_by="CatatanFoto.uploaded_at",
+    )
+
+
+class CatatanAsetItem(db.Model):
+    """Satu baris = satu aset yang dipilih untuk sebuah catatan (relasi
+    banyak-ke-banyak Catatan <-> Aset, karena 1 catatan boleh terkait
+    lebih dari 1 aset sekaligus)."""
+    __tablename__ = "catatan_aset_item"
+    id = db.Column(db.Integer, primary_key=True)
+    id_catatan = db.Column(db.Integer, db.ForeignKey("catatan_aset.id"), nullable=False)
+    # Nullable: kalau aset yang bersangkutan sudah dihapus dari sistem,
+    # id_aset akan dilepas (di-set None) supaya tidak melanggar constraint
+    # FK, tapi catatannya tetap tampil berkat kode_aset_snapshot /
+    # nama_aset_snapshot di bawah ini (pola yang sama dengan Maintenance).
+    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=True)
+    aset = db.relationship("Aset")
+
+    kode_aset_snapshot = db.Column(db.String(50), nullable=True)
+    nama_aset_snapshot = db.Column(db.String(150), nullable=True)
+
+
+class CatatanFoto(db.Model):
+    """Satu baris = satu foto pendukung sebuah catatan. 1 catatan boleh
+    punya banyak foto (pola yang sama dengan PeminjamanEvidence)."""
+    __tablename__ = "catatan_foto"
+    id = db.Column(db.Integer, primary_key=True)
+    id_catatan = db.Column(db.Integer, db.ForeignKey("catatan_aset.id"), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=get_wib_now, nullable=False)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    user = db.relationship("User")
+
+
 class Maintenance(db.Model):
     __tablename__ = "maintenance"
+
 
     id = db.Column(db.Integer, primary_key=True)
     # Nullable: kalau aset yang bersangkutan sudah dihapus dari sistem,

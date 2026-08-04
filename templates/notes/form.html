@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Catatan' if mode == 'edit' else 'Tambah Catatan' }}{% endblock %}
+{% block header %}
+<a href="{{ url_for('notes_detail', id=c.id) if mode == 'edit' else url_for('notes_list') }}"
+    class="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-600 text-xs font-medium mb-0.5">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+    </svg>
+    {{ 'Detail Catatan' if mode == 'edit' else 'Catatan' }}
+</a>
+<div>{{ 'Edit Catatan' if mode == 'edit' else 'Tambah Catatan' }}</div>
+{% endblock %}
+{% block subheader %}
+<p class="text-xs text-slate-400">
+    {{ 'Perbarui judul, keterangan, dan aset terkait.' if mode == 'edit' else 'Judul, keterangan, aset terkait (boleh lebih dari satu), dan foto (boleh lebih dari satu).' }}
+</p>
+{% endblock %}
+
+{% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="mb-4 space-y-2">
+    {% for category, message in messages %}
+    <div class="p-3 rounded-lg text-sm
+                    {% if category == 'danger' %}bg-red-50 text-red-700 border border-red-200
+                    {% elif category == 'success' %}bg-green-50 text-green-700 border border-green-200
+                    {% elif category == 'warning' %}bg-yellow-50 text-yellow-700 border border-yellow-200
+                    {% else %}bg-blue-50 text-blue-700 border border-blue-200{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<form method="POST"
+    action="{{ url_for('notes_edit', id=c.id) if mode == 'edit' else url_for('notes_create') }}"
+    {% if mode != 'edit' %}enctype="multipart/form-data"{% endif %} class="max-w-3xl">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="card p-5 sm:p-6 space-y-5">
+
+        <!-- Judul -->
+        <div>
+            <label class="field-label">Judul <span class="text-rose-500">*</span></label>
+            <input type="text" name="judul" required maxlength="200"
+                value="{{ judul_input if judul_input is defined else (c.judul if c else '') }}"
+                placeholder="Judul catatan" class="field-input">
+        </div>
+
+        <!-- Keterangan besar -->
+        <div>
+            <label class="field-label">Keterangan</label>
+            <textarea name="keterangan" rows="10" placeholder="Tulis keterangan/isi catatan selengkap mungkin di sini..."
+                class="field-input">{{ keterangan_input if keterangan_input is defined else (c.keterangan if c else '') }}</textarea>
+        </div>
+
+        <!-- Pilih Aset - checkbox multi select -->
+        <div>
+            <label class="field-label">Aset Terkait (boleh pilih lebih dari satu, opsional)</label>
+            <input type="text" id="aset_search" placeholder="Cari nama/kode aset..." autocomplete="off"
+                class="field-input text-sm mb-2" oninput="filterAsetCheckboxes()">
+            <div id="aset_checkbox_list" class="max-h-64 overflow-y-auto border border-slate-200 rounded-xl p-2.5 space-y-0.5">
+                {% for a in aset_all %}
+                <label class="aset-checkbox-item flex items-center gap-2 text-sm text-slate-600 px-1.5 py-1.5 rounded-lg hover:bg-slate-50"
+                    data-label="{{ (a.kode_aset ~ ' ' ~ a.nama)|lower }}">
+                    <input type="checkbox" name="aset_ids" value="{{ a.id }}" {{ 'checked' if a.id in selected_aset_ids }}
+                        class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    <span class="font-mono text-[11px] text-slate-400">{{ a.kode_aset }}</span> {{ a.nama }}
+                </label>
+                {% else %}
+                <p class="text-xs text-slate-400 px-1.5 py-1">Belum ada data aset.</p>
+                {% endfor %}
+            </div>
+            <p id="aset_no_match" class="text-xs text-slate-400 px-1 pt-1.5 hidden">Tidak ada aset yang cocok.</p>
+        </div>
+
+        {% if mode != 'edit' %}
+        <!-- Upload Foto - bisa banyak sekaligus, hanya di form Tambah -->
+        <div>
+            <label class="field-label">Foto (boleh pilih lebih dari satu, opsional)</label>
+            <input type="file" name="foto" accept="image/*" multiple
+                class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-slate-50 hover:file:bg-slate-100">
+            <p class="text-[11px] text-slate-400 mt-1">Tahan Ctrl (Windows) / Cmd (Mac) untuk memilih beberapa foto sekaligus.</p>
+        </div>
+        {% else %}
+        <div class="border-t border-slate-100 pt-4">
+            <p class="text-xs text-slate-400">📷 Foto dikelola dari halaman detail catatan (bisa tambah/hapus foto di sana).</p>
+        </div>
+        {% endif %}
+
+        <div class="flex gap-2 pt-1">
+            <button type="submit" class="btn btn-primary flex-1 py-2.5">
+                {{ 'Simpan Perubahan' if mode == 'edit' else 'Simpan Catatan' }}
+            </button>
+            <a href="{{ url_for('notes_detail', id=c.id) if mode == 'edit' else url_for('notes_list') }}"
+                class="btn btn-secondary py-2.5">Batal</a>
+        </div>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function filterAsetCheckboxes() {
+        const keyword = document.getElementById('aset_search').value.trim().toLowerCase();
+        const items = document.querySelectorAll('#aset_checkbox_list .aset-checkbox-item');
+        let visibleCount = 0;
+        items.forEach(item => {
+            const match = item.getAttribute('data-label').includes(keyword);
+            item.style.display = match ? '' : 'none';
+            if (match) visibleCount++;
+        });
+        const noMatch = document.getElementById('aset_no_match');
+        if (noMatch) noMatch.classList.toggle('hidden', visibleCount > 0 || items.length === 0);
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Detail Catatan — {{ c.judul }}{% endblock %}
+{% block header %}
+<a href="{{ url_for('notes_list') }}"
+    class="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-600 text-xs font-medium mb-0.5">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+    </svg>
+    Catatan
+</a>
+<div>Detail Catatan</div>
+{% endblock %}
+{% block subheader %}
+<p class="text-xs text-slate-400">{{ c.judul }} — dibuat {{ c.created_at.strftime('%d %b %Y, %H:%M') if c.created_at
+    else '-' }}</p>
+{% endblock %}
+
+{% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="mb-4 space-y-2">
+    {% for category, message in messages %}
+    <div class="p-3 rounded-lg text-sm
+                    {% if category == 'danger' %}bg-red-50 text-red-700 border border-red-200
+                    {% elif category == 'success' %}bg-green-50 text-green-700 border border-green-200
+                    {% elif category == 'warning' %}bg-yellow-50 text-yellow-700 border border-yellow-200
+                    {% else %}bg-blue-50 text-blue-700 border border-blue-200{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    <!-- Info Catatan -->
+    <div class="card p-5 sm:p-6 lg:col-span-1 space-y-5 h-fit">
+        <div>
+            <p class="text-xs text-slate-400 mb-1">
+                🗓️ {{ c.created_at.strftime('%d %b %Y, %H:%M') if c.created_at else '-' }}
+            </p>
+            <h2 class="font-display font-bold text-lg text-slate-800">{{ c.judul }}</h2>
+        </div>
+
+        {% if c.aset_list %}
+        <div class="border-t border-slate-100 pt-4">
+            <p class="text-xs text-slate-400 mb-2">🗄️ Aset Terkait ({{ c.aset_list|length }})</p>
+            <div class="flex flex-wrap gap-1.5">
+                {% for item in c.aset_list %}
+                <span class="pill bg-indigo-50 text-indigo-700 border-indigo-200 text-xs">
+                    {{ item.aset.nama if item.aset else item.nama_aset_snapshot }}
+                    <span class="text-indigo-400 font-mono text-[10px] ml-1">{{ item.aset.kode_aset if item.aset else
+                        (item.kode_aset_snapshot or '') }}</span>
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="border-t border-slate-100 pt-4">
+            <p class="text-xs text-slate-400 mb-0.5">📝 Keterangan</p>
+            <p class="text-sm text-slate-700 whitespace-pre-line">{{ c.keterangan or '-' }}</p>
+        </div>
+
+        {% if c.user %}
+        <div class="border-t border-slate-100 pt-4">
+            <p class="text-xs text-slate-400 mb-0.5">👤 Dibuat Oleh</p>
+            <p class="text-sm text-slate-700">{{ c.user.name }}</p>
+        </div>
+        {% endif %}
+
+        <div class="border-t border-slate-100 pt-4 flex gap-2">
+            <a href="{{ url_for('notes_edit_form', id=c.id) }}" class="btn btn-secondary flex-1 text-sm text-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    class="inline -mt-0.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                </svg>
+                Edit
+            </a>
+            <form method="POST" action="{{ url_for('notes_delete', id=c.id) }}" class="flex-1"
+                onsubmit="return confirm('Hapus catatan ini beserta seluruh fotonya? Tindakan ini tidak bisa dibatalkan.')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                    class="btn w-full text-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" class="inline -mt-0.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M14.74 9l-.346 9m-4.788 0L9.26 9M4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                    </svg>
+                    Hapus
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Galeri Foto (banyak foto) -->
+    <div class="card p-5 sm:p-6 lg:col-span-2">
+        <p class="text-xs font-semibold text-slate-500 mb-3">📷 Foto ({{ c.foto_list|length }})</p>
+
+        {% if c.foto_list %}
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+            {% for foto in c.foto_list %}
+            <div class="relative group">
+                <a href="{{ url_for('static', filename='uploads/' + foto.filename) }}" target="_blank"
+                    rel="noopener">
+                    <img src="{{ url_for('static', filename='uploads/' + foto.filename) }}" alt="Foto catatan"
+                        class="w-full h-32 object-cover rounded-xl border border-slate-200">
+                </a>
+                <form method="POST" action="{{ url_for('notes_delete_foto', foto_id=foto.id) }}"
+                    onsubmit="return confirm('Hapus foto ini?')"
+                    class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit"
+                        class="w-6 h-6 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-red-600"
+                        title="Hapus foto ini">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="border border-dashed border-slate-200 rounded-xl p-6 text-center mb-4">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"
+                class="mx-auto text-slate-300 mb-2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            </svg>
+            <p class="text-sm text-slate-400">Belum ada foto untuk catatan ini.</p>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('notes_upload_foto', id=c.id) }}" enctype="multipart/form-data"
+            class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center bg-slate-50 border border-dashed border-slate-300 rounded-xl p-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="file" name="foto" accept="image/*" multiple required
+                class="flex-1 text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-200 file:text-xs file:font-medium file:bg-white hover:file:bg-slate-100">
+            <button type="submit" class="btn btn-primary text-xs shrink-0">Tambah Foto</button>
+        </form>
+        <p class="text-[11px] text-slate-400 mt-1.5">Tahan Ctrl (Windows) / Cmd (Mac) untuk memilih beberapa foto sekaligus.</p>
+    </div>
+</div>
+
+{% endblock %}

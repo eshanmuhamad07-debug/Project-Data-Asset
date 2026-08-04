@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Catatan{% endblock %}
+{% block header %}Catatan{% endblock %}
+{% block subheader %}
+<p class="text-xs text-slate-400">Catatan bebas terkait aset — {{ pagination.total if pagination else 0 }} catatan
+    tersimpan</p>
+{% endblock %}
+{% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="mb-4 space-y-2">
+    {% for category, message in messages %}
+    <div class="p-3 rounded-lg text-sm
+                    {% if category == 'danger' %}bg-red-50 text-red-700 border border-red-200
+                    {% elif category == 'success' %}bg-green-50 text-green-700 border border-green-200
+                    {% elif category == 'warning' %}bg-yellow-50 text-yellow-700 border border-yellow-200
+                    {% else %}bg-blue-50 text-blue-700 border border-blue-200{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<!-- Filter & Tombol Tambah -->
+<div class="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between mb-4">
+    <form method="GET" class="flex flex-wrap gap-2">
+        <div class="relative">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input type="text" name="search" value="{{ search or '' }}" placeholder="Cari judul, keterangan, atau aset..."
+                class="field-input pl-8 w-full sm:w-72 text-sm">
+        </div>
+        <button type="submit" class="btn btn-secondary shrink-0 text-sm">Cari</button>
+        {% if search %}
+        <a href="{{ url_for('notes_list') }}" class="btn btn-secondary shrink-0 text-slate-400 text-sm">Reset</a>
+        {% endif %}
+    </form>
+    <a href="{{ url_for('notes_create_form') }}" class="btn btn-primary shrink-0">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        Tambah Catatan
+    </a>
+</div>
+
+<!-- Grid Kartu Catatan -->
+{% if daftar_catatan %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    {% for c in daftar_catatan %}
+    <a href="{{ url_for('notes_detail', id=c.id) }}"
+        class="card overflow-hidden flex flex-col hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer">
+        {% if c.foto_list %}
+        <div class="h-32 w-full bg-slate-100 overflow-hidden relative">
+            <img src="{{ url_for('static', filename='uploads/' + c.foto_list[0].filename) }}" alt="{{ c.judul }}"
+                class="w-full h-full object-cover">
+            {% if c.foto_list|length > 1 %}
+            <span class="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[10px] font-medium px-1.5 py-0.5 rounded-md">
+                +{{ c.foto_list|length - 1 }} foto
+            </span>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="h-32 w-full bg-slate-50 flex items-center justify-center">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"
+                class="text-slate-300">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+            </svg>
+        </div>
+        {% endif %}
+        <div class="p-4 flex-1 flex flex-col gap-1.5">
+            <h3 class="font-display font-bold text-slate-800 text-sm leading-snug line-clamp-2">{{ c.judul }}</h3>
+            {% if c.keterangan %}
+            <p class="text-xs text-slate-500 line-clamp-2">{{ c.keterangan }}</p>
+            {% endif %}
+            <div class="mt-auto pt-2 flex items-center justify-between gap-2 border-t border-slate-100 mt-2">
+                <span class="text-[11px] text-slate-400">{{ c.created_at.strftime('%d %b %Y') if c.created_at else '-' }}</span>
+                {% if c.aset_list %}
+                <span class="pill bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] truncate max-w-[55%]">
+                    {{ c.aset_list[0].aset.nama if c.aset_list[0].aset else c.aset_list[0].nama_aset_snapshot }}
+                    {% if c.aset_list|length > 1 %} +{{ c.aset_list|length - 1 }}{% endif %}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card p-14 text-center">
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"
+        class="mx-auto text-slate-300 mb-2">
+        <path stroke-linecap="round" stroke-linejoin="round"
+            d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+    </svg>
+    <p class="text-sm text-slate-400">Belum ada catatan.</p>
+    <p class="text-xs text-slate-400 mt-1">Klik "Tambah Catatan" untuk membuat catatan baru.</p>
+</div>
+{% endif %}
+
+<!-- Pagination -->
+{% if pagination and pagination.pages > 1 %}
+<div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-1 py-4 text-xs text-slate-500">
+    <span>Menampilkan {{ ((pagination.page - 1) * pagination.per_page) + 1 }} - {{ [pagination.page *
+        pagination.per_page, pagination.total] | min }} dari {{ pagination.total }}</span>
+    <div class="flex gap-1">
+        {% if pagination.has_prev %}
+        <a href="{{ url_for('notes_list', page=pagination.prev_num, search=search or '') }}"
+            class="px-3 py-1 rounded-lg hover:bg-slate-100">‹ Sebelumnya</a>
+        {% endif %}
+        {% if pagination.has_next %}
+        <a href="{{ url_for('notes_list', page=pagination.next_num, search=search or '') }}"
+            class="px-3 py-1 rounded-lg hover:bg-slate-100">Berikutnya ›</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
