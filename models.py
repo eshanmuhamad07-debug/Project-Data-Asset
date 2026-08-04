@@ -421,6 +421,36 @@ class CatatanFoto(db.Model):
     user = db.relationship("User")
 
 
+class PengecekanAset(db.Model):
+    """Pengecekan aset -- tombol ke-3 di Edit Data Aset (sejajar dengan
+    'Pemindahan Aset' & 'Kerusakan Aset'). Setiap submit membuat 1 baris
+    riwayat baru (radio Sudah Dicek/Belum Dicek + keterangan + foto
+    opsional), otomatis muncul di History terpadu dan menjadi acuan
+    tanda hijau "Sudah Dicek" di daftar Aset (menggantikan mekanisme
+    dropdown 'Pengecekan Harian' + tabel PengecekanHarian yang lama)."""
+    __tablename__ = "pengecekan_aset"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Nullable: kalau aset yang bersangkutan sudah dihapus dari sistem,
+    # id_aset akan dilepas (di-set None) supaya tidak melanggar constraint
+    # FK, tapi riwayat pengecekannya tetap tampil berkat kode_aset_snapshot
+    # / nama_aset_snapshot di bawah ini (pola yang sama dengan Maintenance).
+    id_aset = db.Column(db.Integer, db.ForeignKey("aset.id"), nullable=True)
+    kode_aset_snapshot = db.Column(db.String(50), nullable=True)
+    nama_aset_snapshot = db.Column(db.String(150), nullable=True)
+
+    status = db.Column(db.String(20), nullable=False)  # "Sudah Dicek" / "Belum Dicek"
+    keterangan = db.Column(db.Text, nullable=True)
+    foto = db.Column(db.String(255), nullable=True)  # nama file di static/uploads, opsional
+
+    created_at = db.Column(db.DateTime, default=get_wib_now, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+
+    aset = db.relationship("Aset")
+    user = db.relationship("User")
+
+
 class Maintenance(db.Model):
     __tablename__ = "maintenance"
 

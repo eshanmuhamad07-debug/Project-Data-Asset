@@ -26,7 +26,7 @@ from models import (
     LogStatus, HistoriAset, AktivitasLog, Maintenance,
     Peminjaman, PeminjamanAset, PeminjamanEvidence,
     Area, Gedung, Lantai, Ruangan, PengecekanHarian,
-    CatatanAset, CatatanAsetItem, CatatanFoto
+    CatatanAset, CatatanAsetItem, CatatanFoto, PengecekanAset
 )
 from roles import ROLE_ADMIN
 
@@ -485,8 +485,10 @@ def label_aktivitas(a):
             "UPDATE": "Edit Aset",
             "DELETE": "Hapus Aset",
             "MOVE": "Pemindahan Aset",
-            "CEK_HARIAN": "Pengecekan Harian Aset",
         }.get(a.aksi, a.aksi)
+
+    if a.target_model == "PengecekanAset":
+        return "Pengecekan Aset"
 
     if a.target_model == "Peminjaman":
         if a.aksi == "CREATE":
@@ -1171,21 +1173,48 @@ def aset_list():
     daftar_aset = pagination.items
     kategori_all = Kategori.query.all()
 
-    # --- TAMBAHAN: status Pengecekan Harian HARI INI untuk aset yang
-    # tampil di halaman ini saja (bukan semua aset) -- dipakai untuk mark
-    # hijau "Dicek Hari Ini" di tabel. Mark ini otomatis hilang besok
-    # karena selalu dibandingkan terhadap tanggal hari ini (lihat
-    # PengecekanHarian di models.py).
+    # --- TAMBAHAN: status Pengecekan TERAKHIR untuk aset yang tampil di
+    # halaman ini saja (bukan semua aset) -- dipakai untuk mark hijau
+    # "Sudah Dicek" di tabel. Sumbernya PengecekanAset (tombol "Pengecekan
+    # Aset" di Edit Data Aset), BUKAN lagi tabel PengecekanHarian yang lama
+    # (dropdown itu sudah digantikan tombol ini). Karena pengecekan aset
+    # biasanya dilakukan SETAHUN SEKALI (bukan tiap hari), mark ini TIDAK
+    # hilang keesokan harinya -- tetap hijau selama pengecekan TERAKHIR
+    # aset tersebut berstatus "Sudah Dicek" dan masih dalam rentang 365
+    # hari terakhir. Kalau sudah lewat 1 tahun sejak pengecekan terakhir
+    # (atau status terakhirnya "Belum Dicek"), mark hijau otomatis hilang
+    # lagi sampai dicek ulang.
     hari_ini = datetime.now(WIB).date()
     ids_halaman_ini = [a.id for a in daftar_aset]
-    cek_harian_today = {}
+    cek_harian_today = {}      # {aset_id: "Sudah Dicek"} kalau masih berlaku (<=365 hari)
+    cek_harian_tanggal = {}    # {aset_id: date} tanggal pengecekan terakhir, untuk tooltip
     if ids_halaman_ini:
-        rows_cek = PengecekanHarian.query.filter(
-            PengecekanHarian.tanggal == hari_ini,
-            PengecekanHarian.id_aset.in_(ids_halaman_ini),
-        ).all()
-        cek_harian_today = {r.id_aset: r.status for r in rows_cek}
-    
+        latest_subq = (
+            db.session.query(
+                PengecekanAset.id_aset.label("id_aset"),
+                db.func.max(PengecekanAset.created_at).label("waktu_terbaru"),
+            )
+            .filter(PengecekanAset.id_aset.in_(ids_halaman_ini))
+            .group_by(PengecekanAset.id_aset)
+            .subquery()
+        )
+        rows_cek = (
+            db.session.query(PengecekanAset)
+            .join(
+                latest_subq,
+                db.and_(
+                    PengecekanAset.id_aset == latest_subq.c.id_aset,
+                    PengecekanAset.created_at == latest_subq.c.waktu_terbaru,
+                ),
+            )
+            .all()
+        )
+        for r in rows_cek:
+            tanggal_cek = r.created_at.date()
+            if r.status == "Sudah Dicek" and (hari_ini - tanggal_cek).days <= 365:
+                cek_harian_today[r.id_aset] = r.status
+                cek_harian_tanggal[r.id_aset] = tanggal_cek
+
     # --- TAMBAHAN: Ambil daftar AREA + GEDUNG (unik) ---
     gedung_all = (
         db.session.query(Aset.area, Aset.gedung)
@@ -1247,6 +1276,7 @@ def aset_list():
         fungsi_all=fungsi_all,
         satuan_all=satuan_all,
         cek_harian_today=cek_harian_today,
+        cek_harian_tanggal=cek_harian_tanggal,
         urutan=urutan,
     )
 
@@ -1568,44 +1598,9 @@ def aset_edit(aset_id):
         if foto:
             aset.foto = foto
 
-    # --- TAMBAHAN: Pengecekan Harian (opsional, tidak wajib diisi) ---
-    # Dropdown ini TIDAK termasuk field wajib -- kalau dikosongkan (value
-    # ""), tidak ada apa pun yang diubah/dicatat terkait pengecekan harian.
-    pengecekan_harian_input = request.form.get("pengecekan_harian", "").strip()
-    if pengecekan_harian_input in ("Selesai", "Belum"):
-        hari_ini = datetime.now(WIB).date()
-        cek = PengecekanHarian.query.filter_by(id_aset=aset.id, tanggal=hari_ini).first()
-        status_cek_lama = cek.status if cek else None
-        if not cek:
-            cek = PengecekanHarian(id_aset=aset.id, tanggal=hari_ini)
-            db.session.add(cek)
-        cek.status = pengecekan_harian_input
-        cek.id_user = current_user.id
-
-        # Catat ke riwayat aset (muncul di modal Detail Aset & aset_histori)
-        db.session.add(HistoriAset(
-            id_aset=aset.id,
-            jenis_event="cek_harian",
-            gedung=aset.gedung,
-            lantai=aset.lantai,
-            ruangan=aset.ruangan,
-            id_tiket=None,
-            keterangan=f"Pengecekan harian: {pengecekan_harian_input}",
-        ))
-
-        # Catat juga ke Aktivitas (muncul di halaman History terpadu)
-        if status_cek_lama != pengecekan_harian_input:
-            catat_aktivitas(
-                aksi="CEK_HARIAN",
-                target_model="Aset",
-                target_id=aset.id,
-                deskripsi=(
-                    f"Pengecekan harian aset {aset.nama} ({aset.kode_aset}): "
-                    f"{pengecekan_harian_input}"
-                ),
-                data_lama={"pengecekan_harian": status_cek_lama},
-                data_baru={"pengecekan_harian": pengecekan_harian_input},
-            )
+    # --- Pengecekan aset kini dilakukan lewat tombol "Pengecekan Aset"
+    # tersendiri (lihat aset_pengecekan_form / aset_pengecekan_submit),
+    # BUKAN lagi lewat dropdown di form Edit Aset ini.
 
     # +++ DEFINISIKAN data_baru SETELAH perubahan (snapshot lengkap semua field) +++
     kategori_baru_nama = kategori.nama if jenis_barang else None
@@ -2103,6 +2098,87 @@ def aset_kerusakan_submit(aset_id):
     else:
         flash(f"Kerusakan aset {aset.nama} berhasil dilaporkan.", "success")
     return redirect(url_for("kerusakan_list"))
+
+
+@app.route("/aset/<int:aset_id>/pengecekan", methods=["GET"])
+@login_required
+def aset_pengecekan_form(aset_id):
+    """Halaman form Pengecekan khusus untuk 1 aset (dibuka lewat tombol
+    'Pengecekan Aset' di Edit Data Aset) -- sejajar dengan
+    aset_pemindahan_form & aset_kerusakan_form, tapi lebih sederhana:
+    cuma radio Sudah Dicek/Belum Dicek + keterangan + foto (opsional),
+    tidak ada perpindahan lokasi. Bisa diakses semua role yang login
+    (bukan admin-only) karena pengecekan rutin biasanya dilakukan oleh
+    siapa saja yang bertugas, bukan cuma admin."""
+    aset = Aset.query.get_or_404(aset_id)
+    return render_template("aset/pengecekan_form.html", aset=aset)
+
+
+@app.route("/aset/<int:aset_id>/pengecekan", methods=["POST"])
+@login_required
+def aset_pengecekan_submit(aset_id):
+    """Proses submit form Pengecekan: simpan 1 baris riwayat PengecekanAset
+    (status wajib dipilih, keterangan & foto opsional), catat ke histori
+    aset & aktivitas admin supaya muncul di History terpadu, lalu kembali
+    ke halaman Detail Aset (bukan ke daftar Pengecekan tersendiri, karena
+    fitur ini memang belum punya halaman daftar sendiri)."""
+    aset = Aset.query.get_or_404(aset_id)
+
+    status = request.form.get("status", "").strip()
+    if status not in ("Sudah Dicek", "Belum Dicek"):
+        flash("Pilih status pengecekan terlebih dahulu (Sudah Dicek / Belum Dicek).", "danger")
+        return redirect(url_for("aset_pengecekan_form", aset_id=aset.id))
+
+    keterangan = request.form.get("keterangan", "").strip()
+    foto, foto_error = save_upload(request.files.get("foto"), prefix="pengecekan_")
+
+    pengecekan = PengecekanAset(
+        id_aset=aset.id,
+        kode_aset_snapshot=aset.kode_aset,
+        nama_aset_snapshot=aset.nama,
+        status=status,
+        keterangan=keterangan or None,
+        foto=foto,
+        created_by=current_user.id,
+    )
+    db.session.add(pengecekan)
+    db.session.flush()  # dapatkan pengecekan.id sebelum dipakai di histori/log
+
+    db.session.add(HistoriAset(
+        id_aset=aset.id,
+        jenis_event="pengecekan",
+        gedung=aset.gedung,
+        lantai=aset.lantai,
+        ruangan=aset.ruangan,
+        id_tiket=None,
+        keterangan=f"Pengecekan aset: {status}" + (f" - {keterangan}" if keterangan else ""),
+    ))
+
+    catat_aktivitas(
+        aksi="CEK_ASET",
+        target_model="PengecekanAset",
+        target_id=pengecekan.id,
+        deskripsi=f"Pengecekan aset {aset.nama} ({aset.kode_aset}): {status}",
+        data_baru={"status": status, "keterangan": keterangan, "foto": foto},
+    )
+
+    db.session.commit()
+
+    if foto_error:
+        flash(f"Pengecekan berhasil dicatat, tetapi foto gagal diupload: {foto_error}", "warning")
+    else:
+        flash(f"Pengecekan aset {aset.nama} berhasil dicatat: {status}.", "success")
+    return redirect(url_for("pengecekan_detail", id=pengecekan.id))
+
+
+@app.route("/pengecekan/<int:id>")
+@login_required
+def pengecekan_detail(id):
+    """Halaman detail 1 riwayat Pengecekan (dibuka dari History) --
+    menampilkan aset terkait, status & sejak kapan berlaku, keterangan,
+    dan foto bukti (kalau ada)."""
+    pengecekan = PengecekanAset.query.get_or_404(id)
+    return render_template("pengecekan/detail.html", p=pengecekan)
 
 
 @app.route("/aset/delete-multiple", methods=["POST"])
@@ -2661,6 +2737,25 @@ def history_list():
                 "warna": "bg-emerald-100 text-emerald-700 border-emerald-200",
                 "is_tiket": False,
                 "is_maintenance": True,
+                "is_aktivitas": False,
+            })
+
+    # === 4. PENGECEKAN ASET ===
+    if filter_jenis in ["", "Pengecekan"]:
+        for p in PengecekanAset.query.order_by(PengecekanAset.created_at.desc()).all():
+            pelaku = p.user.name if p.user else "System"
+            nama_aset = p.aset.nama if p.aset else (p.nama_aset_snapshot or "-")
+            events.append({
+                "id": p.id,
+                "waktu": p.created_at,
+                "pelaku": pelaku,
+                "jenis": "Pengecekan",
+                "aksi": p.status,
+                "detail": f"{nama_aset}" + (f" - {p.keterangan}" if p.keterangan else ""),
+                "link": url_for("pengecekan_detail", id=p.id),
+                "warna": "bg-emerald-100 text-emerald-700 border-emerald-200" if p.status == "Sudah Dicek" else "bg-slate-100 text-slate-600 border-slate-200",
+                "is_tiket": False,
+                "is_maintenance": False,
                 "is_aktivitas": False,
             })
 

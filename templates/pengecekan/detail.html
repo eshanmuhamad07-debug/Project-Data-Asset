@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Detail Pengecekan — {{ p.nama_aset_snapshot or (p.aset.nama if p.aset else '-') }}{% endblock %}
+{% block header %}
+<a href="{{ url_for('history_list', filter='Pengecekan') }}"
+    class="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-600 text-xs font-medium mb-0.5">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+    </svg>
+    History
+</a>
+<div>Detail Pengecekan</div>
+{% endblock %}
+{% block subheader %}
+<p class="text-xs text-slate-400">{{ p.aset.nama if p.aset else (p.nama_aset_snapshot or '-') }} — dicatat
+    {{ p.created_at.strftime('%d %b %Y, %H:%M') if p.created_at else '-' }}</p>
+{% endblock %}
+
+{% block content %}
+
+<div class="max-w-2xl space-y-5">
+
+  <!-- Status Pengecekan -->
+  <div class="card p-5 sm:p-6">
+    <div class="flex items-start justify-between flex-wrap gap-3 mb-4">
+      <div>
+        <p class="text-xs text-slate-400 mb-1">🗓️ Dicatat pada</p>
+        <p class="font-display font-bold text-slate-800">
+          {{ p.created_at.strftime('%d %b %Y, %H:%M') if p.created_at else '-' }} WIB
+        </p>
+      </div>
+      <span class="pill text-sm {{ 'bg-emerald-50 text-emerald-700 border-emerald-200' if p.status == 'Sudah Dicek' else 'bg-slate-100 text-slate-600 border-slate-200' }}">
+        {{ '✅' if p.status == 'Sudah Dicek' else '🕒' }} {{ p.status }}
+      </span>
+    </div>
+
+    {% if p.status == 'Sudah Dicek' %}
+    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5">
+      <p class="text-sm text-emerald-700">
+        ✅ Sudah dicek sejak <strong>{{ p.created_at.strftime('%d %b %Y') if p.created_at else '-' }}</strong> —
+        aset ini akan ditandai hijau di Data Aset selama 1 tahun sejak tanggal tersebut
+        (kecuali dicek ulang lebih dulu).
+      </p>
+    </div>
+    {% else %}
+    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+      <p class="text-sm text-slate-600">
+        🕒 Tercatat <strong>Belum Dicek</strong> pada
+        {{ p.created_at.strftime('%d %b %Y') if p.created_at else '-' }}.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Aset Terkait -->
+  <div class="card p-5 sm:p-6">
+    <p class="text-xs font-semibold text-slate-500 mb-3">🗄️ Aset Terkait</p>
+    <p class="font-medium text-slate-700">{{ p.aset.nama if p.aset else (p.nama_aset_snapshot or '-') }}</p>
+    <p class="text-xs text-slate-400 font-mono mt-0.5">{{ p.aset.kode_aset if p.aset else (p.kode_aset_snapshot or '-') }}</p>
+    {% if p.aset and p.aset.gedung %}
+    <p class="text-xs text-slate-400 mt-1">
+      {{ (format_area_label(p.aset.area) ~ ' - ') if p.aset.area else '' }}{{ p.aset.gedung }}{{ (' / Lt. ' ~ p.aset.lantai) if p.aset.lantai else '' }} / {{ p.aset.ruangan }}
+    </p>
+    {% endif %}
+    {% if p.aset %}
+    <a href="{{ url_for('aset_list') }}" class="inline-flex items-center gap-1 text-xs font-semibold text-sky-600 hover:text-sky-700 mt-3">
+      Lihat di Data Aset
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+      </svg>
+    </a>
+    {% else %}
+    <p class="text-xs text-slate-400 italic mt-2">Aset ini sudah tidak ada di sistem.</p>
+    {% endif %}
+  </div>
+
+  <!-- Keterangan -->
+  {% if p.keterangan %}
+  <div class="card p-5 sm:p-6">
+    <p class="text-xs font-semibold text-slate-500 mb-2">📝 Keterangan</p>
+    <p class="text-sm text-slate-700 whitespace-pre-line">{{ p.keterangan }}</p>
+  </div>
+  {% endif %}
+
+  <!-- Foto Bukti -->
+  {% if p.foto %}
+  <div class="card p-5 sm:p-6">
+    <p class="text-xs font-semibold text-slate-500 mb-3">📷 Foto Bukti</p>
+    <a href="{{ url_for('static', filename='uploads/' + p.foto) }}" target="_blank" rel="noopener">
+      <img src="{{ url_for('static', filename='uploads/' + p.foto) }}" alt="Foto bukti pengecekan"
+        class="w-full max-w-md rounded-xl border border-slate-200 object-cover">
+    </a>
+  </div>
+  {% endif %}
+
+  <!-- Dicatat Oleh -->
+  {% if p.user %}
+  <div class="card p-5 sm:p-6">
+    <p class="text-xs font-semibold text-slate-500 mb-1">👤 Dicatat Oleh</p>
+    <p class="text-sm text-slate-700">{{ p.user.name }}</p>
+  </div>
+  {% endif %}
+
+</div>
+
+{% endblock %}
